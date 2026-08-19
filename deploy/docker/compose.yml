@@ -1,0 +1,44 @@
+name: authenticity
+
+include:
+  - services.compose.yml
+
+services:
+
+  backend:
+
+    container_name: authenticity_backend
+    image: authenticity_backend:${SYS_VERSION}
+    hostname: backend
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend/${BASE:-bin}.Dockerfile
+    restart: always
+    ports:
+      - ${API_PORT}:${API_PORT}
+    tty: true
+    environment:
+      - TZ=${TZ}
+    networks:
+      - authenticity_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  mailer:
+
+    container_name: authenticity_mailer
+    image: authenticity_mailer:${SYS_VERSION}
+    hostname: mailer
+    build:
+      context: ../..
+      dockerfile: deploy/docker/mailer/${BASE:-bin}.Dockerfile
+    restart: always
+    tty: true
+    environment:
+      - TZ=${TZ}
+    networks:
+      - authenticity_network
+    depends_on:
+      postgres:
+        condition: service_healthy

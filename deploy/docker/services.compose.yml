@@ -1,0 +1,113 @@
+name: authenticity
+
+volumes:
+
+  postgres_volume:
+    name: authenticity_pg_volume
+
+networks:
+
+  authenticity_network:
+    name: authenticity_network
+    driver: bridge
+
+services:
+
+  postgres:
+
+    container_name: authenticity_postgres
+    image: authenticity_postgres
+    hostname: postgres
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    restart: always
+    volumes:
+      - postgres_volume:/var/lib/postgresql/data
+    command: >
+      postgres
+      -p ${POSTGRES_PORT}
+      -c shared_preload_libraries='pg_cron'
+      -c cron.database_name='${POSTGRES_BASE}'
+    ports:
+      - ${POSTGRES_PORT}:${POSTGRES_PORT}
+    environment:
+      - TZ=${TZ}
+      - POSTGRES_DB=${POSTGRES_BASE}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASS}
+    healthcheck:
+      test: [ "CMD-SHELL", "sh -c 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_BASE} -p ${POSTGRES_PORT}'" ]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 1s
+      start_interval: 2s
+    networks:
+      - authenticity_network
+
+  # redis:
+  #   profiles: ["redis"]
+  #   container_name: authenticity_redis
+  #   hostname: redis
+  #   image: redis:8.4-alpine
+  #   restart: always
+  #   ports:
+  #     - ${CACHE_PORT}:${CACHE_PORT}
+  #   environment:
+  #     - TZ=${TZ}
+  #     - CACHE_PASS=${CACHE_PASS}
+  #   command: >
+  #     redis-server
+  #     --maxmemory 2gb
+  #     --maxmemory-policy allkeys-lru
+  #     --loglevel warning
+  #     --requirepass ${CACHE_PASS}
+  #     --port ${CACHE_PORT}
+  #     --bind 0.0.0.0
+  #   healthcheck:
+  #     test: [ "CMD-SHELL", "redis-cli -u redis://${CACHE_PASS}@localhost:${CACHE_PORT} ping" ]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 5
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 2.5G
+  #   networks:
+  #     authenticity_network:
+  #       aliases:
+  #         - cache
+
+  # valkey:
+  #   profiles: ["valkey"]
+  #   container_name: authenticity_valkey
+  #   hostname: valkey
+  #   image: valkey/valkey:8-alpine
+  #   restart: always
+  #   ports:
+  #     - ${CACHE_PORT}:${CACHE_PORT}
+  #   environment:
+  #     - TZ=${TZ}
+  #     - CACHE_PASS=${CACHE_PASS}
+  #   command: >
+  #     valkey-server
+  #     --maxmemory 2gb
+  #     --maxmemory-policy allkeys-lru
+  #     --loglevel warning
+  #     --requirepass ${CACHE_PASS}
+  #     --port ${CACHE_PORT}
+  #     --bind 0.0.0.0
+  #   healthcheck:
+  #     test: [ "CMD-SHELL", "valkey-cli -u redis://${CACHE_PASS}@localhost:${CACHE_PORT} ping" ]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 5
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 2.5G
+  #   networks:
+  #     authenticity_network:
+  #       aliases:
+  #         - cache

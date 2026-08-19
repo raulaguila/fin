@@ -1,0 +1,22 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Backend API in hexagonal structure.",
+        "title": "Authenticity Golang API",
+        "contact": {
+            "name": "Raul del Aguila",
+            "url": "https://github.com/raulaguila",
+            "email": "admin@admin.com"
+        }
+    },
+    "basePath": "/v1",
+    "paths": {},
+    "securityDefinitions": {
+        "Bearer": {
+            "description": "Type \"Bearer\" followed by a space and the JWT token.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

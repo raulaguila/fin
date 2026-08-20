@@ -16,7 +16,7 @@ func initLogger(cfg *config.Environment) *logger.Logger {
 		Level:      cfg.Log.Level,
 		Format:     cfg.Log.Format,
 		TimeFormat: time.DateTime,
-		Fields:     map[string]any{"version": cfg.Version, "service": "backend"},
+		Fields:     map[string]any{"version": cfg.Version, "service": "mailer"},
 	})
 }
 

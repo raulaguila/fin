@@ -76,26 +76,21 @@ type CacheConfig struct {
 	Password     string        `env:"CACHE_PASS" default:""`
 	DB           int           `env:"CACHE_DB" default:"0"`
 	TTL          time.Duration `env:"CACHE_TTL" default:"10m"`
-	DashboardTTL time.Duration `env:"DASHBOARD_CACHE_TTL" default:"30s"`
 }
 
 type SMTPConfig struct {
-	// MasterKey (SMTP_MASTER_KEY) is the KEK that wraps every per-platform DEK
-	// stored in sys_platform_smtp.encrypted_dek. 64 hex chars = AES-256.
-	// Regenerating the KEK makes every stored SMTP password unreadable — rotate
-	// only via a re-wrap job (see docs/project/smtp-multitenancy.md phase 7).
+	// MasterKey (SMTP_MASTER_KEY) is the KEK that wraps SMTP data-encryption
+	// keys at rest. 64 hex chars = AES-256. Regenerating the KEK makes stored
+	// SMTP passwords unreadable — rotate only via a re-wrap job.
 	MasterKey string `env:"SMTP_MASTER_KEY" default:""`
 
-	// CredentialKey is the deprecated alias of MasterKey kept for one release.
+	// CredentialKey is a deprecated alias of MasterKey kept for one release.
 	// If set and MasterKey is empty, CredentialKey is used. Emits a deprecation
-	// warning at boot. Remove in the release following the SMTP multi-tenancy
-	// rollout.
+	// warning at boot.
 	CredentialKey string `env:"SMTP_CREDENTIAL_KEY" default:""`
 
-	// The fields below are retained until Phase 2/3 of the SMTP multi-tenancy
-	// plan relocate SMTP configuration entirely into sys_platform_smtp. After
-	// that, they are stripped from the struct and env.sh. See
-	// docs/project/smtp-multitenancy.md.
+	// Env-level SMTP settings used until credentials live fully in encrypted
+	// storage. After that, they are stripped from the struct and env.sh.
 	Enabled  bool              `env:"SMTP_ENABLED" default:"false"`
 	Host     string            `env:"SMTP_HOST" default:""`
 	Port     int               `env:"SMTP_PORT" default:"587"`

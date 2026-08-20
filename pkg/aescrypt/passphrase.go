@@ -14,9 +14,9 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 )
 
-// Defaults for the passphrase-protected export bundle used by POST
-// /platform/smtp/export and /import. Parameters are embedded in every
-// bundle so future tweaks stay backward compatible.
+// Defaults for the passphrase-protected export bundle used to export and
+// import SMTP configuration. Parameters are embedded in every bundle so
+// future tweaks stay backward compatible.
 const (
 	bundleVersion          = 1
 	bundlePBKDF2Iterations = 100_000
@@ -24,8 +24,8 @@ const (
 )
 
 // PassphraseBundle is the wire format for exported SMTP configurations. The
-// JSON tags are stable — consumers (CLI tools, future phase-7 KEK rotation,
-// other deployments) rely on this shape.
+// JSON tags are stable — consumers (CLI tools, KEK rotation, other
+// deployments) rely on this shape.
 type PassphraseBundle struct {
 	Version    int    `json:"version"`
 	Salt       string `json:"salt"`       // hex-encoded

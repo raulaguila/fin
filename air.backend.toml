@@ -12,11 +12,11 @@ pre_cmd = ["mkdir -p ./tmp/dev-backend/bin ./tmp/dev-backend/gocache ./tmp/dev-b
 cmd = "GOCACHE=$(pwd)/tmp/dev-backend/gocache GOTMPDIR=$(pwd)/tmp/dev-backend/gotmp go build -o ./tmp/dev-backend/bin/backend ./cmd/backend/main.go"
 entrypoint = ["./tmp/dev-backend/bin/backend"]
 
-include_dir = ["cmd/backend", "config", "internal", "pkg", "build/db/migrations"]
+include_dir = ["cmd/backend", "config", "internal", "pkg", "deploy/db/migrations"]
 include_ext = ["go", "tpl", "tmpl", "html", "yaml", "yml", "sql", "toml"]
-include_file = ["go.mod", "go.sum", "air.toml", "air.backend.toml", "config/.env"]
+include_file = ["go.mod", "go.sum", "air.backend.toml", "config/.env"]
 
-exclude_dir = ["tmp", "bin", "docs", "build/docker", "api"]
+exclude_dir = ["tmp", "bin", "deploy/docker", "api"]
 exclude_regex = ["_test\\.go$"]
 exclude_unchanged = true
 

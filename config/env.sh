@@ -3,10 +3,9 @@
 release_version=$(cat config/version.txt | tr -d "[:space:]")
 access_token=$(openssl genrsa 2048 | base64 | tr -d \\n)
 refresh_token=$(openssl genrsa 2048 | base64 | tr -d \\n)
-# 32 bytes (AES-256) as 64-char hex. Master KEK that wraps every per-platform
-# DEK stored in sys_platform_smtp.encrypted_dek. Regenerating this key on an
-# existing DB makes every stored SMTP password unreadable — rotate only via a
-# re-wrap job.
+# 32 bytes (AES-256) as 64-char hex. Master KEK that wraps SMTP data-encryption
+# keys at rest. Regenerating this key on an existing DB makes stored SMTP
+# passwords unreadable — rotate only via a re-wrap job.
 smtp_master_key=$(openssl rand -hex 32)
 
 echo "TZ='America/Manaus'                             # Set system time zone
@@ -40,7 +39,7 @@ CACHE_PASS='root'                               # Cache PASS
 CACHE_DB='0'                                    # Cache DB
 CACHE_TTL='10m'                                 # Cache TTL
 
-SMTP_MASTER_KEY='${smtp_master_key}'            # AES-256 KEK (64 hex chars) wrapping per-platform DEKs in sys_platform_smtp.encrypted_dek — regenerate invalidates stored passwords
+SMTP_MASTER_KEY='${smtp_master_key}'            # AES-256 KEK (64 hex chars) wrapping SMTP DEKs at rest — regenerate invalidates stored passwords
 
 REGISTRATION_TOKEN_TTL='24h'                      # Registration token time-to-live
 PASSWORD_RESET_TOKEN_TTL='2h'                   # Password reset token time-to-live

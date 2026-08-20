@@ -285,7 +285,6 @@ benchmark: ## Benchmark code performance
 
 swag: ## Update swagger files
 	@echo "$(BLUE)📄 Updating Swagger API documentation...$(RESET)"
-# 	@$(SWAG_BIN) init -g main.go -d cmd/backend,internal/adapter/inbound/http/rest -o api/ --parseDependency --parseInternal > /dev/null
 	@$(SWAG_BIN) init -g cmd/backend/main.go -o api/ --parseDependency --parseInternal > /dev/null
 	@echo "$(GREEN)✅ Swagger files updated successfully.$(RESET)"
 	@echo
@@ -316,8 +315,8 @@ build: build-admin build-backend build-mailer ## Build all applications from sou
 zip: build ## Build the application and zip it
 	@echo "$(BLUE)📦 Zipping application...$(RESET)"
 	@rm -f $(PROJECT_ZIP_NAME)
-	@files="bin README.md Makefile config/env.sh config/version.txt config/locales"; \
-	if [ -d build ]; then files="$$files build"; fi; \
+	@files="bin Makefile config/env.sh config/version.txt config/locales"; \
+	if [ -d deploy ]; then files="$$files deploy"; fi; \
 	zip -qr $(PROJECT_ZIP_NAME) $$files
 	@echo "$(GREEN)✅ Zipped successfully!$(RESET)"
 	@echo

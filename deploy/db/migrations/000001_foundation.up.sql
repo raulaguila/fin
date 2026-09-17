@@ -7,7 +7,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE SCHEMA IF NOT EXISTS usr;
 
 COMMENT ON SCHEMA usr IS
-  'Identity: users, credentials, sessions, tokens, login attempts, roles, permission catalog';
+  'Identity: users, credentials, sessions, tokens, login attempts, roles, resource catalog, permissions';
 
 CREATE OR REPLACE FUNCTION public.fn_set_updated_at()
 RETURNS trigger

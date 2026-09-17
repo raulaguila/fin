@@ -1,6 +1,6 @@
 # Conventions
 
-Regras do SQL, da config e de `pkg`. Aplicar ao implementar HTTP e domínio.
+Regras do SQL, da config e de `pkg`. Aplicar ao implementar HTTP e domínio. RBAC: ADR-004.
 
 ## Segredos
 
@@ -14,8 +14,14 @@ Regras do SQL, da config e de `pkg`. Aplicar ao implementar HTTP e domínio.
 - `usr_login_attempt` também para e-mail inexistente.
 - Reuse de refresh revoga (`token_reuse`).
 - Papel `is_default` no activate; um default no banco.
-- `*` não está no catálogo; a view não expande; a aplicação trata.
-- `users:write` reservado, fora da v1.
+- Authz: `is_superuser` **ou** effective `resource='*'`; senão `Allows(have, need)` por resource. View não expande `*`.
+- Access JWT sem mapa de permissões; load ao vivo (view → cache Valkey/Redis).
+- Actions CRUD: `create`, `read`, `update`, `delete`. Resources dinâmicos via `usr_resource`.
+- Grants granulares (incl. mutação em `users`) via API com superuser/`*`.
+
+## E-mail
+
+- Register/reset gravam `sys.outbox` (`pending`); `cmd/mailer` consome e envia SMTP.
 
 ## Tempo e erros
 

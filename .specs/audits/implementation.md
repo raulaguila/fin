@@ -9,7 +9,9 @@
 | Sessão / refresh reuse | — | tabelas e CHECKs |
 | Tokens SMTP | — | `usr_token` |
 | Mailer | bootstrap só | SMTP env + aescrypt |
-| Cache | `enableCache` ignorado | Valkey/Redis comentados no compose |
+| Cache | `enableCache` ignorado | Valkey/Redis obrigatório na v1 (compose ainda comentado) |
+| Outbox / products | — | `sys.outbox`, `app.product` (000004) |
+| RBAC | — | B+C, CRUD, `is_superuser` (ADR-004) |
 | Admin CLI | `main` vazio | — |
 | Locales | embed declarado | pasta precisa existir para o build |
 | Docker `BASE` | default `bin` no Makefile | arquivos são `built.Dockerfile` e `source.Dockerfile` |

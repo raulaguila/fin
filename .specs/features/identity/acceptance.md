@@ -9,6 +9,7 @@ Critérios derivados do schema. Falham hoje porque não há aplicação.
 - Dois tokens `activation` unused para o mesmo user são impossíveis (índice único parcial).
 - `failure_kind` não aparece no JSON de erro.
 - Papel `user` é o único default; activate associa esse papel.
-- `admin` tem `*`; a view pode devolver `*`; autorização trata como todas as permissões do catálogo.
+- `admin` tem `is_superuser` e `*`; a view pode devolver `*`; autorização trata superuser/`*` como todas as permissões.
 - DELETE de role com usuários vinculados falha.
 - Quinta tentativa inválida no mesmo token SMTP marca `used_at`.
+- Access JWT não carrega mapa de permissões; authz é ao vivo.

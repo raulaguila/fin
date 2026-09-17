@@ -1,13 +1,14 @@
 # Schema
 
-Fonte: `deploy/db/migrations`. Schema `usr` = identidade. `public` guarda extensões e `fn_set_updated_at`. Clock de negócio na aplicação; o trigger só preenche `updated_at`.
+Fonte: `deploy/db/migrations`. Schema `usr` = identidade; `sys` = outbox; `app` = products. `public` guarda extensões e `fn_set_updated_at`. Clock de negócio na aplicação; o trigger só preenche `updated_at`. Volume local antigo: `make migrate-reset`.
 
 ## Ordem
 
 ```text
-000001_foundation   # citext, pgcrypto, schema usr, fn_set_updated_at
-000002_tables       # tabelas, view, seed de usr_user_status
-000003_seed_rbac    # catálogo, papéis user e admin
+000001_foundation                # citext, pgcrypto, schema usr, fn_set_updated_at
+000002_tables                    # tabelas usr, usr_resource, view, seed usr_user_status
+000003_seed_rbac                 # catalogo resources; papeis user/admin; admin is_superuser + *
+000004_sys_outbox_app_products   # schema sys (outbox) + app (product)
 ```
 
 ## Status (`usr_user_status`)
@@ -20,7 +21,7 @@ Fonte: `deploy/db/migrations`. Schema `usr` = identidade. `public` guarda extens
 - `locked` — lockout (`locked_until` na credencial)
 - `disabled` — operador
 
-## Tabelas
+## Tabelas `usr`
 
 - `usr_user`: e-mail `CITEXT` único; `status` FK; nome 2–80 chars.
 - `usr_credential`: 1:1; Argon2id; NULL até activate; `failed_login_attempts` >= 0.
@@ -28,12 +29,22 @@ Fonte: `deploy/db/migrations`. Schema `usr` = identidade. `public` guarda extens
 - `usr_token`: `activation` | `password_reset`; SHA-256; um ativo por user+purpose; 5ª recusa marca `used_at`.
 - `usr_login_attempt`: append-only, inclusive e-mail inexistente; sem FK de user.
 
-## RBAC
+## RBAC (ADR-004)
 
-- Catálogo `usr_permission`; `*` não é linha.
-- `usr_role`: nome `^[a-z0-9_-]{2,40}$`; no máximo um `is_default`.
-- `usr_role_permission` sem FK para o catálogo (admin guarda `*`).
+- Catálogo `usr_resource` (códigos seed: `users`, `roles`, `permissions`, `products`). Sem tabela `usr_permission`.
+- Uma linha `(role_id, resource)` com `actions INT4`. Sem FK de `resource` (permite `*`); API valida contra o catálogo ou `*`.
+- Bits CRUD: `create=1`, `read=2`, `update=4`, `delete=8` (4–30 livres). `CHECK (actions >= 0)`.
+- `resource` é tipo do catálogo ou sentinela `*`. Não é UUID de instância.
+- `usr_role`: nome `^[a-z0-9_-]{2,40}$`; no máximo um `is_default`; `is_superuser` (bypass no Go).
 - `usr_user_role`: DELETE de role com users falha (`RESTRICT`).
-- `vw_user_effective_permissions`: papéis `enabled`; não expande `*`.
+- `vw_user_effective_permissions`: `bit_or(actions)` por user+resource nos papéis `enabled`; não expande `*`. Superuser fora da view (`EXISTS` no Go).
 
-Seed: `users:read`, `users:write` (fora da v1), `roles:read`, `roles:write`, `roles:assign`, `permissions:read`. Papel `user` (default, zero perms). Papel `admin` com `*`.
+Seed: papel `user` (default, zero linhas, `is_superuser=false`). Papel `admin` com `is_superuser=true` e `resource='*'` / `actions=0x7FFFFFFF`. Grants granulares via API.
+
+## Schema `sys`
+
+- `sys.outbox`: eventos de e-mail (`purpose` activation|password_reset; `status` pending|processing|sent|failed; `payload` JSONB). Backend INSERT; mailer consome com `SKIP LOCKED`. Índice parcial em `pending`.
+
+## Schema `app`
+
+- `app.product`: exemplo CRUD (`name`, `price`, `enabled`) para exercitar resource `products`.

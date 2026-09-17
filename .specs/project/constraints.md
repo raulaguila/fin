@@ -14,6 +14,7 @@ Derivado de `config/validate.go`, CHECKs SQL e comentários de tabela.
 
 - `AUTH_MAX_FAILED_LOGIN_ATTEMPTS` e `AUTH_ACCOUNT_LOCK_DURATION` > 0
 - `CACHE_PROVIDER`: `redis` ou `valkey`
+- Cache obrigatório na v1 (effective permissions e demais usos de `infra.New`)
 
 ## Segredos
 
@@ -25,5 +26,6 @@ Derivado de `config/validate.go`, CHECKs SQL e comentários de tabela.
 
 - Só `usr_user_status.is_login_allowed` autoriza login (hoje: `active`)
 - HTTP não ecoa `failure_kind`
-- `users:write` no catálogo, reservado; mutação admin de perfil fora da v1
-- Sentinel `*` do admin não é linha de `usr_permission`
+- Authz: `is_superuser` ou `resource='*'`; bits CRUD; catálogo `usr_resource`
+- Sentinela `*` não é linha de `usr_resource`
+- Módulo exemplo `products` no schema `app`; sem multi-tenant SMTP / dashboard hexago na v1

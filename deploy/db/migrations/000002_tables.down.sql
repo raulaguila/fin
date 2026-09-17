@@ -2,7 +2,7 @@ DROP VIEW IF EXISTS usr.vw_user_effective_permissions;
 DROP TABLE IF EXISTS usr.usr_user_role;
 DROP TABLE IF EXISTS usr.usr_role_permission;
 DROP TABLE IF EXISTS usr.usr_role;
-DROP TABLE IF EXISTS usr.usr_permission;
+DROP TABLE IF EXISTS usr.usr_resource;
 DROP TABLE IF EXISTS usr.usr_login_attempt;
 DROP TABLE IF EXISTS usr.usr_token;
 DROP TABLE IF EXISTS usr.usr_session;

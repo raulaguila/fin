@@ -1,5 +1,6 @@
 -- 000002_tables
--- Dez tabelas + view + seed de usr_user_status. Sem users, sem papéis.
+-- Tabelas usr + catalogo usr_resource + view. Seed so de usr_user_status.
+-- Papeis: 000003. Outbox/products: 000004.
 
 -- ---------------------------------------------------------------------------
 -- Lookup de status (precisa existir antes de usr_user)
@@ -160,20 +161,33 @@ CREATE INDEX idx_usr_login_attempt_ip_created ON usr.usr_login_attempt (ip_addre
 CREATE INDEX idx_usr_login_attempt_created ON usr.usr_login_attempt (created_at);
 
 -- ---------------------------------------------------------------------------
--- RBAC: catalogo + role + joins (sem TEXT[] na role)
+-- RBAC B+C: catalogo usr_resource + role + (resource x actions INT4).
+-- Sem FK de resource (permite sentinela *); API so aceita catalogo ou *.
+--
+-- Action bits CRUD (INT4, CHECK >= 0; bit 31 e o sinal, nao usar):
+--   1 << 0  create  = 1
+--   1 << 1  read    = 2
+--   1 << 2  update  = 4
+--   1 << 3  delete  = 8
+-- Bits 4-30 livres. Nao reutilizar indice.
+-- resource='*' e sentinela; a view nao expande; a aplicacao aplica.
+-- is_superuser: bypass no Go (EXISTS role enabled); fora da view.
 -- ---------------------------------------------------------------------------
-CREATE TABLE usr.usr_permission (
-    code        TEXT PRIMARY KEY,
-    description TEXT NOT NULL DEFAULT ''
+CREATE TABLE usr.usr_resource (
+    code         VARCHAR(100) PRIMARY KEY,
+    description  TEXT         NOT NULL DEFAULT '',
+    created_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    CONSTRAINT chk_usr_resource_code CHECK (code ~ '^[a-z0-9_-]{2,100}$')
 );
 
 CREATE TABLE usr.usr_role (
-    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    name       TEXT        NOT NULL,
-    enabled    BOOLEAN     NOT NULL DEFAULT true,
-    is_default BOOLEAN     NOT NULL DEFAULT false,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    name          TEXT        NOT NULL,
+    enabled       BOOLEAN     NOT NULL DEFAULT true,
+    is_default    BOOLEAN     NOT NULL DEFAULT false,
+    is_superuser  BOOLEAN     NOT NULL DEFAULT false,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT chk_usr_role_name CHECK (name ~ '^[a-z0-9_-]{2,40}$')
 );
 
@@ -181,12 +195,20 @@ CREATE UNIQUE INDEX uni_usr_role_name ON usr.usr_role (name);
 CREATE UNIQUE INDEX uni_usr_role_one_default ON usr.usr_role (is_default) WHERE is_default;
 
 CREATE TABLE usr.usr_role_permission (
-    role_id          UUID NOT NULL,
-    permission_code  TEXT NOT NULL,
-    PRIMARY KEY (role_id, permission_code),
-    CONSTRAINT fk_usr_role_permission_role FOREIGN KEY (role_id) REFERENCES usr.usr_role (id) ON DELETE CASCADE
-    -- sem FK para usr_permission: o sentinel '*' do admin nao e linha do catalogo
+    role_id   UUID         NOT NULL,
+    resource  VARCHAR(100) NOT NULL,
+    actions   INT          NOT NULL,
+    CONSTRAINT pk_usr_role_permission PRIMARY KEY (role_id, resource),
+    CONSTRAINT fk_usr_role_permission_role
+        FOREIGN KEY (role_id) REFERENCES usr.usr_role (id) ON DELETE CASCADE,
+    CONSTRAINT chk_usr_role_permission_resource
+        CHECK (resource = '*' OR resource ~ '^[a-z0-9_-]{2,100}$'),
+    CONSTRAINT chk_usr_role_permission_actions
+        CHECK (actions >= 0)
 );
+
+CREATE INDEX idx_usr_role_permission_resource
+    ON usr.usr_role_permission (resource);
 
 CREATE TABLE usr.usr_user_role (
     user_id    UUID        NOT NULL,
@@ -200,22 +222,20 @@ CREATE TABLE usr.usr_user_role (
 CREATE INDEX idx_usr_user_role_role_id ON usr.usr_user_role (role_id);
 
 -- ---------------------------------------------------------------------------
--- View: uniao das permissoes dos papeis enabled (nao expande '*')
+-- View: OR das actions por resource nos papeis enabled (nao expande '*')
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW usr.vw_user_effective_permissions AS
 SELECT
     ur.user_id,
-    rp.permission_code,
-    r.id   AS role_id,
-    r.name AS role_name
+    rp.resource,
+    bit_or(rp.actions) AS actions
 FROM usr.usr_user_role ur
 JOIN usr.usr_role r
   ON r.id = ur.role_id
  AND r.enabled = true
 JOIN usr.usr_role_permission rp
   ON rp.role_id = r.id
-JOIN usr.usr_user u
-  ON u.id = ur.user_id;
+GROUP BY ur.user_id, rp.resource;
 
 -- ---------------------------------------------------------------------------
 -- updated_at
@@ -287,20 +307,27 @@ COMMENT ON TABLE usr.usr_login_attempt IS
 COMMENT ON COLUMN usr.usr_login_attempt.failure_kind IS
   'Interno. O HTTP nao ecoa este valor (invalid_credentials / account_locked).';
 
-COMMENT ON TABLE usr.usr_permission IS
-  'Catalogo de permissoes. O sentinel * nao e linha. Nao confundir com usr_role_permission (join).';
+COMMENT ON TABLE usr.usr_resource IS
+  'Catalogo de nomes de resource (B+C). * nao entra. API lista daqui.';
+COMMENT ON COLUMN usr.usr_resource.code IS
+  'Tipo (users, roles, permissions, products). Nao e UUID de instancia.';
+
 COMMENT ON TABLE usr.usr_role IS
-  'Papel. Permissoes vivem em usr_role_permission, nao em TEXT[].';
+  'Papel. Permissoes vivem em usr_role_permission (resource x actions), nao em TEXT[].';
 COMMENT ON COLUMN usr.usr_role.is_default IS
   'No maximo um true (indice parcial). Associado no activate.';
+COMMENT ON COLUMN usr.usr_role.is_superuser IS
+  'Bypass de autorizacao no Go. Seed admin=true. Nao entra na view de permissions.';
 
 COMMENT ON TABLE usr.usr_role_permission IS
-  'N:N role x permissao. Sem FK para o catalogo porque admin guarda *.';
-COMMENT ON COLUMN usr.usr_role_permission.permission_code IS
-  'Codigo do catalogo ou * (so o seed admin). Sem FK para usr_permission.';
+  'Uma mascara INT4 por resource no papel. Catalogo em usr_resource; * e sentinela.';
+COMMENT ON COLUMN usr.usr_role_permission.resource IS
+  'Codigo do catalogo ou * (grant-all). Sem FK (permite *). Nao e UUID de instancia.';
+COMMENT ON COLUMN usr.usr_role_permission.actions IS
+  'Bits CRUD: create=1 read=2 update=4 delete=8. CHECK >= 0.';
 
 COMMENT ON TABLE usr.usr_user_role IS
   'N:N user x role. DELETE de role com users falha (ON DELETE RESTRICT).';
 
 COMMENT ON VIEW usr.vw_user_effective_permissions IS
-  'Uniao das permissoes dos papeis enabled. Nao expande *. Aplicacao aplica o sentinela.';
+  'bit_or(actions) por user+resource nos papeis enabled. Nao expande *. Superuser fora da view.';

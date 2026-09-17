@@ -16,4 +16,4 @@ pkg/{logger,apperror,aescrypt,smtpsecurity,pointer}
 
 ## Quando HTTP e domínio entrarem
 
-Ver `layers.md` e `dependency-rules.md`. Fiber e JWT já estão previstos na config; Fiber ainda não está em `go.mod`.
+Ver `layers.md` e `dependency-rules.md`. Fiber e JWT já estão previstos na config; Fiber ainda não está em `go.mod`. RBAC fechado em **ADR-004** (B+C, CRUD, authz ao vivo + cache). Outbox em `sys.outbox`; módulo exemplo `app.product`.

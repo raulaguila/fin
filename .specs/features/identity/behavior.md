@@ -4,7 +4,7 @@ Comportamento implícito nos CHECKs e COMMENT ON. Sem HTTP até o adapter existi
 
 ## Ciclo da conta
 
-1. Cadastro cria `usr_user` `pending` + `usr_credential` sem hash + `usr_token` `activation`.
+1. Cadastro cria `usr_user` `pending` + `usr_credential` sem hash + `usr_token` `activation` + `sys.outbox` `pending` (quando mailer ligado).
 2. Activate válido: hash Argon2id, status `active`, papel default, token `used_at`.
 3. Token de ativação expira sem uso: status `expired`.
 4. Senha errada incrementa `failed_login_attempts`; no limite, `locked_until` e status `locked`.

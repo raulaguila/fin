@@ -1,16 +1,18 @@
 # Gaps
 
-Ordem sugerida para fechar o esqueleto. Detalhe em `tasks/backlog.md` e `features/identity/`.
+Ordem sugerida para fechar o esqueleto. Detalhe em `tasks/backlog.md` e `features/`.
 
 1. Ligar Fiber em `cmd/backend` (dependência + listen + shutdown) sem domínio ainda, ou já com health.
-2. Criar `internal/core` (domain, ports, usecase) para identidade alinhado ao schema `usr`.
-3. Repositórios Postgres para user, credential, session, token, login_attempt, RBAC.
-4. Fluxos: register → token activation → activate (senha + papel default) → login → refresh com rotação → logout.
-5. Password reset via `usr_token`.
-6. Mailer consumindo outbox ou fila (ainda não há tabela de outbox neste repo).
-7. Cache real (`infra.New` / compose).
-8. `cmd/admin` bootstrap do primeiro admin.
-9. Corrigir default Docker `BASE=bin` vs `built.Dockerfile`.
-10. Swagger preenchido a partir dos handlers, não o contrário.
+2. Cache Valkey/Redis no compose e `infra.New` (obrigatório na v1; effective permissions).
+3. Criar `internal/core` (domain, ports, usecase) para identidade alinhado ao schema `usr`.
+4. Repositórios Postgres: user, credential, session, token, login_attempt, RBAC, outbox, product.
+5. Port `Authorize` (superuser / `*` / `Allows` CRUD) com cache por `user_id`.
+6. Fluxos: register → outbox activation → activate (senha + papel default) → login → refresh com rotação → logout.
+7. Password reset via `usr_token` + outbox.
+8. Mailer consumindo `sys.outbox` (`SKIP LOCKED` + SMTP).
+9. API roles/resources/permissions + CRUD `products` (exemplo RBAC).
+10. `cmd/admin` bootstrap do primeiro admin.
+11. Corrigir default Docker `BASE=bin` vs `built.Dockerfile`.
+12. Swagger preenchido a partir dos handlers, não o contrário.
 
-Não copiar catálogo/dashboard/multi-tenant SMTP do hexago sem decisão explícita.
+Não copiar multi-tenant SMTP nem dashboard do hexago. Products é o único módulo de domínio exemplo na v1.

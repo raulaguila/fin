@@ -1,6 +1,6 @@
 module github.com/raulaguila/authenticity
 
-go 1.26.5
+go 1.26.0
 
 require (
 	github.com/godeh/dotenvgo v0.6.0

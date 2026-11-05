@@ -5,22 +5,22 @@ include:
 
 services:
 
-  migrate:
+  # migrate:
 
-    container_name: authenticity_migrate
-    image: migrate/migrate:v4.18.3
-    restart: "no"
-    volumes:
-      - ../db/migrations:/migrations:ro
-    command: >
-      -path /migrations
-      -database postgres://${POSTGRES_USER}:${POSTGRES_PASS}@postgres:${POSTGRES_PORT}/${POSTGRES_BASE}?sslmode=disable
-      up
-    networks:
-      - authenticity_network
-    depends_on:
-      postgres:
-        condition: service_healthy
+  #   container_name: authenticity_migrate
+  #   image: migrate/migrate:v4.18.3
+  #   restart: "no"
+  #   volumes:
+  #     - ../db/migrations:/migrations:ro
+  #   command: >
+  #     -path /migrations
+  #     -database postgres://${POSTGRES_USER}:${POSTGRES_PASS}@postgres:${POSTGRES_PORT}/${POSTGRES_BASE}?sslmode=disable
+  #     up
+  #   networks:
+  #     - authenticity_network
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
 
   backend:
 
@@ -47,9 +47,9 @@ services:
     networks:
       - authenticity_network
     depends_on:
-      migrate:
-        condition: service_completed_successfully
-      valkey:
+      # migrate:
+      #   condition: service_completed_successfully
+      postgres:
         condition: service_healthy
 
   mailer:
@@ -75,5 +75,7 @@ services:
     networks:
       - authenticity_network
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    #   migrate:
+    #     condition: service_completed_successfully

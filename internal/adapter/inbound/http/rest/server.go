@@ -41,7 +41,7 @@ func serverConfig(api config.APIConfig) fiber.Config {
 
 // ListenConfig returns the startup options of Listen.
 func ListenConfig(api config.APIConfig) fiber.ListenConfig {
-	return fiber.ListenConfig{EnablePrefork: api.EnablePrefork, DisableStartupMessage: true}
+	return fiber.ListenConfig{EnablePrefork: api.EnablePrefork, DisableStartupMessage: false}
 }
 
 func splitList(list string) []string {

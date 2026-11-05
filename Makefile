@@ -374,7 +374,7 @@ compose-build: ## Build, create and start containers
 	@echo "$(BLUE)🚢 Building and starting Docker containers...$(RESET)"
 	$(call require_env_file)
 	@$(COMPOSE_COMMAND) up -d --build
-	@echo "$(GREEN)✅ Containers are up and running!$(RESET)""
+	@echo "$(GREEN)✅ Containers are up and running!$(RESET)"
 	@echo
 	@$(clean_dangling_images)
 

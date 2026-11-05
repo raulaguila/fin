@@ -9,7 +9,10 @@ Critérios derivados do schema e dos fluxos `/v1/auth/*`. Cobertura: testes de i
 - Dois refresh simultâneos: um vence, o outro recebe `409` sem token e sem revogar. Após 10 s, o token anterior conta como reuse.
 - Conta bloqueada mantém sessão aberta: refresh segue valendo. Só novo login é recusado.
 - Bloqueio responde `INVALID_CREDENTIALS`, igual a conta inexistente.
-- Novo e-mail de ativação ou reset para a mesma conta respeita `AUTH_EMAIL_TOKEN_COOLDOWN`, com a mesma resposta HTTP.
+- Novo e-mail de ativação ou reset para a mesma conta respeita `AUTH_EMAIL_TOKEN_COOLDOWN` e `AUTH_EMAIL_TOKEN_HOURLY_MAX`, com a mesma resposta HTTP; acima do teto o link vivo continua válido.
+- Um cliente que erra a senha 5 vezes é recusado só para aquela conta; o dono em outro IP continua entrando.
+- Logins paralelos não ultrapassam limite: 30 simultâneos no mesmo par dão 5 `INVALID_CREDENTIALS` e 25 `TOO_MANY_REQUESTS`.
+- E-mail acima de 254 bytes ou com NUL é recusado no cadastro e não gera erro 500 no login.
 - `admin disable` revoga as sessões: access token para na requisição seguinte.
 - Cadastro `pending`/`expired` sem token vivo sai da limpeza após 30 dias.
 - Dois tokens `activation` unused para o mesmo user são impossíveis (índice único parcial).

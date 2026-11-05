@@ -13,6 +13,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/core/usecase/health"
 	"github.com/raulaguila/authenticity/internal/core/usecase/product"
 	"github.com/raulaguila/authenticity/internal/infra"
+	"github.com/raulaguila/authenticity/pkg/logger"
 )
 
 // NewAdmin wires the operator use cases of cmd/admin.
@@ -22,7 +23,7 @@ func NewAdmin(cfg *config.Environment, res *infra.Resources) *admin.Service {
 }
 
 // NewApplication wires concrete adapters into use cases / inbound ports.
-func NewApplication(cfg *config.Environment, res *infra.Resources) *Application {
+func NewApplication(cfg *config.Environment, res *infra.Resources, log *logger.Logger) *Application {
 	pgHealth := postgres.NewHealthChecker(res.PostgresDB)
 
 	var cachePinger output.Pinger
@@ -50,13 +51,21 @@ func NewApplication(cfg *config.Environment, res *infra.Resources) *Application 
 		AllowManualTokenDelivery:     cfg.Auth.AllowManualTokenDelivery,
 		LoginAttemptEmailWindow:      cfg.Auth.LoginAttemptEmailWindow,
 		LoginAttemptEmailMaxFailures: cfg.Auth.LoginAttemptEmailMaxFailures,
+		LoginAttemptPairMaxFailures:  cfg.Auth.LoginAttemptPairMaxFailures,
 		LoginAttemptIPWindow:         cfg.Auth.LoginAttemptIPWindow,
 		LoginAttemptIPMaxFailures:    cfg.Auth.LoginAttemptIPMaxFailures,
 		EmailTokenCooldown:           cfg.Auth.EmailTokenCooldown,
+		EmailTokenHourlyMax:          cfg.Auth.EmailTokenHourlyMax,
 		OutboxKey:                    cfg.SMTP.TokenKey(),
 	}, authz)
 
+	var rates output.RateCounter
+	if res.Cache != nil {
+		rates = res.Cache.RateCounter(log)
+	}
+
 	return &Application{
+		Rates:      rates,
 		Health:     health.New(pgHealth, cachePinger),
 		Authorizer: authz,
 		Auth:       authSvc,

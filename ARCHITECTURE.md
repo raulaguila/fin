@@ -24,7 +24,7 @@ core/domain → stdlib only
 | `internal/core` | — | Domain + ports + use cases; no Fiber/GORM/config |
 | `adapter/inbound/http/rest` | — | DTOs, route map, `apperror`→HTTP |
 | `adapter/outbound/persistence/postgres` | `usr.*`, `sys.outbox` | GORM/`Exec`; `Store` = TxManager + UnitOfWork |
-| `adapter/outbound/cache` | Valkey keys | Authz effective map only today |
+| `adapter/outbound/cache` | Valkey keys | Authz effective map, rate limit counters |
 | `cmd/mailer` | outbox claim → SMTP | Poll 2s, batch 10; terminal fail after 8 attempts or smtp_disabled |
 
 **Sacred (product + ADR):** JWT must not carry permission claims; authz loads live from DB/cache. Plaintext passwords / refresh JTIs / email tokens must not be stored.
@@ -95,12 +95,12 @@ core/domain → stdlib only
 | Postgres down | Backend/mailer boot fails; health `postgres=fail` |
 | Cache down | Backend boot fails (`infra.New` with cache); health would mark cache fail if process were up without it |
 | Fiber timeouts | `API_READ/WRITE/IDLE_TIMEOUT` (30s/30s/120s); shutdown `API_SHUTDOWN_TIMEOUT` 30s |
-| Login abuse | DB-backed attempt counters → `TOO_MANY_REQUESTS`; lockout answers `INVALID_CREDENTIALS` |
+| Login abuse | DB-backed attempt counters per client+account (5), client (`/64` on IPv6) and account (50) → `TOO_MANY_REQUESTS`; lockout at 50 answers `INVALID_CREDENTIALS`. One client cannot lock the owner out. Each attempt is reserved under an advisory lock before hashing, so parallel requests cannot outrun a limit |
 | Memory | Body limit 16 KiB; at most 4 Argon2 hashes (256 MiB live); `GOMEMLIMIT` and container limits in compose; Argon2 runs outside transactions and drops out when the request times out |
-| Email flood | `AUTH_EMAIL_TOKEN_COOLDOWN` (60 s) per account and purpose |
+| Email flood | `AUTH_EMAIL_TOKEN_COOLDOWN` (60 s) and `AUTH_EMAIL_TOKEN_HOURLY_MAX` (5) per account and purpose; over the cap the live link survives |
 | Refresh reuse | Session revoked `token_reuse` |
 
-**HTTP limits:** `API_RATE_LIMIT_*` per client IP (IPv6 by `/64`) per minute, in process memory (one instance; no prefork).
+**HTTP limits:** `API_RATE_LIMIT_*` per client IP (IPv6 by `/64`) per minute, counted atomically in Valkey and shared by all instances. If Valkey fails, each instance counts alone in memory, adding about 200 ms per request; login and email limits live in Postgres and still hold.
 
 **Not implemented (confirmed):** separate DLQ table (terminal fails stay on outbox as `failed`).
 
@@ -152,4 +152,3 @@ Do not log refresh tokens, passwords, or email token plaintext (payload in outbo
 
 1. **Roles/permissions mutation API** — catalog + grants via HTTP still missing.
 2. **Observability thin** — no correlation id / metrics / traces.
-3. **Rate limit counters in process memory** — move to Valkey before running more than one backend instance.

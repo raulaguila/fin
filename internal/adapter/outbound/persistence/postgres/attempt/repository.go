@@ -10,6 +10,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/shared"
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
+	"github.com/raulaguila/authenticity/pkg/clientip"
 )
 
 // countedFailure excludes refusals that tested no password: counting them would
@@ -52,12 +53,40 @@ func (r *Repository) CountRecentFailuresByEmail(ctx context.Context, email strin
 }
 
 func (r *Repository) CountRecentFailuresByIP(ctx context.Context, ip string, since time.Time) (int, error) {
+	first, last := clientip.Range(ip)
 	var n int64
 	err := r.db.WithContext(ctx).Table("usr.usr_login_attempt").
-		Where("ip_address = ?::inet AND created_at >= ? AND "+countedFailure, ip, since).
+		Where("ip_address BETWEEN ?::inet AND ?::inet AND created_at >= ? AND "+countedFailure, first, last, since).
 		Count(&n).Error
 	if err != nil {
 		return 0, shared.WrapError(err, "login_attempt")
 	}
 	return int(n), nil
+}
+
+func (r *Repository) CountRecentFailuresByEmailAndIP(ctx context.Context, email, ip string, since time.Time) (int, error) {
+	first, last := clientip.Range(ip)
+	var n int64
+	err := r.db.WithContext(ctx).Table("usr.usr_login_attempt").
+		Where("email = ? AND ip_address BETWEEN ?::inet AND ?::inet AND created_at >= ? AND "+countedFailure, email, first, last, since).
+		Count(&n).Error
+	if err != nil {
+		return 0, shared.WrapError(err, "login_attempt")
+	}
+	return int(n), nil
+}
+
+func (r *Repository) Lock(ctx context.Context, key string) error {
+	err := r.db.WithContext(ctx).Exec(`SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`, key).Error
+	return shared.WrapError(err, "login_attempt")
+}
+
+func (r *Repository) Settle(ctx context.Context, id string, success bool, failureKind *string) error {
+	err := r.db.WithContext(ctx).Exec(`UPDATE usr.usr_login_attempt SET success = ?, failure_kind = ? WHERE id = ?`, success, failureKind, id).Error
+	return shared.WrapError(err, "login_attempt")
+}
+
+func (r *Repository) Release(ctx context.Context, id string) error {
+	err := r.db.WithContext(ctx).Exec(`DELETE FROM usr.usr_login_attempt WHERE id = ?`, id).Error
+	return shared.WrapError(err, "login_attempt")
 }

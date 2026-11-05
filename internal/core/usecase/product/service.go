@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -119,7 +120,7 @@ func validateNamePrice(name, price string) (string, string, error) {
 
 func normalizeName(name string) (string, error) {
 	name = strings.TrimSpace(name)
-	if n := utf8.RuneCountInString(name); n < 1 || n > 120 {
+	if n := utf8.RuneCountInString(name); n < 1 || n > 120 || strings.ContainsFunc(name, unicode.IsControl) {
 		return "", apperror.New(apperror.CodeInvalidInput, "name must be 1-120 characters").WithField("name")
 	}
 	return name, nil

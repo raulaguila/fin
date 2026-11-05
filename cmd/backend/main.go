@@ -36,7 +36,7 @@ func main() {
 	}
 	defer res.Shutdown(log)
 
-	app := composition.NewApplication(cfg, res)
+	app := composition.NewApplication(cfg, res, log)
 	fiberApp := rest.NewServer(cfg, app, log)
 
 	addr := fmt.Sprintf(":%d", cfg.API.Port)

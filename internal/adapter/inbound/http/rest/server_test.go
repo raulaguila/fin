@@ -2,13 +2,12 @@ package rest
 
 import (
 	"bytes"
-	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/valyala/fasthttp"
 
 	"github.com/raulaguila/authenticity/config"
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
@@ -26,7 +25,7 @@ func clientIP(t *testing.T, api config.APIConfig, header string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	buf := make([]byte, 64)
 	n, _ := res.Body.Read(buf)
 	return string(buf[:n])
@@ -69,14 +68,14 @@ func TestBodyLimitAnswersBeforeHandlers(t *testing.T) {
 	if err != nil || res.StatusCode != fiber.StatusOK {
 		t.Fatalf("at the limit: %v %v", res, err)
 	}
-	if _, err := post(maxBodyBytes + 1); !errors.Is(err, fasthttp.ErrBodyTooLarge) {
+	if _, err := post(maxBodyBytes + 1); err == nil || !strings.Contains(err.Error(), "body size") {
 		t.Fatalf("over the limit: %v", err)
 	}
 }
 
 func TestRateLimitGroupsIPv6ByPrefix(t *testing.T) {
 	app := fiber.New(serverConfig(config.APIConfig{TrustedProxies: "0.0.0.0", ProxyHeader: "X-Real-IP"}))
-	app.Use(middleware.RateLimit(1))
+	app.Use(middleware.RateLimit("test", 1, nil))
 	app.Get("/", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 
 	get := func(ip string) int {
@@ -106,7 +105,7 @@ func TestRateLimitGroupsIPv6ByPrefix(t *testing.T) {
 
 func TestRateLimitCountsEachClientBehindProxy(t *testing.T) {
 	app := fiber.New(serverConfig(config.APIConfig{TrustedProxies: "0.0.0.0", ProxyHeader: "X-Real-IP"}))
-	app.Use(middleware.RateLimit(1))
+	app.Use(middleware.RateLimit("test", 1, nil))
 	app.Get("/", func(c fiber.Ctx) error { return c.SendString(c.IP()) })
 
 	get := func(ip string) int {

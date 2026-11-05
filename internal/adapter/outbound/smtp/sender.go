@@ -43,7 +43,7 @@ func (s *Sender) Send(to, subject, body string) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	// One stalled server must not freeze the whole queue.
 	if err := conn.SetDeadline(time.Now().Add(sendTimeout)); err != nil {
 		return err
@@ -53,7 +53,7 @@ func (s *Sender) Send(to, subject, body string) error {
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	if s.cfg.Security == smtpsecurity.ModeStartTLS {
 		// No fallback: a network attacker can hide the STARTTLS offer.

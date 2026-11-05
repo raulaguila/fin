@@ -21,6 +21,7 @@ Do `audits/gaps.md`. Sem datas.
 - [x] Migrar para Fiber v3
 - [x] Rate limit HTTP, log de requisição e timeout
 - [x] Testes de integração em Postgres real e CI
-- [ ] Contador de rate limit compartilhado (Valkey) para mais de uma instância
-- [ ] Teto de e-mails por hora, por conta
+- [x] Contador de rate limit compartilhado (Valkey) para mais de uma instância
+- [x] Teto de e-mails por hora, por conta
+- [ ] Usuário Postgres sem superusuário para a aplicação
 - [ ] Observability (correlation id / metrics)

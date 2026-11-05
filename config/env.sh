@@ -45,4 +45,8 @@ SMTP_MASTER_KEY='${smtp_master_key}'            # AES-256 KEK (64 hex chars) sea
 
 REGISTRATION_TOKEN_TTL='24h'                      # Registration token time-to-live
 PASSWORD_RESET_TOKEN_TTL='2h'                   # Password reset token time-to-live
+AUTH_MAX_FAILED_LOGIN_ATTEMPTS='50'             # Bad passwords before the account locks
+AUTH_LOGIN_ATTEMPT_EMAIL_MAX='50'               # Failures per account, all clients, per window
+AUTH_LOGIN_ATTEMPT_PAIR_MAX='5'                 # Failures per client and account, per window
+AUTH_EMAIL_TOKEN_HOURLY_MAX='5'                 # Emails per hour, account and purpose (0 = no cap)
 AUTH_MANUAL_TOKEN_DELIVERY='1'                  # Manual token delivery allowed only in local/dev" >.env

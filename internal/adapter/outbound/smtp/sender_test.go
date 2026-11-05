@@ -26,7 +26,7 @@ func fakeServer(t *testing.T) (host string, port int, gotData chan bool) {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		data := false
 		defer func() { gotData <- data }()
 		r := bufio.NewReader(conn)

@@ -18,7 +18,7 @@ func productionEnv(t *testing.T) *Environment {
 	return &Environment{
 		Environment: "production",
 		API:         APIConfig{CorsOrigins: "https://app.acme.io", GlobalRateLimit: 100, AuthRateLimit: 10, PasswordRateLimit: 3, RequestTimeout: 1},
-		Auth:        AuthConfig{MaxFailedLoginAttempts: 5, AccountLockDuration: 1},
+		Auth:        AuthConfig{MaxFailedLoginAttempts: 5, AccountLockDuration: 1, LoginAttemptPairMaxFailures: 5},
 		Postgres:    PostgresConfig{Password: strings.Repeat("p", minSecretLength), MaxConns: 40},
 		Cache:       CacheConfig{Password: strings.Repeat("c", minSecretLength)},
 		SMTP: SMTPConfig{

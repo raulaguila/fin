@@ -19,11 +19,11 @@ import (
 
 func (s *Service) Register(ctx context.Context, cmd input.RegisterCommand) (*input.RegisterResult, error) {
 	name := strings.TrimSpace(cmd.Name)
-	email := strings.TrimSpace(strings.ToLower(cmd.Email))
+	email := normalizeEmail(cmd.Email)
 	if n := utf8.RuneCountInString(name); n < 2 || n > 80 || strings.ContainsFunc(name, unicode.IsControl) {
 		return nil, apperror.New(apperror.CodeInvalidInput, "name must be 2-80 characters").WithField("name")
 	}
-	if addr, err := mail.ParseAddress(email); err != nil || addr.Address != email {
+	if addr, err := mail.ParseAddress(email); err != nil || addr.Address != email || email != strings.ToLower(strings.TrimSpace(cmd.Email)) {
 		return nil, apperror.New(apperror.CodeInvalidInput, "invalid email").WithField("email")
 	}
 
@@ -42,7 +42,7 @@ func (s *Service) Register(ctx context.Context, cmd input.RegisterCommand) (*inp
 			if u.Status != domain.UserStatusPending && u.Status != domain.UserStatusExpired {
 				return nil
 			}
-			if cooling, err := s.coolingDown(ctx, uow, u.ID, domain.TokenPurposeActivation); cooling || err != nil {
+			if cooling, err := s.emailThrottled(ctx, uow, u.ID, domain.TokenPurposeActivation); cooling || err != nil {
 				return err
 			}
 			// Unactivated account: send a fresh token instead of a dead end.

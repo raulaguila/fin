@@ -2,9 +2,11 @@ package middleware_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -21,7 +23,7 @@ import (
 
 func TestRateLimitAnswers429AsJSON(t *testing.T) {
 	app := fiber.New()
-	app.Use(middleware.RateLimit(2))
+	app.Use(middleware.RateLimit("test", 2, nil))
 	app.Get("/", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 
 	var last int
@@ -107,5 +109,52 @@ func TestRequestLogKeepsCauseFromClientAndLog(t *testing.T) {
 	}
 	if out.Len() != 0 {
 		t.Fatalf("2xx logged with all=false: %s", out.String())
+	}
+}
+
+type fakeCounter struct {
+	hits int64
+	err  error
+}
+
+func (f *fakeCounter) Hit(context.Context, string, time.Duration) (int64, time.Duration, error) {
+	f.hits++
+	return f.hits, 30 * time.Second, f.err
+}
+
+func hit(t *testing.T, app *fiber.App) *http.Response {
+	t.Helper()
+	res, err := app.Test(httptest.NewRequest(http.MethodGet, "/", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	return res
+}
+
+func TestRateLimitFollowsTheSharedCounter(t *testing.T) {
+	app := fiber.New()
+	app.Use(middleware.RateLimit("test", 1, &fakeCounter{}))
+	app.Get("/", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
+
+	if res := hit(t, app); res.StatusCode != fiber.StatusOK {
+		t.Fatalf("first: %d", res.StatusCode)
+	}
+	res := hit(t, app)
+	if res.StatusCode != fiber.StatusTooManyRequests || res.Header.Get("Retry-After") != "31" {
+		t.Fatalf("second: %d retry %q", res.StatusCode, res.Header.Get("Retry-After"))
+	}
+}
+
+func TestRateLimitStaysOnWhenTheCounterFails(t *testing.T) {
+	app := fiber.New()
+	app.Use(middleware.RateLimit("test", 1, &fakeCounter{err: errors.New("down")}))
+	app.Get("/", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
+
+	if res := hit(t, app); res.StatusCode != fiber.StatusOK {
+		t.Fatalf("first: %d", res.StatusCode)
+	}
+	if res := hit(t, app); res.StatusCode != fiber.StatusTooManyRequests {
+		t.Fatalf("second: %d", res.StatusCode)
 	}
 }

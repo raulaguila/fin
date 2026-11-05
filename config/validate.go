@@ -77,6 +77,9 @@ func validateAuthConfig(cfg AuthConfig) error {
 	if cfg.MaxFailedLoginAttempts <= 0 {
 		return fmt.Errorf("AUTH_MAX_FAILED_LOGIN_ATTEMPTS must be greater than 0")
 	}
+	if cfg.LoginAttemptPairMaxFailures <= 0 {
+		return fmt.Errorf("AUTH_LOGIN_ATTEMPT_PAIR_MAX must be greater than 0")
+	}
 	if cfg.AccountLockDuration <= 0 {
 		return fmt.Errorf("AUTH_ACCOUNT_LOCK_DURATION must be greater than 0")
 	}

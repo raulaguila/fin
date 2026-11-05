@@ -27,6 +27,12 @@ func Connect(cfg *config.CacheConfig) (*Client, error) {
 		Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 		Password: cfg.Password,
 		DB:       cfg.DB,
+		// The cache sits in the path of every request: a stuck one must fail fast.
+		DialTimeout:           time.Second,
+		ReadTimeout:           500 * time.Millisecond,
+		WriteTimeout:          500 * time.Millisecond,
+		MaxRetries:            1,
+		ContextTimeoutEnabled: true,
 	}
 	if cfg.User != "" && cfg.User != "default" {
 		opts.Username = cfg.User

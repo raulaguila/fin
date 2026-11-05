@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/raulaguila/authenticity/internal/core/domain"
@@ -13,6 +14,8 @@ import (
 	"github.com/raulaguila/authenticity/pkg/tokenhash"
 )
 
+const maxEmailBytes = 254 // RFC 5321
+
 // Config holds auth policy from environment (no config package import).
 type Config struct {
 	RegistrationTokenTTL         time.Duration
@@ -21,10 +24,12 @@ type Config struct {
 	AccountLockDuration          time.Duration
 	AllowManualTokenDelivery     bool
 	LoginAttemptEmailWindow      time.Duration
-	LoginAttemptEmailMaxFailures int
+	LoginAttemptEmailMaxFailures int // all clients together; high, or anyone could lock an account out
+	LoginAttemptPairMaxFailures  int // one client against one account
 	LoginAttemptIPWindow         time.Duration
 	LoginAttemptIPMaxFailures    int
 	EmailTokenCooldown           time.Duration // minimum gap between emails of one purpose to one user
+	EmailTokenHourlyMax          int           // 0 means no cap
 	OutboxKey                    []byte        // AES-256 key sealing email tokens at rest in sys.outbox
 }
 
@@ -54,10 +59,27 @@ func New(
 	return &Service{Tx: tx, UOW: uow, Tokens: tokens, Clock: clock, Cfg: cfg, Authz: authz}
 }
 
-// coolingDown limits emails per account: the per-IP limit does not stop many
-// addresses flooding one mailbox and killing its link with each new token.
-func (s *Service) coolingDown(ctx context.Context, uow output.UnitOfWork, userID, purpose string) (bool, error) {
-	return uow.Tokens().IssuedSince(ctx, userID, purpose, s.Clock.Now().Add(-s.Cfg.EmailTokenCooldown))
+// emailThrottled limits emails per account: the per-IP limit does not stop many
+// addresses flooding one mailbox. The hourly cap also protects the link already
+// sent, since each new token kills the one before it.
+func (s *Service) emailThrottled(ctx context.Context, uow output.UnitOfWork, userID, purpose string) (bool, error) {
+	now := s.Clock.Now()
+	recent, err := uow.Tokens().IssuedSince(ctx, userID, purpose, now.Add(-s.Cfg.EmailTokenCooldown))
+	if recent || err != nil || s.Cfg.EmailTokenHourlyMax <= 0 {
+		return recent, err
+	}
+	n, err := uow.Tokens().CountIssuedSince(ctx, userID, purpose, now.Add(-time.Hour))
+	return n >= s.Cfg.EmailTokenHourlyMax, err
+}
+
+// normalizeEmail makes an address safe to compare and to store: Postgres refuses
+// NUL, and the email index refuses very long values, so a stored attempt never fails.
+func normalizeEmail(raw string) string {
+	email := strings.ToLower(strings.TrimSpace(strings.ReplaceAll(raw, "\x00", "")))
+	if len(email) > maxEmailBytes {
+		email = strings.ToValidUTF8(email[:maxEmailBytes], "")
+	}
+	return email
 }
 
 // issueEmailToken replaces the user's live token and queues the email. The

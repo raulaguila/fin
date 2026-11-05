@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -65,7 +66,7 @@ func migrate(url string) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 	files, err := filepath.Glob("../../../../../deploy/db/migrations/*.up.sql")
 	if err != nil {
 		return err
@@ -109,6 +110,7 @@ func newEnv(t *testing.T) *env {
 		AllowManualTokenDelivery:     true,
 		LoginAttemptEmailWindow:      15 * time.Minute,
 		LoginAttemptEmailMaxFailures: 5,
+		LoginAttemptPairMaxFailures:  5,
 		LoginAttemptIPWindow:         time.Minute,
 		LoginAttemptIPMaxFailures:    20,
 		OutboxKey:                    testKey,
@@ -691,4 +693,156 @@ func TestActivationDoesNotHashForBadTokens(t *testing.T) {
 	e := newEnv(t)
 	err := e.svc.Activate(context.Background(), input.ActivateCommand{Token: "unknown", Password: strongPassword})
 	wantCode(t, err, apperror.CodeNotFound)
+}
+
+func (e *env) loginFrom(addr, pass, ip string) (*domain.TokenPair, error) {
+	return e.svc.Login(context.Background(), input.LoginCommand{Email: addr, Password: pass, IPAddress: &ip})
+}
+
+func TestOneClientCannotLockTheOwnerOut(t *testing.T) {
+	e := newEnv(t)
+	e.svc.Cfg.MaxFailedLoginAttempts = 50
+	e.svc.Cfg.LoginAttemptEmailMaxFailures = 50
+	addr := e.activeUser(t)
+	attacker := fmt.Sprintf("203.0.113.%d", time.Now().UnixNano()%250+1)
+
+	for range 5 {
+		_, err := e.loginFrom(addr, "wrong-password", attacker)
+		wantCode(t, err, apperror.CodeInvalidCredentials)
+	}
+	_, err := e.loginFrom(addr, "wrong-password", attacker)
+	wantCode(t, err, apperror.CodeTooManyRequests)
+
+	if _, err := e.loginFrom(addr, strongPassword, "198.51.100.7"); err != nil {
+		t.Fatalf("owner refused: %v", err)
+	}
+}
+
+func TestEmailLimitStillStopsManyClients(t *testing.T) {
+	e := newEnv(t)
+	addr := e.activeUser(t)
+	e.svc.Cfg.MaxFailedLoginAttempts = 100
+	for i := range 5 {
+		_, err := e.loginFrom(addr, "wrong-password", fmt.Sprintf("198.18.0.%d", i+1))
+		wantCode(t, err, apperror.CodeInvalidCredentials)
+	}
+	_, err := e.loginFrom(addr, strongPassword, "198.18.0.200")
+	wantCode(t, err, apperror.CodeTooManyRequests)
+}
+
+func TestIPv6ClientCountsAsItsPrefix(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	since := time.Now().Add(-time.Minute)
+	prefix := fmt.Sprintf("2001:db8:%x:%x", time.Now().UnixNano()&0xffff, time.Now().UnixNano()>>16&0xffff)
+	for _, suffix := range []string{"::1", "::2", "::ffff"} {
+		ip := prefix + suffix
+		kind := domain.FailureBadPassword
+		if err := e.store.Attempts().Create(ctx, &domain.LoginAttempt{Email: email(), IPAddress: &ip, FailureKind: &kind}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	n, err := e.store.Attempts().CountRecentFailuresByIP(ctx, prefix+"::abcd", since)
+	if err != nil || n != 3 {
+		t.Fatalf("counted %d %v", n, err)
+	}
+}
+
+func TestHourlyCapKeepsTheLinkAlive(t *testing.T) {
+	e := newEnv(t)
+	e.svc.Cfg.EmailTokenHourlyMax = 2
+	e.svc.Cfg.EmailTokenCooldown = 0
+	ctx := context.Background()
+	addr := email()
+
+	first := e.register(t, addr)
+	e.clock.now = e.clock.now.Add(time.Second)
+	second := e.register(t, addr)
+	if second.ActivationToken == "" {
+		t.Fatal("second token within the cap refused")
+	}
+	e.clock.now = e.clock.now.Add(time.Second)
+	if third := e.register(t, addr); third.ActivationToken != "" {
+		t.Fatal("third token over the cap")
+	}
+	err := e.svc.Activate(ctx, input.ActivateCommand{Token: first.ActivationToken, Password: strongPassword})
+	wantCode(t, err, apperror.CodeTokenExpired)
+	if err := e.svc.Activate(ctx, input.ActivateCommand{Token: second.ActivationToken, Password: strongPassword}); err != nil {
+		t.Fatalf("link died: %v", err)
+	}
+}
+
+func TestHostileEmailsNeverReachTheDatabaseRaw(t *testing.T) {
+	e := newEnv(t)
+	ip := "198.51.100.77"
+	for _, addr := range []string{strings.Repeat("a", 5000) + "@acme.io", "nul\x00byte@acme.io"} {
+		_, err := e.loginFrom(addr, "wrong-password", ip)
+		wantCode(t, err, apperror.CodeInvalidCredentials)
+		_, err = e.svc.Register(context.Background(), input.RegisterCommand{Name: "Ana", Email: addr})
+		wantCode(t, err, apperror.CodeInvalidInput)
+		if _, err := e.svc.RequestPasswordReset(context.Background(), input.RequestPasswordResetCommand{Email: addr}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	n, err := e.store.Attempts().CountRecentFailuresByIP(context.Background(), ip, time.Now().Add(-time.Minute))
+	if err != nil || n < 2 {
+		t.Fatalf("attempts not recorded: %d %v", n, err)
+	}
+}
+
+// Parallel requests must not pass a limit because the others are still hashing.
+func TestParallelLoginsCannotOutrunTheLimit(t *testing.T) {
+	e := newEnv(t)
+	e.svc.Cfg.MaxFailedLoginAttempts = 1000
+	e.svc.Cfg.LoginAttemptEmailMaxFailures = 1000
+	addr := e.activeUser(t)
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	codes := map[string]int{}
+	for range 30 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := e.loginFrom(addr, "wrong-password", "192.0.2.200")
+			var appErr *apperror.Error
+			if !errors.As(err, &appErr) {
+				t.Errorf("got %v", err)
+				return
+			}
+			mu.Lock()
+			codes[string(appErr.Code)]++
+			mu.Unlock()
+		}()
+	}
+	wg.Wait()
+	if codes[string(apperror.CodeInvalidCredentials)] != 5 || codes[string(apperror.CodeTooManyRequests)] != 25 {
+		t.Fatalf("codes %v", codes)
+	}
+}
+
+func TestSuccessfulLoginsDoNotUseUpTheLimit(t *testing.T) {
+	e := newEnv(t)
+	addr := e.activeUser(t)
+	for range 8 {
+		if _, err := e.loginFrom(addr, strongPassword, "192.0.2.201"); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestTimedOutLoginDoesNotCount(t *testing.T) {
+	e := newEnv(t)
+	addr := e.activeUser(t)
+	ip := "192.0.2.202"
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond) // past the reservation, inside the hash
+	defer cancel()
+	_, err := e.svc.Login(ctx, input.LoginCommand{Email: addr, Password: "wrong-password", IPAddress: &ip})
+	if err == nil {
+		t.Fatal("login succeeded")
+	}
+	n, err := e.store.Attempts().CountRecentFailuresByIP(context.Background(), ip, time.Now().Add(-time.Minute))
+	if err != nil || n != 0 {
+		t.Fatalf("counted %d %v", n, err)
+	}
 }

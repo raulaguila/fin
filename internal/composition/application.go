@@ -13,4 +13,5 @@ type Application struct {
 	Products   input.ProductService
 	Tokens     output.TokenIssuer
 	Sessions   output.SessionRepository
+	Rates      output.RateCounter // nil keeps rate limit counters in process memory
 }

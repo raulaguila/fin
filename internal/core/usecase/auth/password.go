@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/raulaguila/authenticity/internal/core/domain"
@@ -19,7 +18,7 @@ const (
 )
 
 func (s *Service) RequestPasswordReset(ctx context.Context, cmd input.RequestPasswordResetCommand) (*input.RequestPasswordResetResult, error) {
-	email := strings.TrimSpace(strings.ToLower(cmd.Email))
+	email := normalizeEmail(cmd.Email)
 	res := &input.RequestPasswordResetResult{}
 
 	user, err := s.UOW.Users().FindByEmail(ctx, email)
@@ -41,7 +40,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, cmd input.RequestPas
 
 	issued := false
 	err = s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
-		if cooling, err := s.coolingDown(ctx, uow, user.ID, domain.TokenPurposePasswordReset); cooling || err != nil {
+		if cooling, err := s.emailThrottled(ctx, uow, user.ID, domain.TokenPurposePasswordReset); cooling || err != nil {
 			return err
 		}
 		issued = true

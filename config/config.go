@@ -56,14 +56,16 @@ type AuthConfig struct {
 	RefreshExpiration            time.Duration   `env:"REFRESH_TOKEN_EXPIRE" default:"60m"`
 	RegistrationTokenTTL         time.Duration   `env:"REGISTRATION_TOKEN_TTL" default:"24h"`
 	PasswordResetTokenTTL        time.Duration   `env:"PASSWORD_RESET_TOKEN_TTL" default:"2h"`
-	MaxFailedLoginAttempts       int             `env:"AUTH_MAX_FAILED_LOGIN_ATTEMPTS" default:"5"`
+	MaxFailedLoginAttempts       int             `env:"AUTH_MAX_FAILED_LOGIN_ATTEMPTS" default:"50"`
 	AccountLockDuration          time.Duration   `env:"AUTH_ACCOUNT_LOCK_DURATION" default:"15m"`
 	AllowManualTokenDelivery     bool            `env:"AUTH_MANUAL_TOKEN_DELIVERY" default:"0"`
 	LoginAttemptEmailWindow      time.Duration   `env:"AUTH_LOGIN_ATTEMPT_EMAIL_WINDOW" default:"15m"`
-	LoginAttemptEmailMaxFailures int             `env:"AUTH_LOGIN_ATTEMPT_EMAIL_MAX" default:"5"`
+	LoginAttemptEmailMaxFailures int             `env:"AUTH_LOGIN_ATTEMPT_EMAIL_MAX" default:"50"`
+	LoginAttemptPairMaxFailures  int             `env:"AUTH_LOGIN_ATTEMPT_PAIR_MAX" default:"5"`
 	LoginAttemptIPWindow         time.Duration   `env:"AUTH_LOGIN_ATTEMPT_IP_WINDOW" default:"1m"`
 	LoginAttemptIPMaxFailures    int             `env:"AUTH_LOGIN_ATTEMPT_IP_MAX" default:"20"`
 	EmailTokenCooldown           time.Duration   `env:"AUTH_EMAIL_TOKEN_COOLDOWN" default:"60s"`
+	EmailTokenHourlyMax          int             `env:"AUTH_EMAIL_TOKEN_HOURLY_MAX" default:"5"`
 }
 
 type PostgresConfig struct {

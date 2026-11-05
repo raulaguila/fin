@@ -115,6 +115,17 @@ func (r *Repository) IssuedSince(ctx context.Context, userID, purpose string, si
 	return n > 0, nil
 }
 
+func (r *Repository) CountIssuedSince(ctx context.Context, userID, purpose string, since time.Time) (int, error) {
+	var n int64
+	err := r.db.WithContext(ctx).Table("usr.usr_token").
+		Where("user_id = ? AND purpose = ? AND created_at >= ?", userID, purpose, since).
+		Count(&n).Error
+	if err != nil {
+		return 0, shared.WrapError(err, "token")
+	}
+	return int(n), nil
+}
+
 func (r *Repository) InvalidateActive(ctx context.Context, userID, purpose string) error {
 	err := r.db.WithContext(ctx).Exec(`
 		UPDATE usr.usr_token SET used_at = now()

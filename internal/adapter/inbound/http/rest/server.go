@@ -74,9 +74,9 @@ func NewServer(cfg *config.Environment, app *composition.Application, log *logge
 
 	fiberApp.Get("/health", healthHandler.Get) // before the limiter: probes must always answer
 
-	fiberApp.Use(middleware.RateLimit(cfg.API.GlobalRateLimit))
-	authLimit := middleware.RateLimit(cfg.API.AuthRateLimit)
-	passwordLimit := middleware.RateLimit(cfg.API.PasswordRateLimit)
+	fiberApp.Use(middleware.RateLimit("global", cfg.API.GlobalRateLimit, app.Rates))
+	authLimit := middleware.RateLimit("auth", cfg.API.AuthRateLimit, app.Rates)
+	passwordLimit := middleware.RateLimit("password", cfg.API.PasswordRateLimit, app.Rates)
 
 	v1 := fiberApp.Group("/v1")
 	v1.Get("/health", healthHandler.Get)

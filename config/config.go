@@ -3,9 +3,10 @@ package config
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"embed"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"io/fs"
 	"path"
 	"runtime"
 	"strings"
@@ -13,11 +14,10 @@ import (
 
 	"github.com/godeh/dotenvgo"
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/raulaguila/authenticity/pkg/aescrypt"
 	"github.com/raulaguila/authenticity/pkg/smtpsecurity"
 )
-
-//go:embed locales/*
-var Locales embed.FS
 
 type LogConfig struct {
 	Format string `env:"LOG_FORMAT" default:"text"`
@@ -27,9 +27,14 @@ type LogConfig struct {
 type APIConfig struct {
 	Port          int    `env:"API_PORT" default:"9999"`
 	EnableLogger  bool   `env:"API_LOGGER" default:"1"`
-	EnableSwagger bool   `env:"API_SWAGGO" default:"0"`
-	EnablePrefork bool   `env:"API_PREFORK" default:"1"`
+	EnablePrefork bool   `env:"API_PREFORK" default:"0"`
 	CorsOrigins   string `env:"CORS_ORIGINS" default:"*"`
+
+	// TrustedProxies lists comma-separated proxy IPs or CIDRs whose ProxyHeader is
+	// believed. Empty means direct traffic. ProxyHeader is either one the proxy
+	// overwrites, or X-Forwarded-For, read from the right past the trusted proxies.
+	TrustedProxies string `env:"API_TRUSTED_PROXIES" default:""`
+	ProxyHeader    string `env:"API_PROXY_HEADER" default:"X-Real-IP"`
 
 	GlobalRateLimit   int `env:"API_RATE_LIMIT_GLOBAL" default:"100"`
 	AuthRateLimit     int `env:"API_RATE_LIMIT_AUTH" default:"10"`
@@ -41,6 +46,7 @@ type APIConfig struct {
 	WriteTimeout    time.Duration `env:"API_WRITE_TIMEOUT" default:"30s"`
 	IdleTimeout     time.Duration `env:"API_IDLE_TIMEOUT" default:"120s"`
 	ShutdownTimeout time.Duration `env:"API_SHUTDOWN_TIMEOUT" default:"30s"`
+	RequestTimeout  time.Duration `env:"API_REQUEST_TIMEOUT" default:"10s"`
 }
 
 type AuthConfig struct {
@@ -57,6 +63,7 @@ type AuthConfig struct {
 	LoginAttemptEmailMaxFailures int             `env:"AUTH_LOGIN_ATTEMPT_EMAIL_MAX" default:"5"`
 	LoginAttemptIPWindow         time.Duration   `env:"AUTH_LOGIN_ATTEMPT_IP_WINDOW" default:"1m"`
 	LoginAttemptIPMaxFailures    int             `env:"AUTH_LOGIN_ATTEMPT_IP_MAX" default:"20"`
+	EmailTokenCooldown           time.Duration   `env:"AUTH_EMAIL_TOKEN_COOLDOWN" default:"60s"`
 }
 
 type PostgresConfig struct {
@@ -69,28 +76,20 @@ type PostgresConfig struct {
 }
 
 type CacheConfig struct {
-	Backend      string        `env:"CACHE_PROVIDER" default:"valkey"`
-	Host         string        `env:"CACHE_HOST" default:"cache"`
-	Port         int           `env:"CACHE_PORT" default:"6379"`
-	User         string        `env:"CACHE_USER" default:"default"`
-	Password     string        `env:"CACHE_PASS" default:""`
-	DB           int           `env:"CACHE_DB" default:"0"`
-	TTL          time.Duration `env:"CACHE_TTL" default:"10m"`
+	Backend  string        `env:"CACHE_PROVIDER" default:"valkey"`
+	Host     string        `env:"CACHE_HOST" default:"cache"`
+	Port     int           `env:"CACHE_PORT" default:"6379"`
+	User     string        `env:"CACHE_USER" default:"default"`
+	Password string        `env:"CACHE_PASS" default:""`
+	DB       int           `env:"CACHE_DB" default:"0"`
+	TTL      time.Duration `env:"CACHE_TTL" default:"10m"`
 }
 
 type SMTPConfig struct {
-	// MasterKey (SMTP_MASTER_KEY) is the KEK that wraps SMTP data-encryption
-	// keys at rest. 64 hex chars = AES-256. Regenerating the KEK makes stored
-	// SMTP passwords unreadable — rotate only via a re-wrap job.
+	// MasterKey is the AES-256 key (64 hex chars) sealing email tokens in
+	// sys.outbox. Changing it makes queued emails undeliverable.
 	MasterKey string `env:"SMTP_MASTER_KEY" default:""`
 
-	// CredentialKey is a deprecated alias of MasterKey kept for one release.
-	// If set and MasterKey is empty, CredentialKey is used. Emits a deprecation
-	// warning at boot.
-	CredentialKey string `env:"SMTP_CREDENTIAL_KEY" default:""`
-
-	// Env-level SMTP settings used until credentials live fully in encrypted
-	// storage. After that, they are stripped from the struct and env.sh.
 	Enabled  bool              `env:"SMTP_ENABLED" default:"false"`
 	Host     string            `env:"SMTP_HOST" default:""`
 	Port     int               `env:"SMTP_PORT" default:"587"`
@@ -99,6 +98,12 @@ type SMTPConfig struct {
 	From     string            `env:"SMTP_FROM" default:""`
 	ReplyTo  string            `env:"SMTP_REPLY_TO" default:""`
 	Security smtpsecurity.Mode `env:"SMTP_SECURITY" default:"none"`
+}
+
+// TokenKey returns the key validated at load time.
+func (c SMTPConfig) TokenKey() []byte {
+	key, _ := aescrypt.ParseKey(c.MasterKey)
+	return key
 }
 
 type Environment struct {
@@ -145,16 +150,16 @@ func loadDotEnv() error {
 		paths = append(paths, path.Join(path.Dir(currentFile), "..", "config", ".env"))
 	}
 
-	var lastErr error
 	for _, envPath := range paths {
-		if err := dotenvgo.LoadDotEnv(envPath, true); err == nil {
+		// Real environment variables win; containers have no file at all.
+		if err := dotenvgo.LoadDotEnv(envPath, false); err == nil {
 			return nil
-		} else {
-			lastErr = err
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("failed to load environment file: %w", err)
 		}
 	}
 
-	return fmt.Errorf("failed to load environment file: %w", lastErr)
+	return nil
 }
 
 func Load() (*Environment, error) {

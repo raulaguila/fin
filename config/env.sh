@@ -3,10 +3,10 @@
 release_version=$(cat config/version.txt | tr -d "[:space:]")
 access_token=$(openssl genrsa 2048 | base64 | tr -d \\n)
 refresh_token=$(openssl genrsa 2048 | base64 | tr -d \\n)
-# 32 bytes (AES-256) as 64-char hex. Master KEK that wraps SMTP data-encryption
-# keys at rest. Regenerating this key on an existing DB makes stored SMTP
-# passwords unreadable — rotate only via a re-wrap job.
+# 32 bytes (AES-256) as 64-char hex. Seals email tokens in sys.outbox.
 smtp_master_key=$(openssl rand -hex 32)
+postgres_pass=$(openssl rand -hex 24)
+cache_pass=$(openssl rand -hex 24)
 
 echo "TZ='America/Manaus'                             # Set system time zone
 SYS_VERSION='${release_version}'                             # System version
@@ -16,9 +16,10 @@ LOG_LEVEL='info'                                # Log level (debug, info, warn, 
 
 API_PORT='9978'                                 # API Container PORT
 API_LOGGER='1'                                  # API Logger enable
-API_SWAGGO='1'                                  # API Swagger enable
 API_PREFORK='0'                                 # API enable fiber prefork
 CORS_ORIGINS='*'                                # CORS allowed origins
+API_TRUSTED_PROXIES=''                          # Reverse proxy IPs/CIDRs, comma separated (empty = no proxy)
+API_PROXY_HEADER='X-Real-IP'                    # Client IP header, must be overwritten by the proxy
 
 ACCESS_TOKEN_EXPIRE='50m'                       # Access token expiration (m=min, s=seg, h=hour, default=50m)
 REFRESH_TOKEN_EXPIRE='3h'                       # Refresh token expiration (m=min, s=seg, h=hour, default=3h)
@@ -29,17 +30,17 @@ REFRESH_TOKEN='${refresh_token}'                # Token to encode refresh token 
 POSTGRES_HOST='postgres'                        # Postgres Container HOST
 POSTGRES_PORT='5444'                            # Postgres Container PORT
 POSTGRES_USER='root'                            # Postgres USER
-POSTGRES_PASS='root'                            # Postgres PASS
+POSTGRES_PASS='${postgres_pass}'                # Postgres PASS
 POSTGRES_BASE='authenticity'                    # Postgres BASE
 
 CACHE_HOST='cache'                              # Cache HOST
 CACHE_PORT='6379'                               # Cache PORT
 CACHE_USER='default'                            # Cache USER
-CACHE_PASS='root'                               # Cache PASS
+CACHE_PASS='${cache_pass}'                      # Cache PASS
 CACHE_DB='0'                                    # Cache DB
 CACHE_TTL='10m'                                 # Cache TTL
 
-SMTP_MASTER_KEY='${smtp_master_key}'            # AES-256 KEK (64 hex chars) wrapping SMTP DEKs at rest — regenerate invalidates stored passwords
+SMTP_MASTER_KEY='${smtp_master_key}'            # AES-256 KEK (64 hex chars) sealing email tokens in the outbox — changing it makes queued emails undeliverable
 
 REGISTRATION_TOKEN_TTL='24h'                      # Registration token time-to-live
 PASSWORD_RESET_TOKEN_TTL='2h'                   # Password reset token time-to-live

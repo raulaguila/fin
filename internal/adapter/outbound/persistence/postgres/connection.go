@@ -14,15 +14,6 @@ type Config struct {
 	Url string
 }
 
-// MustConnect establishes a connection or panics
-func MustConnect(cfg *Config) *gorm.DB {
-	db, err := Connect(cfg)
-	if err != nil {
-		panic(err)
-	}
-	return db
-}
-
 // Connect establishes a connection to the PostgreSQL database
 func Connect(cfg *Config) (*gorm.DB, error) {
 	db, err := gorm.Open(postgres.Open(cfg.Url), &gorm.Config{

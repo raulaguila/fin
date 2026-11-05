@@ -19,7 +19,6 @@ make audit
 make test
 make coverage
 
-make swag
 make build
 make zip
 

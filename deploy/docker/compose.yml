@@ -5,6 +5,23 @@ include:
 
 services:
 
+  migrate:
+
+    container_name: authenticity_migrate
+    image: migrate/migrate:v4.18.3
+    restart: "no"
+    volumes:
+      - ../db/migrations:/migrations:ro
+    command: >
+      -path /migrations
+      -database postgres://${POSTGRES_USER}:${POSTGRES_PASS}@postgres:${POSTGRES_PORT}/${POSTGRES_BASE}?sslmode=disable
+      up
+    networks:
+      - authenticity_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   backend:
 
     container_name: authenticity_backend
@@ -12,17 +29,22 @@ services:
     hostname: backend
     build:
       context: ../..
-      dockerfile: deploy/docker/backend/${BASE:-bin}.Dockerfile
+      dockerfile: deploy/docker/backend/${BASE:-source}.Dockerfile
     restart: always
     ports:
       - ${API_PORT}:${API_PORT}
     tty: true
+    env_file: ../../config/.env
     environment:
       - TZ=${TZ}
+      - POSTGRES_HOST=postgres
+      - CACHE_HOST=cache
     networks:
       - authenticity_network
     depends_on:
-      postgres:
+      migrate:
+        condition: service_completed_successfully
+      valkey:
         condition: service_healthy
 
   mailer:
@@ -32,13 +54,15 @@ services:
     hostname: mailer
     build:
       context: ../..
-      dockerfile: deploy/docker/mailer/${BASE:-bin}.Dockerfile
+      dockerfile: deploy/docker/mailer/${BASE:-source}.Dockerfile
     restart: always
     tty: true
+    env_file: ../../config/.env
     environment:
       - TZ=${TZ}
+      - POSTGRES_HOST=postgres
     networks:
       - authenticity_network
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully

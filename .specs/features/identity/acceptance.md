@@ -1,11 +1,17 @@
 # Identity — acceptance
 
-Critérios derivados do schema. Falham hoje porque não há aplicação.
+Critérios derivados do schema e dos fluxos `/v1/auth/*`. Cobertura: testes de integração em `internal/adapter/outbound/persistence/postgres` (exigem `TEST_POSTGRES_URL`).
 
-- Não autentica `pending`, `expired`, `locked`, `disabled`.
+- Não autentica `pending`, `expired`, `disabled` nem `locked` com bloqueio vigente; bloqueio vencido volta a `active`.
 - Hash de senha nunca NULL em conta `active` (exceto janela de bootstrap admin).
 - Refresh plaintext não aparece em log nem no banco.
-- Reuse de refresh revoga a sessão; novo refresh não vale.
+- Reuse de refresh (qualquer geração antiga) revoga a sessão; novo refresh não vale.
+- Dois refresh simultâneos: um vence, o outro recebe `409` sem token e sem revogar. Após 10 s, o token anterior conta como reuse.
+- Conta bloqueada mantém sessão aberta: refresh segue valendo. Só novo login é recusado.
+- Bloqueio responde `INVALID_CREDENTIALS`, igual a conta inexistente.
+- Novo e-mail de ativação ou reset para a mesma conta respeita `AUTH_EMAIL_TOKEN_COOLDOWN`, com a mesma resposta HTTP.
+- `admin disable` revoga as sessões: access token para na requisição seguinte.
+- Cadastro `pending`/`expired` sem token vivo sai da limpeza após 30 dias.
 - Dois tokens `activation` unused para o mesmo user são impossíveis (índice único parcial).
 - `failure_kind` não aparece no JSON de erro.
 - Papel `user` é o único default; activate associa esse papel.

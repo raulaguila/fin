@@ -15,6 +15,8 @@
 !**/.env.example
 !**/.env.sample
 !**/.env.template
+**/*.pem
+**/*.key
 
 # Build outputs and temporary files
 **/bin/
@@ -26,6 +28,9 @@
 **/coverage.html
 **/*.zip
 **/*.log
+**/__debug_bin*
 
 # Agent files
 **/.codex
+**/.claude/
+**/.cursor/

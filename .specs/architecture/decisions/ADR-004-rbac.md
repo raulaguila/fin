@@ -1,6 +1,6 @@
 # ADR-004 RBAC B+C, CRUD, authz ao vivo
 
-Status: aceito. Implementação: SQL em `deploy/db/migrations` (000002–000003 + catálogo); Go ainda não autoriza.
+Status: aceito. Implementação: SQL em `deploy/db/migrations` (000002–000003 + catálogo); Go: use case `Authorize` + repo RBAC + cache `authz:effective:{userID}` wired em `composition` — **ainda sem middleware HTTP** nas rotas de domínio.
 
 ## Contexto
 
@@ -23,7 +23,8 @@ Identidade precisa de papéis e permissões sem catálogo N:N de códigos compos
 ## Consequências
 
 - API pode expor `{ "users": ["create", "read"] }` expandindo bits no adapter.
-- Resource novo: INSERT em `usr_resource`; admin com `*` / superuser já cobre; roles não-admin precisam de UPDATE em `actions`.
+- Resource novo: INSERT em `usr_resource`; admin com `*` / superuser já cobre; roles não-admin precisam de UPDATE no `actions`.
 - `permission-models.md` fica supersedido por este ADR.
+- Gap atual: ligar Authorizer às rotas (middleware) e invalidar cache no activate / mudança de roles.
 
-Fonte: `deploy/db/migrations`, `existing/infrastructure/schema.md`, `features/identity/`.
+Fonte: `deploy/db/migrations`, `existing/infrastructure/schema.md`, `features/identity/`, `ARCHITECTURE.md`.

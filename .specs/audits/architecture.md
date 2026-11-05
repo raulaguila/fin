@@ -1,15 +1,16 @@
 # Audit: architecture
 
-Aderência ao hexagonal declarado.
+Aderência ao hexagonal declarado. Ver também `ARCHITECTURE.md` (Keel).
 
 | Regra | Estado |
 |-------|--------|
-| Core sem adapters | N/A — core ausente |
-| Inbound REST / Fiber | Ausente; config já reserva prefork/timeouts |
-| Outbound Postgres | Conexão + wrap de erro; sem repos |
-| Composition root | Ausente |
-| `cmd` fino | Sim: load config + `infra.New` |
-| `pkg` sem domínio de produto | Sim |
-| Dependências apontam para dentro | Ainda não há grafo core↔adapter |
+| Core sem adapters | Sim — `internal/core` não importa adapters |
+| Inbound REST / Fiber | Sim — health + `/v1/auth/*` |
+| Outbound Postgres | Sim — repos auth + RBAC reader + outbox enqueue |
+| Cache outbound | Sim — Valkey/Redis no boot |
+| Composition root | Sim — Health, Auth, Authorizer |
+| `cmd` fino | Sim — bootstrap + listen/shutdown |
+| `pkg` sem domínio de produto | Quase — `pkg/tokens` importa `port/output` (claims) |
+| Dependências apontam para dentro | Sim no grafo principal |
 
-Conclusão: o desenho está escrito nas specs e no layout de pastas (`adapter/outbound`). Falta criar core e inbound sem furar as `dependency-rules.md`.
+Conclusão: hexagonal operacional para auth. Gaps: middleware authz, mailer consumer, products/roles API.

@@ -1,0 +1,80 @@
+package rest
+
+import (
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gofiber/fiber/v3"
+
+	"github.com/raulaguila/authenticity/config"
+	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
+)
+
+func clientIP(t *testing.T, api config.APIConfig, header string) string {
+	t.Helper()
+	app := fiber.New(serverConfig(api))
+	app.Get("/", func(c fiber.Ctx) error { return c.SendString(c.IP()) })
+
+	req := httptest.NewRequest(fiber.MethodGet, "/", nil)
+	req.Header.Set("X-Real-IP", header)
+	req.Header.Set("X-Forwarded-For", header)
+	res, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	buf := make([]byte, 64)
+	n, _ := res.Body.Read(buf)
+	return string(buf[:n])
+}
+
+func TestClientIPHeader(t *testing.T) {
+	const peer = "0.0.0.0" // the peer address of app.Test
+	behindProxy := config.APIConfig{TrustedProxies: "10.0.0.0/8, " + peer, ProxyHeader: "X-Real-IP"}
+	xff := config.APIConfig{TrustedProxies: "10.0.0.0/8, " + peer, ProxyHeader: "X-Forwarded-For"}
+
+	cases := []struct {
+		name   string
+		api    config.APIConfig
+		header string
+		want   string
+	}{
+		{"no proxy ignores a forged header", config.APIConfig{ProxyHeader: "X-Real-IP"}, "9.9.9.9", peer},
+		{"untrusted peer ignores the header", config.APIConfig{TrustedProxies: "10.0.0.1", ProxyHeader: "X-Real-IP"}, "9.9.9.9", peer},
+		{"trusted proxy gives the client", behindProxy, "9.9.9.9", "9.9.9.9"},
+		{"junk never reaches the inet column", behindProxy, "not-an-ip", peer},
+		{"forged left of a chain is skipped", xff, "6.6.6.6, 9.9.9.9, 10.0.0.1", "9.9.9.9"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := clientIP(t, tc.api, tc.header); got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRateLimitCountsEachClientBehindProxy(t *testing.T) {
+	app := fiber.New(serverConfig(config.APIConfig{TrustedProxies: "0.0.0.0", ProxyHeader: "X-Real-IP"}))
+	app.Use(middleware.RateLimit(1))
+	app.Get("/", func(c fiber.Ctx) error { return c.SendString(c.IP()) })
+
+	get := func(ip string) int {
+		req := httptest.NewRequest(fiber.MethodGet, "/", nil)
+		req.Header.Set("X-Real-IP", ip)
+		res, err := app.Test(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.StatusCode
+	}
+	if got := get("1.1.1.1"); got != fiber.StatusOK {
+		t.Fatalf("first client: %d", got)
+	}
+	if got := get("1.1.1.1"); got != fiber.StatusTooManyRequests {
+		t.Fatalf("same client again: %d", got)
+	}
+	if got := get("2.2.2.2"); got != fiber.StatusOK {
+		t.Fatalf("other client shares the limit: %d", got)
+	}
+}

@@ -2,19 +2,18 @@
 
 | Área | Código | Banco / config |
 |------|--------|----------------|
-| Bootstrap | `MustLoad` + Postgres | ok |
-| HTTP | nenhum listen | rate limit, CORS, prefork só em env |
-| JWT | parse de PEM RSA | emissão/refresh inexistentes |
-| Argon2id | não usado no Go | CHECK na credencial |
-| Sessão / refresh reuse | — | tabelas e CHECKs |
-| Tokens SMTP | — | `usr_token` |
-| Mailer | bootstrap só | SMTP env + aescrypt |
-| Cache | `enableCache` ignorado | Valkey/Redis obrigatório na v1 (compose ainda comentado) |
-| Outbox / products | — | `sys.outbox`, `app.product` (000004) |
-| RBAC | — | B+C, CRUD, `is_superuser` (ADR-004) |
-| Admin CLI | `main` vazio | — |
-| Locales | embed declarado | pasta precisa existir para o build |
-| Docker `BASE` | default `bin` no Makefile | arquivos são `built.Dockerfile` e `source.Dockerfile` |
-| Testes | `pkg/aescrypt` | resto sem testes |
+| Bootstrap | `MustLoad` + Postgres + cache | ok |
+| HTTP | Fiber listen; `/health`, `/v1/auth/*` | rate limit, log de requisição e timeout em `rest/middleware` |
+| JWT | emissão + parse RSA | access/refresh |
+| Argon2id | `pkg/password` | CHECK na credencial |
+| Sessão / refresh reuse | use case auth | tabelas e CHECKs |
+| Tokens SMTP | hash SHA-256 + outbox enqueue | `usr_token` |
+| Mailer | outbox com lease + SMTP | token cifrado com `SMTP_MASTER_KEY` |
+| Cache | `infra.New` + authz keys | Valkey no compose |
+| Outbox / products | mailer + CRUD HTTP | `sys.outbox`, `app.product` |
+| RBAC | Authorize + rbac reader + `Require` | B+C |
+| Admin CLI | `promote`, `disable` | papel `admin` |
+| Docker `BASE` | default `source` | `built.Dockerfile` / `source.Dockerfile`; serviço `migrate`; `USER nobody` |
+| Testes | unitários + integração (`TEST_POSTGRES_URL`) | CI em `.github/workflows/ci.yml` |
 
-`HealthChecker` existe e não é chamado no bootstrap.
+Health use case usa `postgres.HealthChecker` + cache ping.

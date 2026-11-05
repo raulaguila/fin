@@ -97,51 +97,6 @@ func ParseLevel(level string) zerolog.Level {
 	}
 }
 
-// Zerolog returns the underlying zerolog logger.
-func (l *Logger) Zerolog() *zerolog.Logger {
-	if l == nil {
-		return nil
-	}
-	return &l.z
-}
-
-// With returns a new logger with additional fields.
-func (l *Logger) With(kv ...any) *Logger {
-	if l == nil {
-		return New()
-	}
-
-	ctx := l.z.With()
-	for i := 0; i < len(kv); i++ {
-		if attr, ok := kv[i].(slog.Attr); ok {
-			appendSlogAttrToContext(&ctx, attr)
-			continue
-		}
-
-		if i+1 >= len(kv) {
-			break
-		}
-		key, ok := kv[i].(string)
-		if !ok {
-			continue
-		}
-		ctx = ctx.Interface(key, kv[i+1])
-		i++
-	}
-
-	return &Logger{z: ctx.Logger()}
-}
-
-// Debug logs at debug level.
-func (l *Logger) Debug(msg string, attrs ...slog.Attr) {
-	if l == nil {
-		return
-	}
-	ev := l.z.Debug()
-	appendAttrs(ev, attrs)
-	ev.Msg(msg)
-}
-
 // Info logs at info level.
 func (l *Logger) Info(msg string, attrs ...slog.Attr) {
 	if l == nil {
@@ -172,22 +127,10 @@ func (l *Logger) Error(msg string, attrs ...slog.Attr) {
 	ev.Msg(msg)
 }
 
-// Shutdown emits a standard shutdown message.
-func (l *Logger) Shutdown(reason string) {
-	l.Info("shutting down", slog.String("reason", reason))
-}
-
 func appendAttrs(ev *zerolog.Event, attrs []slog.Attr) {
 	for _, attr := range attrs {
 		appendSlogAttr(ev, attr)
 	}
-}
-
-func appendSlogAttrToContext(ctx *zerolog.Context, attr slog.Attr) {
-	if attr.Equal(slog.Attr{}) {
-		return
-	}
-	ctx.Interface(attr.Key, attrToAny(attr.Value))
 }
 
 func appendSlogAttr(ev *zerolog.Event, attr slog.Attr) {

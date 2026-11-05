@@ -1,8 +1,6 @@
 package pointer
 
-func Deref[T any](ptr *T, defaultVal T) T {
-	if ptr != nil {
-		return *ptr
-	}
-	return defaultVal
+// Of returns a pointer to v.
+func Of[T any](v T) *T {
+	return &v
 }

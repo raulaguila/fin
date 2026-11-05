@@ -4,7 +4,6 @@ Símbolos exportados usados como superfície estável. Internos de `cmd` omitido
 
 ## config
 
-- `Locales` (`embed.FS`)
 - structs: `LogConfig`, `APIConfig`, `AuthConfig`, `PostgresConfig`, `CacheConfig`, `SMTPConfig`, `Environment`
 - `Load()`, `MustLoad()`
 
@@ -16,19 +15,18 @@ Símbolos exportados usados como superfície estável. Internos de `cmd` omitido
 
 ## postgres
 
-- `Config`, `Connect`, `MustConnect`
+- `Config`, `Connect`
 - `HealthChecker`, `NewHealthChecker`, `(*HealthChecker).Ping`
 - `shared.WrapError(err, resource)`
 
 ## pkg/apperror
 
 - `Code`, constantes (`UNAUTHORIZED`, `INVALID_CREDENTIALS`, `ACCOUNT_*`, `NOT_FOUND`, …)
-- `Error`, `New`, `IsCode`, `IsNotFound`, `IsValidationError`, `GetCode`
+- `Error`, `New`, `IsCode`, `IsNotFound`
 
 ## pkg/aescrypt
 
-- `NewDEK`, `ParseKey`, `Encrypt`, `Decrypt`, `WrapKey`, `UnwrapKey`
-- `PassphraseBundle`, `SealWithPassphrase`, `OpenWithPassphrase`, `MarshalBundle`, `UnmarshalBundle`, `DeriveKey`
+- `ParseKey`, `Encrypt`, `Decrypt`
 
 ## pkg/logger
 
@@ -41,4 +39,4 @@ Símbolos exportados usados como superfície estável. Internos de `cmd` omitido
 
 ## pkg/pointer
 
-- `Deref[T]`
+- `Of[T]`

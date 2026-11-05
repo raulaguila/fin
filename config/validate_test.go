@@ -1,0 +1,108 @@
+package config
+
+import (
+	"crypto/rand"
+	"crypto/rsa"
+	"strings"
+	"testing"
+
+	"github.com/raulaguila/authenticity/pkg/smtpsecurity"
+)
+
+const validKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+func productionEnv(t *testing.T) *Environment {
+	t.Helper()
+	t.Setenv("ACCESS_TOKEN", "fixed-key")
+	t.Setenv("REFRESH_TOKEN", "fixed-key")
+	return &Environment{
+		Environment: "production",
+		API:         APIConfig{CorsOrigins: "https://app.acme.io", GlobalRateLimit: 100, AuthRateLimit: 10, PasswordRateLimit: 3, RequestTimeout: 1},
+		Auth:        AuthConfig{MaxFailedLoginAttempts: 5, AccountLockDuration: 1},
+		Postgres:    PostgresConfig{Password: strings.Repeat("p", minSecretLength)},
+		Cache:       CacheConfig{Password: strings.Repeat("c", minSecretLength)},
+		SMTP: SMTPConfig{
+			MasterKey: validKey, Enabled: true, Security: smtpsecurity.ModeStartTLS,
+			Host: "smtp.acme.io", User: "u", Password: "p", From: "no-reply@acme.io",
+		},
+	}
+}
+
+func testKey(t *testing.T) *rsa.PrivateKey {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return key
+}
+
+func TestValidProductionPasses(t *testing.T) {
+	for _, url := range []string{
+		"", // default compose host
+		"host=postgres user=u dbname=d sslmode=disable",
+		"postgres://u:p@db.acme.io/d?sslmode=verify-full",
+	} {
+		env := productionEnv(t)
+		env.Postgres.URL = url
+		env.Auth.AccessPrivateKey, env.Auth.RefreshPrivateKey = testKey(t), testKey(t)
+		if err := validateEnvironment(env); err != nil {
+			t.Fatalf("%q: %v", url, err)
+		}
+	}
+}
+
+func TestProductionRefuses(t *testing.T) {
+	cases := map[string]func(*Environment){
+		"mistyped env keeps manual token off": func(e *Environment) {
+			e.Environment = "producao"
+			e.Auth.AllowManualTokenDelivery = true
+		},
+		"manual token":  func(e *Environment) { e.Auth.AllowManualTokenDelivery = true },
+		"wildcard cors": func(e *Environment) { e.API.CorsOrigins = "*" },
+		"weak db pass":  func(e *Environment) { e.Postgres.Password = "root" },
+		"weak cache":    func(e *Environment) { e.Cache.Password = "" },
+		"smtp off":      func(e *Environment) { e.SMTP.Enabled = false },
+		"smtp no tls":   func(e *Environment) { e.SMTP.Security = smtpsecurity.ModeNone },
+		"bad token key": func(e *Environment) { e.SMTP.MasterKey = "short" },
+		"no rate limit": func(e *Environment) { e.API.AuthRateLimit = 0 },
+		"no timeout":    func(e *Environment) { e.API.RequestTimeout = 0 },
+		"remote db without tls": func(e *Environment) {
+			e.Postgres.URL = "host=db.acme.io user=u dbname=d sslmode=disable"
+		},
+		"remote db without verification": func(e *Environment) {
+			e.Postgres.URL = "postgres://u:p@db.acme.io/d?sslmode=require"
+		},
+		"same jwt key": func(e *Environment) {
+			e.Auth.AccessPrivateKey = testKey(t)
+			e.Auth.RefreshPrivateKey = e.Auth.AccessPrivateKey
+		},
+	}
+	for name, breakIt := range cases {
+		t.Run(name, func(t *testing.T) {
+			env := productionEnv(t)
+			breakIt(env)
+			if err := validateEnvironment(env); err == nil {
+				t.Fatal("expected refusal")
+			}
+		})
+	}
+}
+
+func TestProductionRefusesPerProcessKey(t *testing.T) {
+	env := productionEnv(t)
+	t.Setenv("ACCESS_TOKEN", "new")
+	if err := validateEnvironment(env); err == nil {
+		t.Fatal("expected refusal")
+	}
+}
+
+func TestLocalAllowsManualToken(t *testing.T) {
+	env := productionEnv(t)
+	env.Environment = "development"
+	env.Auth.AllowManualTokenDelivery = true
+	env.API.CorsOrigins = "*"
+	if err := validateEnvironment(env); err != nil {
+		t.Fatal(err)
+	}
+}

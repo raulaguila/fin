@@ -15,7 +15,7 @@ MIGRATIONS_DIR   := deploy/db/migrations
 # Docker
 DOCKER          := docker
 DOCKER_COMPOSE  := docker compose
-DOCKER_BASE     ?= $(or ${base}, bin)
+DOCKER_BASE     ?= $(or ${base}, source)
 DOCKER_SERVICE  ?= $(or ${service}, backend)
 COMPOSE_SERVICE := $(DOCKER_COMPOSE) --env-file config/.env -f deploy/docker/services.compose.yml
 COMPOSE_COMMAND := BASE=${DOCKER_BASE} $(DOCKER_COMPOSE) --env-file config/.env -f deploy/docker/compose.yml
@@ -41,7 +41,6 @@ ifneq ($(GOPATH),)
 export PATH := $(GOPATH)/bin:$(PATH)
 endif
 
-SWAG_BIN        := $(GOPATH)/bin/swag
 GOFUMPT_BIN     := $(GOPATH)/bin/gofumpt
 GOIMPORTS_BIN   := $(GOPATH)/bin/goimports
 GOVULNCHECK_BIN := $(GOPATH)/bin/govulncheck
@@ -50,7 +49,6 @@ MIGRATE_BIN     := $(GOPATH)/bin/migrate
 AIR_BIN         := $(GOPATH)/bin/air
 
 # Pinned tooling (install-tools)
-SWAG_VERSION        := v1.16.4
 GOFUMPT_VERSION     := v0.9.2
 GOIMPORTS_VERSION   := v0.41.0
 GOVULNCHECK_VERSION := v1.1.4
@@ -137,7 +135,6 @@ check-system: ## Check required tools
 	$(call check_tool,Go,go,version,✅,✅,Visit: https://go.dev/doc/install); \
 	$(call check_tool,Docker,docker,--version,❌,✅,Visit: https://docs.docker.com/engine/install/ubuntu/); \
 	$(call check_tool,Docker Compose,docker,compose version,❌,✅,Visit: https://docs.docker.com/engine/install/ubuntu/); \
-	$(call check_tool,Swag,$(SWAG_BIN),-v,✅,❌,make install-tools); \
 	$(call check_tool,Go Format,$(GOFUMPT_BIN),--version,✅,❌,make install-tools); \
 	$(call check_tool,Go Imports,$(GOIMPORTS_BIN),,✅,❌,make install-tools); \
 	$(call check_tool,Go Vulnerability,$(GOVULNCHECK_BIN),-version,✅,❌,make install-tools); \
@@ -155,7 +152,6 @@ check-system: ## Check required tools
 
 install-tools: ## Install pinned Go tooling into GOPATH/bin
 	@echo "$(BLUE)🔧 Installing pinned Go tools...$(RESET)"
-	@$(GO) install github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION)
 	@$(GO) install mvdan.cc/gofumpt@$(GOFUMPT_VERSION)
 	@$(GO) install golang.org/x/tools/cmd/goimports@$(GOIMPORTS_VERSION)
 	@$(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
@@ -281,13 +277,7 @@ benchmark: ## Benchmark code performance
 # =========================
 # 3. Build & Artifacts
 # =========================
-.PHONY: swag build-admin build-backend build-mailer build zip
-
-swag: ## Update swagger files
-	@echo "$(BLUE)📄 Updating Swagger API documentation...$(RESET)"
-	@$(SWAG_BIN) init -g cmd/backend/main.go -o api/ --parseDependency --parseInternal > /dev/null
-	@echo "$(GREEN)✅ Swagger files updated successfully.$(RESET)"
-	@echo
+.PHONY: build-admin build-backend build-mailer build zip
 
 build-backend: ## Build backend application from source code
 	@echo "$(BLUE)🏗️  Building backend...$(RESET)"
@@ -315,7 +305,7 @@ build: build-admin build-backend build-mailer ## Build all applications from sou
 zip: build ## Build the application and zip it
 	@echo "$(BLUE)📦 Zipping application...$(RESET)"
 	@rm -f $(PROJECT_ZIP_NAME)
-	@files="bin Makefile config/env.sh config/version.txt config/locales"; \
+	@files="bin Makefile config/env.sh config/version.txt"; \
 	if [ -d deploy ]; then files="$$files deploy"; fi; \
 	zip -qr $(PROJECT_ZIP_NAME) $$files
 	@echo "$(GREEN)✅ Zipped successfully!$(RESET)"
@@ -365,7 +355,13 @@ migrate-version: ## Show current migration version
 # =========================
 # 5. Docker Compose
 # =========================
-.PHONY: compose-up compose-build compose-services compose-down compose-clean compose-remove compose-exec compose-log compose-top compose-stats
+.PHONY: admin-promote admin-disable compose-up compose-build compose-services compose-down compose-clean compose-remove compose-exec compose-log compose-top compose-stats
+
+admin-promote: ## Give an active user the admin role (Usage: make admin-promote email=a@b.c)
+	@$(COMPOSE_COMMAND) exec backend ./admin promote "$(email)"
+
+admin-disable: ## Disable a user and end their sessions (Usage: make admin-disable email=a@b.c)
+	@$(COMPOSE_COMMAND) exec backend ./admin disable "$(email)"
 
 compose-up: ## Create and start containers
 	@echo "$(BLUE)🚀 Starting Docker containers...$(RESET)"

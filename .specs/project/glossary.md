@@ -1,6 +1,6 @@
 # Glossary
 
-- **activate**: passo (ainda sem HTTP) que prova a caixa, grava senha Argon2id e associa o papel default.
+- **activate**: `POST /v1/auth/activate` — prova a caixa, grava senha Argon2id e associa o papel default.
 - **CRUD actions**: bits `create=1`, `read=2`, `update=4`, `delete=8` em `usr_role_permission.actions`.
 - **KEK / DEK**: chave mestra (`SMTP_MASTER_KEY`) que envolve chaves de dados usadas para senhas SMTP em rest.
 - **`failure_kind`**: motivo interno de login falho em `usr_login_attempt`; não vai na resposta HTTP.

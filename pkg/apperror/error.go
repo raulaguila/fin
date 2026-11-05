@@ -21,7 +21,6 @@ const (
 	CodeAccountExpired     Code = "ACCOUNT_EXPIRED"
 	CodeAccountSuspended   Code = "ACCOUNT_SUSPENDED"
 	CodeAccountDisabled    Code = "ACCOUNT_DISABLED"
-	CodeAccountLocked      Code = "ACCOUNT_LOCKED"
 	CodeTokenExpired       Code = "TOKEN_EXPIRED"
 
 	// Resource errors
@@ -112,17 +111,4 @@ func IsCode(err error, code Code) bool {
 // IsNotFound checks if an error is a not found error
 func IsNotFound(err error) bool {
 	return IsCode(err, CodeNotFound)
-}
-
-// IsValidationError checks if an error is a validation error
-func IsValidationError(err error) bool {
-	return IsCode(err, CodeInvalidInput) || IsCode(err, CodeValidationFailed)
-}
-
-// GetCode extracts the error code from an error
-func GetCode(err error) Code {
-	if appErr, ok := errors.AsType[*Error](err); ok {
-		return appErr.Code
-	}
-	return CodeInternal
 }

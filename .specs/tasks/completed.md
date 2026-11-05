@@ -2,7 +2,7 @@
 
 Esqueleto deste repositório, não o produto.
 
-- [x] Módulo Go, Makefile, Air, Swagger vazio `/v1`
+- [x] Módulo Go, Makefile, Air
 - [x] Config env + validação production/staging
 - [x] Bootstrap backend/mailer + Postgres GORM
 - [x] Wrap de erros PG → `apperror`

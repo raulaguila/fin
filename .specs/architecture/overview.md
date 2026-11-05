@@ -1,6 +1,6 @@
 # Architecture overview
 
-Hexagonal. O core (inexistente) não importa adapters, Fiber, GORM, Swagger nem SQL concreto. Core define contratos; adapters traduzem o mundo externo.
+Hexagonal. O core não importa adapters, Fiber, GORM nem SQL concreto. Core define contratos; adapters traduzem o mundo externo.
 
 ## Hoje
 
@@ -8,12 +8,11 @@ Hexagonal. O core (inexistente) não importa adapters, Fiber, GORM, Swagger nem 
 cmd/{backend,mailer,admin}
 config
 internal/infra
-internal/adapter/outbound/persistence/postgres
-pkg/{logger,apperror,aescrypt,smtpsecurity,pointer}
+internal/composition
+internal/core/{domain,port,usecase}
+internal/adapter/inbound/http/rest
+internal/adapter/outbound/{persistence/postgres,cache}
+pkg/{logger,apperror,aescrypt,smtpsecurity,pointer,password,tokenhash,tokens}
 ```
 
-`infra.New` conecta Postgres. Sem composition root, ports, inbound ou HTTP listen.
-
-## Quando HTTP e domínio entrarem
-
-Ver `layers.md` e `dependency-rules.md`. Fiber e JWT já estão previstos na config; Fiber ainda não está em `go.mod`. RBAC fechado em **ADR-004** (B+C, CRUD, authz ao vivo + cache). Outbox em `sys.outbox`; módulo exemplo `app.product`.
+`cmd/backend`: Fiber listen + auth/health. `cmd/mailer`: infra sem consumer. RBAC: ADR-004 (Authorize wired; middleware HTTP pendente). Outbox: `sys.outbox` (API escreve). Detalhe: `ARCHITECTURE.md` e `layers.md`.

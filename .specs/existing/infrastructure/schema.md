@@ -9,6 +9,8 @@ Fonte: `deploy/db/migrations`. Schema `usr` = identidade; `sys` = outbox; `app` 
 000002_tables                    # tabelas usr, usr_resource, view, seed usr_user_status
 000003_seed_rbac                 # catalogo resources; papeis user/admin; admin is_superuser + *
 000004_sys_outbox_app_products   # schema sys (outbox) + app (product)
+000005_outbox_lease_cleanup      # lease do mailer, scrub de tokens, sys.fn_cleanup + pg_cron
+000006_cleanup_unactivated_disable # cadastro abandonado na limpeza; revogacao account_disabled
 ```
 
 ## Status (`usr_user_status`)

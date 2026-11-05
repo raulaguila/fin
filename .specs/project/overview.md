@@ -1,17 +1,22 @@
 # Overview
 
-Serviço de identidade e autenticação em Go. API prevista em `/v1` com Bearer JWT. Swagger em `api/` (`paths` vazio). Inclui módulo exemplo `products` e outbox de e-mail.
+Serviço de identidade e autenticação em Go. API `/v1` com Bearer JWT. Inclui módulo exemplo `products` e outbox de e-mail.
 
 ## Estado
 
-O modelo de identidade está no Postgres (schema `usr`); `sys.outbox` e `app.product` nas migrations. O runtime Go é bootstrap: config, logger e Postgres. Não há servidor HTTP, use cases, domínio nem worker de e-mail além do `main`.
+- **Postgres:** schemas `usr` (identidade), `sys` (outbox), `app` (product exemplo).
+- **Backend:** Fiber + health + `/v1/auth/*` (register → activate → login → refresh → logout → password reset); grava `sys.outbox` nos fluxos de e-mail.
+- **Cache:** Valkey/Redis obrigatório no boot (`infra.New`); authz effective map em cache.
+- **Authz:** use case Authorize (superuser / `*` / CRUD) wired; **ainda sem middleware** nas rotas de domínio.
+- **Mailer:** bootstrap só — consumer de outbox / SMTP send pendente.
+- **Admin CLI:** `main` vazio.
 
-Previsto na config, ainda não ligado: Fiber (prefork, timeouts), locales (`config.Locales`), cache Valkey/Redis (obrigatório na v1), SMTP com KEK AES-256. Fiber ainda não está em `go.mod`. RBAC: ADR-004.
+Fonte de verdade de runtime: `ARCHITECTURE.md` e `.specs/existing/overview.md`.
 
 ## Binários
 
-- `cmd/backend`: API. Hoje: `config.MustLoad`, logger (`service: backend`), `infra.New`. Grava outbox nos fluxos de e-mail (quando implementado).
-- `cmd/mailer`: worker de e-mail. Consome `sys.outbox`; hoje só bootstrap; logger `service: mailer`.
-- `cmd/admin`: CLI; `main` vazio.
+- `cmd/backend`: API Fiber; composition (Health, Auth, Authorizer); graceful shutdown.
+- `cmd/mailer`: mesma infra; bloqueia sem loop de outbox.
+- `cmd/admin`: CLI de operador (`promote`, `disable`).
 
-Compose: `authenticity_backend`, `authenticity_mailer`, `authenticity_postgres`. Redis/Valkey comentados em `deploy/docker/services.compose.yml` (ligar na v1).
+Compose: `authenticity_backend`, `authenticity_mailer`, `authenticity_postgres`, Valkey (alias `cache`).

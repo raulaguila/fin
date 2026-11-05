@@ -4,10 +4,12 @@ RUN apk add --no-cache bash tzdata dumb-init
 
 WORKDIR /opt/authenticity
 
-# Secrets come from compose env_file / runtime env — do not bake configs/.env into the image.
+# Secrets come from compose env_file — do not bake config/.env into the image.
 COPY bin/mailer .
 
 RUN chmod +x mailer
+
+USER nobody
 
 ENTRYPOINT [ "/usr/bin/dumb-init", "--" ]
 

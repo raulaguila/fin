@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -55,6 +56,8 @@ func WrapError(err error, resource string) error {
 	// PostgreSQL-specific errors
 	pgErr := handlerError(err)
 	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return apperror.New(apperror.CodeTimedOut, resource+" query timed out").WithCause(err)
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		return apperror.New(apperror.CodeNotFound, resource+" not found").WithDetails("resource", resource)
 	case errors.Is(pgErr, ErrDuplicatedKey):

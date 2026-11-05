@@ -77,7 +77,7 @@ Known expensive-by-design paths (qualitative): Argon2id verify on login; authz c
 - `.specs/architecture/decisions/ADR-001` … `ADR-004` (hexagonal, identity schema, secrets, RBAC)
 - `.specs/features/identity/*`, `mailer/outbox.md`, `products/requirements.md`
 - `.specs/existing/overview.md`, `existing/infrastructure/schema.md`
-- Code: `cmd/backend`, `internal/core/usecase/auth`, `internal/adapter/inbound/http/rest`, migrations `000001`–`000006`
+- Code: `cmd/backend`, `internal/core/usecase/auth`, `internal/adapter/inbound/http/rest`, migrations `000001`–`000007`
 
 ## Product Principles
 

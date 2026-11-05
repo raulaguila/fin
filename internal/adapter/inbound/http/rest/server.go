@@ -18,12 +18,17 @@ import (
 	"github.com/raulaguila/authenticity/pkg/logger"
 )
 
+// maxBodyBytes bounds what a client makes the server buffer: the body is read
+// before any middleware runs, rate limit included. No route needs more.
+const maxBodyBytes = 16 * 1024
+
 func serverConfig(api config.APIConfig) fiber.Config {
 	cfg := fiber.Config{
 		AppName:            "authenticity",
 		ReadTimeout:        api.ReadTimeout,
 		WriteTimeout:       api.WriteTimeout,
 		IdleTimeout:        api.IdleTimeout,
+		BodyLimit:          maxBodyBytes,
 		EnableIPValidation: true, // c.IP() goes into an inet column
 	}
 	if api.TrustedProxies != "" {

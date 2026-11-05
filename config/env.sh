@@ -32,6 +32,7 @@ POSTGRES_PORT='5444'                            # Postgres Container PORT
 POSTGRES_USER='root'                            # Postgres USER
 POSTGRES_PASS='${postgres_pass}'                # Postgres PASS
 POSTGRES_BASE='authenticity'                    # Postgres BASE
+POSTGRES_MAX_CONNS='40'                         # Postgres pool per process
 
 CACHE_HOST='cache'                              # Cache HOST
 CACHE_PORT='6379'                               # Cache PORT

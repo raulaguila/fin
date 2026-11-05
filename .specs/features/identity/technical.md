@@ -7,5 +7,6 @@
 - JWT: chaves RSA distintas access/refresh; claims `sub`/`sid`/`jti`; **sem** permissions.
 - Authz: load effective map (view → cache); `is_superuser` ou `*`; senão `Allows(have, need)` CRUD.
 - Rotas: `POST /v1/auth/{register,activate,login,refresh,logout,password-reset/request,password-reset/confirm}`.
-- Persistência: repos Postgres; `shared.WrapError`.
+- Persistência: repos Postgres; `shared.WrapError`. Pool `POSTGRES_MAX_CONNS` por processo.
+- Argon2: no máximo 4 hashes simultâneos, sempre fora de transação; quem espera vaga desiste no timeout (`TIMED_OUT_ERROR`, sem contar falha de senha).
 - E-mail: INSERT `sys.outbox` com token cifrado (`SMTP_MASTER_KEY`); mailer abre, envia e remove o token ao terminar.

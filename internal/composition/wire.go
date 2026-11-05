@@ -5,6 +5,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres"
 	productrepo "github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/product"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/rbac"
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/tokens"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
 	"github.com/raulaguila/authenticity/internal/core/usecase/admin"
 	"github.com/raulaguila/authenticity/internal/core/usecase/auth"
@@ -12,7 +13,6 @@ import (
 	"github.com/raulaguila/authenticity/internal/core/usecase/health"
 	"github.com/raulaguila/authenticity/internal/core/usecase/product"
 	"github.com/raulaguila/authenticity/internal/infra"
-	"github.com/raulaguila/authenticity/pkg/tokens"
 )
 
 // NewAdmin wires the operator use cases of cmd/admin.

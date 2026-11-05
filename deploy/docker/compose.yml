@@ -39,6 +39,11 @@ services:
       - TZ=${TZ}
       - POSTGRES_HOST=postgres
       - CACHE_HOST=cache
+      - GOMEMLIMIT=400MiB  # GC pressure before the container limit
+    deploy:
+      resources:
+        limits:
+          memory: 512M  # 4 Argon2 hashes at 64 MiB + buffers
     networks:
       - authenticity_network
     depends_on:
@@ -61,6 +66,12 @@ services:
     environment:
       - TZ=${TZ}
       - POSTGRES_HOST=postgres
+      - POSTGRES_MAX_CONNS=5  # sends one email at a time
+      - GOMEMLIMIT=100MiB
+    deploy:
+      resources:
+        limits:
+          memory: 128M
     networks:
       - authenticity_network
     depends_on:

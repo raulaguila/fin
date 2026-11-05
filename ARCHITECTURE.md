@@ -12,7 +12,7 @@
 
 ```text
 cmd → composition / infra / adapter/inbound / config / pkg
-composition → core/usecase + adapter/outbound + pkg/tokens
+composition → core/usecase + adapter/outbound
 adapter/inbound → port/input (+ pkg/apperror)
 adapter/outbound → port/output + domain
 core/usecase → domain + ports + pkg/{apperror,password,tokenhash,pointer}
@@ -37,7 +37,7 @@ core/domain → stdlib only
 
 | Store | Role | Consistency notes |
 |-------|------|-------------------|
-| PostgreSQL schemas `usr`, `sys`, `app` | Source of truth | Single DB; migrations 000001–000006 |
+| PostgreSQL schemas `usr`, `sys`, `app` | Source of truth | Single DB; migrations 000001–000007 |
 | Valkey/Redis (`CACHE_*`) | Authz cache | Key `authz:effective:{userID}`; TTL `CACHE_TTL` (default 10m). Boot **fails** if cache unreachable when `enableCache=true` |
 
 **`usr` ownership (backend auth use case):** users, credentials, sessions, email tokens, login attempts, role assignment; RBAC reader uses `vw_user_effective_permissions` + `is_superuser`.
@@ -96,10 +96,11 @@ core/domain → stdlib only
 | Cache down | Backend boot fails (`infra.New` with cache); health would mark cache fail if process were up without it |
 | Fiber timeouts | `API_READ/WRITE/IDLE_TIMEOUT` (30s/30s/120s); shutdown `API_SHUTDOWN_TIMEOUT` 30s |
 | Login abuse | DB-backed attempt counters → `TOO_MANY_REQUESTS`; lockout answers `INVALID_CREDENTIALS` |
+| Memory | Body limit 16 KiB; at most 4 Argon2 hashes (256 MiB live); `GOMEMLIMIT` and container limits in compose; Argon2 runs outside transactions and drops out when the request times out |
 | Email flood | `AUTH_EMAIL_TOKEN_COOLDOWN` (60 s) per account and purpose |
 | Refresh reuse | Session revoked `token_reuse` |
 
-**HTTP limits:** `API_RATE_LIMIT_*` per client IP per minute, in process memory (one instance; no prefork).
+**HTTP limits:** `API_RATE_LIMIT_*` per client IP (IPv6 by `/64`) per minute, in process memory (one instance; no prefork).
 
 **Not implemented (confirmed):** separate DLQ table (terminal fails stay on outbox as `failed`).
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/netip"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -66,13 +67,29 @@ func Timeout(d time.Duration) fiber.Handler {
 	}
 }
 
-// RateLimit allows max requests per client IP per minute.
+// clientKey groups IPv6 clients by /64: one customer owns all of those addresses,
+// and counting each one would neither limit them nor bound the counter map.
+func clientKey(c fiber.Ctx) string {
+	ip := c.IP()
+	addr, err := netip.ParseAddr(ip)
+	if err != nil || !addr.Unmap().Is6() {
+		return ip
+	}
+	prefix, err := addr.Prefix(64)
+	if err != nil {
+		return ip
+	}
+	return prefix.String()
+}
+
+// RateLimit allows max requests per client per minute.
 // shortcut: counters live in process memory, move them to Valkey before
 // running more than one backend instance or prefork.
 func RateLimit(max int) fiber.Handler {
 	return limiter.New(limiter.Config{
-		Max:        max,
-		Expiration: time.Minute,
+		Max:          max,
+		Expiration:   time.Minute,
+		KeyGenerator: clientKey,
 		LimitReached: func(c fiber.Ctx) error {
 			return mapper.WriteError(c, apperror.New(apperror.CodeTooManyRequests, "too many requests"))
 		},

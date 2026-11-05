@@ -12,11 +12,10 @@ import (
 	"github.com/raulaguila/authenticity/internal/core/port/output"
 )
 
-// notCredentialFailures are refusals that tested no password. Counting them
-// would let any repeated request keep a victim blocked forever.
-var notCredentialFailures = []string{
-	domain.FailureRateLimitedEmail, domain.FailureRateLimitedIP, domain.FailureAccountLocked,
-}
+// countedFailure excludes refusals that tested no password: counting them would
+// let any repeated request keep a victim blocked forever. Literal on purpose: it
+// must match the partial indexes of migration 000007 for the planner to use them.
+const countedFailure = `success = false AND failure_kind NOT IN ('rate_limited_email', 'rate_limited_ip', 'account_locked')`
 
 type Repository struct {
 	db *gorm.DB
@@ -44,7 +43,7 @@ func (r *Repository) Create(ctx context.Context, a *domain.LoginAttempt) error {
 func (r *Repository) CountRecentFailuresByEmail(ctx context.Context, email string, since time.Time) (int, error) {
 	var n int64
 	err := r.db.WithContext(ctx).Table("usr.usr_login_attempt").
-		Where("email = ? AND success = false AND failure_kind NOT IN ? AND created_at >= ?", email, notCredentialFailures, since).
+		Where("email = ? AND created_at >= ? AND "+countedFailure, email, since).
 		Count(&n).Error
 	if err != nil {
 		return 0, shared.WrapError(err, "login_attempt")
@@ -55,7 +54,7 @@ func (r *Repository) CountRecentFailuresByEmail(ctx context.Context, email strin
 func (r *Repository) CountRecentFailuresByIP(ctx context.Context, ip string, since time.Time) (int, error) {
 	var n int64
 	err := r.db.WithContext(ctx).Table("usr.usr_login_attempt").
-		Where("ip_address = ?::inet AND success = false AND failure_kind NOT IN ? AND created_at >= ?", ip, notCredentialFailures, since).
+		Where("ip_address = ?::inet AND created_at >= ? AND "+countedFailure, ip, since).
 		Count(&n).Error
 	if err != nil {
 		return 0, shared.WrapError(err, "login_attempt")

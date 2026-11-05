@@ -15,10 +15,10 @@
 | `internal/adapter/outbound/persistence/postgres` | Repositórios GORM, `Store`, health, wrap de erros PG |
 | `internal/adapter/outbound/cache` | Valkey/Redis |
 | `internal/adapter/outbound/smtp` | Envio de e-mail |
+| `internal/adapter/outbound/tokens` | JWT RS256 |
 | `pkg/apperror` | Erros de aplicação agnósticos de protocolo |
 | `pkg/aescrypt` | AES-256-GCM |
 | `pkg/password` | Argon2id com teto de execuções simultâneas |
-| `pkg/tokens` | JWT RS256 |
 | `pkg/tokenhash` | Tokens aleatórios e hash SHA-256 |
 | `pkg/logger` | Zerolog |
 | `pkg/smtpsecurity` | `none` / `tls` / `starttls` |

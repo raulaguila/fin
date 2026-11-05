@@ -1,6 +1,7 @@
 package password
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
@@ -20,20 +21,32 @@ const (
 	threads   = 4
 	keyLen    = 32
 	saltLen   = 16
+
+	// maxHashes keeps live hash memory at 256 MiB however many CPUs the host has.
+	maxHashes = 4
 )
 
-// Each hash holds memoryKiB of RAM, so concurrent hashes must be bounded or a
-// burst of logins exhausts the process memory.
-var slots = make(chan struct{}, max(1, runtime.GOMAXPROCS(0)))
+// Each hash holds memoryKiB of RAM and runs threads goroutines, so more hashes
+// than CPUs/threads add memory without adding throughput.
+var slots = make(chan struct{}, max(1, min(runtime.GOMAXPROCS(0)/threads, maxHashes)))
 
-func idKey(plain string, salt []byte, t, m uint32, p uint8, n uint32) []byte {
-	slots <- struct{}{}
+// idKey waits for a slot only as long as ctx lives: nobody reads the answer of
+// a request that already timed out.
+func idKey(ctx context.Context, plain string, salt []byte, t, m uint32, p uint8, n uint32) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	select {
+	case slots <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 	defer func() { <-slots }()
-	return argon2.IDKey([]byte(plain), salt, t, m, p, n)
+	return argon2.IDKey([]byte(plain), salt, t, m, p, n), nil
 }
 
 var dummyHash = sync.OnceValue(func() string {
-	h, err := Hash("timing equalizer")
+	h, err := Hash(context.Background(), "timing equalizer")
 	if err != nil {
 		panic(err)
 	}
@@ -42,12 +55,12 @@ var dummyHash = sync.OnceValue(func() string {
 
 // Waste spends the time of a real verify, so accounts without a usable
 // password answer as slowly as accounts with one.
-func Waste(plain string) {
-	_, _ = Verify(dummyHash(), plain)
+func Waste(ctx context.Context, plain string) {
+	_, _ = Verify(ctx, dummyHash(), plain)
 }
 
 // Hash returns a PHC-encoded argon2id string.
-func Hash(plain string) (string, error) {
+func Hash(ctx context.Context, plain string) (string, error) {
 	if plain == "" {
 		return "", errors.New("empty password")
 	}
@@ -55,7 +68,10 @@ func Hash(plain string) (string, error) {
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	hash := idKey(plain, salt, timeCost, memoryKiB, threads, keyLen)
+	hash, err := idKey(ctx, plain, salt, timeCost, memoryKiB, threads, keyLen)
+	if err != nil {
+		return "", err
+	}
 	return fmt.Sprintf(
 		"$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		argon2.Version,
@@ -68,7 +84,7 @@ func Hash(plain string) (string, error) {
 }
 
 // Verify compares plain password against a PHC argon2id hash.
-func Verify(encoded, plain string) (bool, error) {
+func Verify(ctx context.Context, encoded, plain string) (bool, error) {
 	parts := strings.Split(encoded, "$")
 	// "", "argon2id", "v=19", "m=...,t=...,p=...", salt, hash
 	if len(parts) != 6 || parts[1] != "argon2id" {
@@ -90,6 +106,9 @@ func Verify(encoded, plain string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	got := idKey(plain, salt, uint32(timeN), uint32(mem), uint8(pars), uint32(len(want)))
+	got, err := idKey(ctx, plain, salt, uint32(timeN), uint32(mem), uint8(pars), uint32(len(want)))
+	if err != nil {
+		return false, err
+	}
 	return subtle.ConstantTimeCompare(got, want) == 1, nil
 }

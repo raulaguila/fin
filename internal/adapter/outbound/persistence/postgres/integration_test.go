@@ -19,6 +19,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres"
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/tokens"
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/internal/core/usecase/admin"
@@ -26,7 +27,6 @@ import (
 	"github.com/raulaguila/authenticity/pkg/aescrypt"
 	"github.com/raulaguila/authenticity/pkg/apperror"
 	"github.com/raulaguila/authenticity/pkg/password"
-	"github.com/raulaguila/authenticity/pkg/tokens"
 )
 
 const strongPassword = "correct horse battery"
@@ -49,7 +49,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	var err error
-	if testDB, err = postgres.Connect(&postgres.Config{Url: url}); err != nil {
+	if testDB, err = postgres.Connect(&postgres.Config{Url: url, MaxConns: 20}); err != nil {
 		fmt.Println("connect:", err)
 		os.Exit(1)
 	}
@@ -278,7 +278,7 @@ func TestLoginCannotRestoreOldPassword(t *testing.T) {
 	}
 
 	// The interleaving: a login verified the old hash, then a reset committed.
-	newHash, err := password.Hash("a brand new password")
+	newHash, err := password.Hash(ctx, "a brand new password")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -662,4 +662,33 @@ func TestCleanupRemovesOnlyOldHistory(t *testing.T) {
 	if len(left) != 1 || left[0] != recent {
 		t.Fatalf("left %v", left)
 	}
+}
+
+func TestLoginTimeoutIsNoPasswordFailure(t *testing.T) {
+	e := newEnv(t)
+	addr := e.activeUser(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := e.svc.Login(ctx, input.LoginCommand{Email: addr, Password: "wrong-password"})
+	if err == nil || apperror.IsCode(err, apperror.CodeInvalidCredentials) {
+		t.Fatalf("got %v", err)
+	}
+	u, err := e.store.Users().FindByEmail(context.Background(), addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cred, err := e.store.Credentials().FindByUserID(context.Background(), u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cred.FailedLoginAttempts != 0 {
+		t.Fatalf("timeout counted as %d failures", cred.FailedLoginAttempts)
+	}
+}
+
+func TestActivationDoesNotHashForBadTokens(t *testing.T) {
+	e := newEnv(t)
+	err := e.svc.Activate(context.Background(), input.ActivateCommand{Token: "unknown", Password: strongPassword})
+	wantCode(t, err, apperror.CodeNotFound)
 }

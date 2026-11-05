@@ -19,7 +19,7 @@ func productionEnv(t *testing.T) *Environment {
 		Environment: "production",
 		API:         APIConfig{CorsOrigins: "https://app.acme.io", GlobalRateLimit: 100, AuthRateLimit: 10, PasswordRateLimit: 3, RequestTimeout: 1},
 		Auth:        AuthConfig{MaxFailedLoginAttempts: 5, AccountLockDuration: 1},
-		Postgres:    PostgresConfig{Password: strings.Repeat("p", minSecretLength)},
+		Postgres:    PostgresConfig{Password: strings.Repeat("p", minSecretLength), MaxConns: 40},
 		Cache:       CacheConfig{Password: strings.Repeat("c", minSecretLength)},
 		SMTP: SMTPConfig{
 			MasterKey: validKey, Enabled: true, Security: smtpsecurity.ModeStartTLS,
@@ -73,6 +73,7 @@ func TestProductionRefuses(t *testing.T) {
 		"remote db without verification": func(e *Environment) {
 			e.Postgres.URL = "postgres://u:p@db.acme.io/d?sslmode=require"
 		},
+		"no db pool": func(e *Environment) { e.Postgres.MaxConns = 0 },
 		"same jwt key": func(e *Environment) {
 			e.Auth.AccessPrivateKey = testKey(t)
 			e.Auth.RefreshPrivateKey = e.Auth.AccessPrivateKey

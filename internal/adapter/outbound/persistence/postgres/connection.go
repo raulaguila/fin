@@ -11,7 +11,8 @@ import (
 
 // Config holds database configuration
 type Config struct {
-	Url string
+	Url      string
+	MaxConns int
 }
 
 // Connect establishes a connection to the PostgreSQL database
@@ -30,11 +31,11 @@ func Connect(cfg *Config) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	// SetMaxOpenConns sets the maximum number of open connections to the database.
-	sqlDB.SetMaxOpenConns(50)
+	sqlDB.SetMaxOpenConns(cfg.MaxConns)
+	sqlDB.SetMaxIdleConns(cfg.MaxConns)
 
-	// SetMaxIdleConns sets the maximum number of connections in the idle connection pool.
-	sqlDB.SetMaxIdleConns(50)
+	// Each idle connection holds a Postgres backend process: hand it back after a peak.
+	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 
 	// SetConnMaxLifetime sets the maximum amount of time a connection may be reused.
 	sqlDB.SetConnMaxLifetime(time.Hour)

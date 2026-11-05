@@ -39,7 +39,7 @@ func (r *Resources) Shutdown(log *logger.Logger) {
 
 func New(cfg *config.Environment, log *logger.Logger, enableCache bool) (*Resources, error) {
 	log.Info("Connecting to PostgreSQL...")
-	postgresDB, err := postgres.Connect(&postgres.Config{Url: cfg.Postgres.URL})
+	postgresDB, err := postgres.Connect(&postgres.Config{Url: cfg.Postgres.URL, MaxConns: cfg.Postgres.MaxConns})
 	if err != nil {
 		return nil, err
 	}

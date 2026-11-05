@@ -7,7 +7,7 @@ Versão do sistema: `0.0.1` (`config/version.txt`). Módulo: `github.com/raulagu
 ## Árvore
 
 - `project/` — objetivo, restrições, glossário
-- `inventory/` — arquivos, módulos, símbolos, endpoints, dependências
+- `inventory/` — módulos, endpoints, dependências
 - `existing/` — o que já corre: módulos Go, infra, integrações
 - `architecture/` — hexagonal, camadas, regras, ADRs; `permission-models.md` histórico
 - `audits/` — aderência, implementação, gaps

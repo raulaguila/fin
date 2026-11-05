@@ -1,10 +1,14 @@
 package rest
 
 import (
+	"bytes"
+	"errors"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/valyala/fasthttp"
 
 	"github.com/raulaguila/authenticity/config"
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
@@ -51,6 +55,52 @@ func TestClientIPHeader(t *testing.T) {
 				t.Fatalf("got %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestBodyLimitAnswersBeforeHandlers(t *testing.T) {
+	app := fiber.New(serverConfig(config.APIConfig{}))
+	app.Post("/", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
+
+	post := func(size int) (*http.Response, error) {
+		return app.Test(httptest.NewRequest(fiber.MethodPost, "/", bytes.NewReader(make([]byte, size))))
+	}
+	res, err := post(maxBodyBytes)
+	if err != nil || res.StatusCode != fiber.StatusOK {
+		t.Fatalf("at the limit: %v %v", res, err)
+	}
+	if _, err := post(maxBodyBytes + 1); !errors.Is(err, fasthttp.ErrBodyTooLarge) {
+		t.Fatalf("over the limit: %v", err)
+	}
+}
+
+func TestRateLimitGroupsIPv6ByPrefix(t *testing.T) {
+	app := fiber.New(serverConfig(config.APIConfig{TrustedProxies: "0.0.0.0", ProxyHeader: "X-Real-IP"}))
+	app.Use(middleware.RateLimit(1))
+	app.Get("/", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
+
+	get := func(ip string) int {
+		req := httptest.NewRequest(fiber.MethodGet, "/", nil)
+		req.Header.Set("X-Real-IP", ip)
+		res, err := app.Test(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.StatusCode
+	}
+	for _, step := range []struct {
+		ip   string
+		want int
+	}{
+		{"2001:db8:1:1::1", fiber.StatusOK},
+		{"2001:db8:1:1::2", fiber.StatusTooManyRequests},
+		{"2001:db8:1:2::1", fiber.StatusOK},
+		{"::ffff:192.0.2.1", fiber.StatusOK},
+		{"::ffff:192.0.2.2", fiber.StatusOK},
+	} {
+		if got := get(step.ip); got != step.want {
+			t.Fatalf("%s: got %d, want %d", step.ip, got, step.want)
+		}
 	}
 }
 

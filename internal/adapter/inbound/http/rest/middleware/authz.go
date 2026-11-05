@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -19,54 +20,59 @@ const (
 	LocalAccessToken = "auth.access_token"
 )
 
-// Bearer authenticates an access JWT and optionally rejects revoked sessions.
+// Bearer authenticates an access JWT and rejects revoked sessions.
 func Bearer(tokens output.TokenIssuer, sessions output.SessionRepository) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		raw := c.Get("Authorization")
-		const prefix = "Bearer "
-		if !strings.HasPrefix(raw, prefix) {
-			return mapper.WriteError(c, apperror.New(apperror.CodeUnauthorized, "missing bearer token"))
-		}
-		token := strings.TrimSpace(strings.TrimPrefix(raw, prefix))
-		if token == "" {
-			return mapper.WriteError(c, apperror.New(apperror.CodeUnauthorized, "missing bearer token"))
-		}
-
-		claims, err := tokens.ParseAccess(token)
+		token, claims, err := parseBearer(c.Get("Authorization"), tokens)
 		if err != nil {
-			return mapper.WriteError(c, apperror.New(apperror.CodeUnauthorized, "invalid access token").WithCause(err))
+			return mapper.WriteError(c, err)
 		}
-		if claims.UserID == "" || claims.SessionID == "" {
-			return mapper.WriteError(c, apperror.New(apperror.CodeUnauthorized, "invalid access token"))
+		if err := checkSession(c.Context(), sessions, claims); err != nil {
+			return mapper.WriteError(c, err)
 		}
-		if !claims.ExpiresAt.IsZero() && !claims.ExpiresAt.After(time.Now()) {
-			return mapper.WriteError(c, apperror.New(apperror.CodeTokenExpired, "access token expired"))
-		}
-
-		if sessions != nil {
-			sess, err := sessions.FindByID(c.Context(), claims.SessionID)
-			if err != nil {
-				if apperror.IsNotFound(err) {
-					return mapper.WriteError(c, apperror.New(apperror.CodeUnauthorized, "session not found"))
-				}
-				return mapper.WriteError(c, err)
-			}
-			if sess.UserID != claims.UserID {
-				return mapper.WriteError(c, apperror.New(apperror.CodeUnauthorized, "session mismatch"))
-			}
-			if sess.RevokedAt != nil {
-				return mapper.WriteError(c, apperror.New(apperror.CodeUnauthorized, "session revoked"))
-			}
-			if !sess.ExpiresAt.After(time.Now()) {
-				return mapper.WriteError(c, apperror.New(apperror.CodeTokenExpired, "session expired"))
-			}
-		}
-
 		c.Locals(LocalUserID, claims.UserID)
 		c.Locals(LocalSessionID, claims.SessionID)
 		c.Locals(LocalAccessToken, token)
 		return c.Next()
 	}
+}
+
+func parseBearer(header string, tokens output.TokenIssuer) (string, *output.AccessClaims, error) {
+	const prefix = "Bearer "
+	token := strings.TrimSpace(strings.TrimPrefix(header, prefix))
+	if !strings.HasPrefix(header, prefix) || token == "" {
+		return "", nil, apperror.New(apperror.CodeUnauthorized, "missing bearer token")
+	}
+	claims, err := tokens.ParseAccess(token)
+	if err != nil {
+		return "", nil, apperror.New(apperror.CodeUnauthorized, "invalid access token").WithCause(err)
+	}
+	if claims.UserID == "" || claims.SessionID == "" {
+		return "", nil, apperror.New(apperror.CodeUnauthorized, "invalid access token")
+	}
+	if !claims.ExpiresAt.IsZero() && !claims.ExpiresAt.After(time.Now()) {
+		return "", nil, apperror.New(apperror.CodeTokenExpired, "access token expired")
+	}
+	return token, claims, nil
+}
+
+func checkSession(ctx context.Context, sessions output.SessionRepository, claims *output.AccessClaims) error {
+	sess, err := sessions.FindByID(ctx, claims.SessionID)
+	if apperror.IsNotFound(err) {
+		return apperror.New(apperror.CodeUnauthorized, "session not found")
+	}
+	if err != nil {
+		return err
+	}
+	switch {
+	case sess.UserID != claims.UserID:
+		return apperror.New(apperror.CodeUnauthorized, "session mismatch")
+	case sess.RevokedAt != nil:
+		return apperror.New(apperror.CodeUnauthorized, "session revoked")
+	case !sess.ExpiresAt.After(time.Now()):
+		return apperror.New(apperror.CodeTokenExpired, "session expired")
+	}
+	return nil
 }
 
 // Require enforces a CRUD action on a resource type (ADR-004). Must run after Bearer.

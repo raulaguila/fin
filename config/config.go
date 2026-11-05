@@ -72,6 +72,8 @@ type PostgresConfig struct {
 	User     string `env:"POSTGRES_USER" default:"root"`
 	Password string `env:"POSTGRES_PASS" default:"root"`
 	Base     string `env:"POSTGRES_BASE" default:"authenticity"`
+	// MaxConns must stay under the server's max_connections across all processes.
+	MaxConns int    `env:"POSTGRES_MAX_CONNS" default:"40"`
 	URL      string `env:"POSTGRES_URL" default:"host=${POSTGRES_HOST} user=${POSTGRES_USER} password=${POSTGRES_PASS} dbname=${POSTGRES_BASE} port=${POSTGRES_PORT} sslmode=disable TimeZone=${TZ}"`
 }
 

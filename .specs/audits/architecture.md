@@ -10,7 +10,7 @@ Aderência ao hexagonal declarado. Ver também `ARCHITECTURE.md` (Keel).
 | Cache outbound | Sim — Valkey/Redis no boot |
 | Composition root | Sim — Health, Auth, Authorizer |
 | `cmd` fino | Sim — bootstrap + listen/shutdown |
-| `pkg` sem domínio de produto | Quase — `pkg/tokens` importa `port/output` (claims) |
+| `pkg` sem domínio de produto | Sim |
 | Dependências apontam para dentro | Sim no grafo principal |
 
 Conclusão: hexagonal operacional para auth. Gaps: middleware authz, mailer consumer, products/roles API.

@@ -44,6 +44,9 @@ func validateEnvironment(env *Environment) error {
 	if err := validateAuthConfig(env.Auth); err != nil {
 		return err
 	}
+	if env.Postgres.MaxConns <= 0 {
+		return fmt.Errorf("POSTGRES_MAX_CONNS must be greater than 0")
+	}
 	if err := validateCacheBackend(env.Cache.Backend); err != nil {
 		return err
 	}

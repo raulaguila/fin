@@ -24,13 +24,14 @@ Fonte: `Routes` de cada handler em `internal/adapter/inbound/http/rest/`, montad
 | GET | `/v1/user/notifications/count` | Bearer | global |
 | PUT | `/v1/user/notifications/:id/read` | Bearer, só notificação própria | global |
 | GET | `/v1/permissions/resources` | `permissions:read` | global |
-| GET | `/v1/roles` | `roles:read` | global |
+| GET | `/v1/roles` | `roles:read`; não lista `is_superuser` nem grant `*` | global |
 | POST | `/v1/roles` | `roles:create` | global |
-| DELETE | `/v1/roles/:id` | `roles:delete`; sem membros; não `admin` nem padrão | global |
-| PUT | `/v1/roles/:id/permissions/:resource` | `roles:update`; não `admin` | global |
+| PATCH | `/v1/roles/:id` | `roles:update`; não `is_superuser`; padrão não desativa | global |
+| DELETE | `/v1/roles/:id` | `roles:delete`; sem membros; não `is_superuser` nem padrão | global |
+| PUT | `/v1/roles/:id/permissions` | `roles:update`; não `is_superuser`; mapa completo em uma transação | global |
 | GET | `/v1/roles/:id/members` | `roles:read` | global |
-| PUT | `/v1/roles/:id/members/:user_id` | `roles:update`; não `admin` | global |
-| DELETE | `/v1/roles/:id/members/:user_id` | `roles:update`; não `admin` | global |
+| PUT | `/v1/roles/:id/members/:user_id` | `roles:update`; não `is_superuser` | global |
+| DELETE | `/v1/roles/:id/members/:user_id` | `roles:update`; não `is_superuser` | global |
 | GET | `/v1/products` | `products:read` | global |
 | GET | `/v1/products/list` | `products:read` | global |
 | GET | `/v1/products/:id` | `products:read` | global |

@@ -91,8 +91,9 @@ type RoleRepository interface {
 	FindByID(ctx context.Context, id string) (*domain.Role, error)
 	Create(ctx context.Context, name string) (*domain.Role, error)
 	Delete(ctx context.Context, id string) error
-	SetPermission(ctx context.Context, roleID, resource string, actions domain.Action) error
-	RemovePermission(ctx context.Context, roleID, resource string) error
+	Update(ctx context.Context, id string, patch domain.RolePatch) error
+	ClearPermissions(ctx context.Context, roleID string) error
+	Grant(ctx context.Context, roleID, resource string, actions domain.Action) error
 	Members(ctx context.Context, roleID string, page domain.Page) ([]domain.User, int64, error)
 	Unassign(ctx context.Context, userID, roleID string) error
 }

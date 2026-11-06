@@ -1026,7 +1026,7 @@ const docTemplate = `{
                 "tags": [
                     "Roles"
                 ],
-                "summary": "List roles with their permissions",
+                "summary": "List the roles the API can change, with their permissions",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1155,6 +1155,85 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Roles"
+                ],
+                "summary": "Update the name or the enabled flag of a role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/role.updateDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/role.roleDTO"
+                        }
                     },
                     "400": {
                         "description": "Bad Request",
@@ -1415,7 +1494,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/roles/{id}/permissions/{resource}": {
+        "/v1/roles/{id}/permissions": {
             "put": {
                 "security": [
                     {
@@ -1431,7 +1510,7 @@ const docTemplate = `{
                 "tags": [
                     "Roles"
                 ],
-                "summary": "Replace the actions of a role on a resource; an empty list removes them",
+                "summary": "Replace every permission of a role at once; a resource left out loses its actions",
                 "parameters": [
                     {
                         "type": "string",
@@ -1441,19 +1520,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "string",
-                        "description": "Catalog resource",
-                        "name": "resource",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
                         "description": "Request",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/role.permissionDTO"
+                            "$ref": "#/definitions/role.permissionsDTO"
                         }
                     }
                 ],
@@ -2067,18 +2139,17 @@ const docTemplate = `{
                 }
             }
         },
-        "role.permissionDTO": {
+        "role.permissionsDTO": {
             "type": "object",
             "properties": {
-                "actions": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "read",
-                        "update"
-                    ]
+                "permissions": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
                 }
             }
         },
@@ -2097,9 +2168,6 @@ const docTemplate = `{
                 "is_default": {
                     "type": "boolean"
                 },
-                "is_superuser": {
-                    "type": "boolean"
-                },
                 "name": {
                     "type": "string",
                     "example": "support"
@@ -2112,9 +2180,18 @@ const docTemplate = `{
                             "type": "string"
                         }
                     }
-                },
-                "protected": {
+                }
+            }
+        },
+        "role.updateDTO": {
+            "type": "object",
+            "properties": {
+                "enabled": {
                     "type": "boolean"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "support"
                 }
             }
         },

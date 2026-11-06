@@ -30,7 +30,7 @@ core/domain → stdlib only
 
 **Sacred (product + ADR):** JWT must not carry permission claims; authz loads live from the DB on each check. Plaintext passwords / refresh JTIs / email tokens must not be stored.
 
-**Gap (confirmed):** Authorizer is applied on `/v1/products`; own-account routes only need Bearer. Roles are managed at runtime under `/v1/roles`. Protected roles (`is_superuser` or a `*` grant) are read-only there: full access changes only through `cmd/admin`, and the API never grants `*`. Holding `roles:update` lets someone change every other role, including their own.
+**Gap (confirmed):** Authorizer is applied on `/v1/products`; own-account routes only need Bearer. Roles are managed at runtime under `/v1/roles`. Protected roles (`is_superuser` or a `*` grant) are read-only there and `GET /v1/roles` does not list them: full access changes only through `cmd/admin`, and the API never grants `*`. Holding `roles:update` lets someone change every other role, including their own.
 
 ## Data
 
@@ -68,8 +68,9 @@ core/domain → stdlib only
 | PUT | `/v1/user/notifications/:id/read` (Bearer) |
 | GET | `/v1/permissions/resources` (`permissions:read`) |
 | GET/POST | `/v1/roles` (`roles:read`, `roles:create`) |
+| PATCH | `/v1/roles/:id` (`roles:update`) |
 | DELETE | `/v1/roles/:id` (`roles:delete`) |
-| PUT | `/v1/roles/:id/permissions/:resource` (`roles:update`) |
+| PUT | `/v1/roles/:id/permissions`, full map in one transaction (`roles:update`) |
 | GET | `/v1/roles/:id/members` (`roles:read`) |
 | PUT/DELETE | `/v1/roles/:id/members/:user_id` (`roles:update`) |
 | GET/POST | `/v1/products` |

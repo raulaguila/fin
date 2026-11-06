@@ -22,6 +22,12 @@ type Role struct {
 	CreatedAt   time.Time
 }
 
+// RolePatch holds the role fields to change; nil keeps the current value.
+type RolePatch struct {
+	Name    *string
+	Enabled *bool
+}
+
 // Protected reports whether the role is out of reach of the HTTP API: it holds
 // full access, so only the operator commands of cmd/admin touch its members.
 func (r Role) Protected() bool {

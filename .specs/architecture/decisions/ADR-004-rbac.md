@@ -16,7 +16,7 @@ Identidade precisa de papéis e permissões sem catálogo N:N de códigos compos
    - `1 << 3` delete = 8
    - Bits 4–30 livres; não reutilizar índice. Check: `have & need == need`.
 3. **Admin** — `usr_role.is_superuser` **ou** effective `resource='*'`. Seed do `admin`: `is_superuser=true` e linha `('*', 0x7FFFFFFF)`. A view não expande `*`; a aplicação trata superuser e sentinela.
-4. **Catálogo** — `usr_resource` é a fonte dos nomes para a API (list resources / grants). `*` não entra no catálogo; a coluna gerada `catalog_code` tem FK para ele, então o banco recusa grant de recurso desconhecido. `GET /v1/permissions/resources` lista o catálogo. Grants granulares por papel via `/v1/roles`, nunca por pessoa; seed inicial do admin só com `*`. Papel protegido (`is_superuser` ou grant `*`) é somente leitura na API: acesso total muda só por `cmd/admin`, e a API não concede `*`.
+4. **Catálogo** — `usr_resource` é a fonte dos nomes para a API (list resources / grants). `*` não entra no catálogo; a coluna gerada `catalog_code` tem FK para ele, então o banco recusa grant de recurso desconhecido. `GET /v1/permissions/resources` lista o catálogo. Grants granulares por papel via `/v1/roles`, nunca por pessoa; seed inicial do admin só com `*`. Papel protegido (`is_superuser` ou grant `*`) não aparece em `GET /v1/roles` e é somente leitura na API: acesso total muda só por `cmd/admin`, e a API não concede `*`.
 5. **Authz ao vivo** — access JWT carrega identidade/`sid`, **não** o mapa de permissões. Middleware/core carrega effective permissions (view) a cada autorização; mudança de roles vale na hora.
 6. **Escopo** — RBAC por **tipo** de resource (`users`, `roles`, `products`), não por UUID de instância.
 

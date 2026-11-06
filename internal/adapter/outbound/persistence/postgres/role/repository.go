@@ -138,11 +138,24 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *Repository) SetPermission(ctx context.Context, roleID, resource string, actions domain.Action) error {
+func (r *Repository) Update(ctx context.Context, id string, patch domain.RolePatch) error {
+	res := r.db.WithContext(ctx).Exec(`
+		UPDATE usr.usr_role
+		SET name = COALESCE(?, name), enabled = COALESCE(?::boolean, enabled)
+		WHERE id = ?
+	`, patch.Name, patch.Enabled, id)
+	if res.Error != nil {
+		return shared.WrapError(res.Error, "role")
+	}
+	if res.RowsAffected == 0 {
+		return shared.WrapError(gorm.ErrRecordNotFound, "role")
+	}
+	return nil
+}
+
+func (r *Repository) Grant(ctx context.Context, roleID, resource string, actions domain.Action) error {
 	err := r.db.WithContext(ctx).Exec(`
-		INSERT INTO usr.usr_role_permission (role_id, resource, actions)
-		VALUES (?, ?, ?)
-		ON CONFLICT (role_id, resource) DO UPDATE SET actions = EXCLUDED.actions
+		INSERT INTO usr.usr_role_permission (role_id, resource, actions) VALUES (?, ?, ?)
 	`, roleID, resource, int32(actions)).Error
 	if err != nil {
 		return shared.WrapError(err, "role_permission")
@@ -150,10 +163,10 @@ func (r *Repository) SetPermission(ctx context.Context, roleID, resource string,
 	return nil
 }
 
-func (r *Repository) RemovePermission(ctx context.Context, roleID, resource string) error {
+func (r *Repository) ClearPermissions(ctx context.Context, roleID string) error {
 	err := r.db.WithContext(ctx).Exec(`
-		DELETE FROM usr.usr_role_permission WHERE role_id = ? AND resource = ?
-	`, roleID, resource).Error
+		DELETE FROM usr.usr_role_permission WHERE role_id = ?
+	`, roleID).Error
 	if err != nil {
 		return shared.WrapError(err, "role_permission")
 	}

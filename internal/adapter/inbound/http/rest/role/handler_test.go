@@ -3,6 +3,7 @@ package role_test
 import (
 	"context"
 	"io"
+	"maps"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -43,7 +44,8 @@ func TestEveryRouteNeedsItsPermission(t *testing.T) {
 		{"GET", "/roles", "read"},
 		{"POST", "/roles", "create"},
 		{"DELETE", "/roles/r1", "delete"},
-		{"PUT", "/roles/r1/permissions/products", "update"},
+		{"PATCH", "/roles/r1", "update"},
+		{"PUT", "/roles/r1/permissions", "update"},
 		{"GET", "/roles/r1/members", "read"},
 		{"PUT", "/roles/r1/members/u2", "update"},
 		{"DELETE", "/roles/r1/members/u2", "update"},
@@ -74,27 +76,29 @@ func (allowAll) LoadEffective(context.Context, string) (*domain.EffectivePermiss
 
 type stubRoles struct {
 	input.RoleService
-	got domain.Action
+	got map[string]domain.Action
 }
 
-func (s *stubRoles) SetPermission(_ context.Context, _, _ string, actions domain.Action) (*domain.Role, error) {
-	s.got = actions
-	return &domain.Role{Permissions: map[string]domain.Action{"products": actions}}, nil
+func (s *stubRoles) SetPermissions(_ context.Context, _ string, permissions map[string]domain.Action) (*domain.Role, error) {
+	s.got = permissions
+	return &domain.Role{Permissions: permissions}, nil
 }
 
-func TestSetPermissionReadsTheActions(t *testing.T) {
+func TestSetPermissionsReadsTheMap(t *testing.T) {
 	for _, tc := range []struct {
 		body   string
 		status int
-		want   domain.Action
+		want   map[string]domain.Action
 	}{
-		{`{"actions":["read","update"]}`, fiber.StatusOK, domain.ActionRead | domain.ActionUpdate},
-		{`{"actions":[]}`, fiber.StatusOK, 0},
-		{`{"actions":["fly"]}`, fiber.StatusBadRequest, 0},
-		{`{}`, fiber.StatusBadRequest, 0},
+		{`{"permissions":{"products":["read","update"],"users":[]}}`, fiber.StatusOK, map[string]domain.Action{
+			"products": domain.ActionRead | domain.ActionUpdate, "users": 0,
+		}},
+		{`{"permissions":{}}`, fiber.StatusOK, map[string]domain.Action{}},
+		{`{"permissions":{"products":["fly"]}}`, fiber.StatusBadRequest, nil},
+		{`{}`, fiber.StatusBadRequest, nil},
 	} {
 		svc := &stubRoles{}
-		req := httptest.NewRequest("PUT", "/roles/r1/permissions/products", strings.NewReader(tc.body))
+		req := httptest.NewRequest("PUT", "/roles/r1/permissions", strings.NewReader(tc.body))
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := newApp(svc, allowAll{}).Test(req)
@@ -102,8 +106,8 @@ func TestSetPermissionReadsTheActions(t *testing.T) {
 			t.Fatal(err)
 		}
 		body, _ := io.ReadAll(resp.Body)
-		if resp.StatusCode != tc.status || svc.got != tc.want {
-			t.Errorf("%s: %d %s, actions %d", tc.body, resp.StatusCode, body, svc.got)
+		if resp.StatusCode != tc.status || !maps.Equal(svc.got, tc.want) {
+			t.Errorf("%s: %d %s, permissions %v", tc.body, resp.StatusCode, body, svc.got)
 		}
 	}
 }

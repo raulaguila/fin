@@ -76,7 +76,7 @@ func NewApplication(cfg *config.Environment, res *infra.Resources, log *logger.L
 		Health:     health.New(pgHealth),
 		Authorizer: authorizer,
 		Resources:  authorizer,
-		Roles:      rolesvc.New(store, permReader),
+		Roles:      rolesvc.New(store, store, permReader),
 		Auth:       authSvc,
 		Account:    account.New(store, permReader, output.RealClock{}),
 		Products:   product.New(productrepo.NewRepository(res.PostgresDB)),

@@ -27,7 +27,8 @@ func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
 	r.Get("/", read, h.List)
 	r.Post("/", middleware.Require(authz, domain.ResourceRoles, domain.ActionCreate), h.Create)
 	r.Delete("/:id", middleware.Require(authz, domain.ResourceRoles, domain.ActionDelete), h.Delete)
-	r.Put("/:id/permissions/:resource", update, h.SetPermission)
+	r.Patch("/:id", update, h.Update)
+	r.Put("/:id/permissions", update, h.SetPermissions)
 	r.Get("/:id/members", read, h.Members)
 	r.Put("/:id/members/:user_id", update, h.AddMember)
 	r.Delete("/:id/members/:user_id", update, h.RemoveMember)
@@ -38,8 +39,6 @@ type roleDTO struct {
 	Name        string              `json:"name" example:"support"`
 	Enabled     bool                `json:"enabled"`
 	IsDefault   bool                `json:"is_default"`
-	IsSuperuser bool                `json:"is_superuser"`
-	Protected   bool                `json:"protected"`
 	Permissions map[string][]string `json:"permissions"`
 	CreatedAt   time.Time           `json:"created_at"`
 }
@@ -48,8 +47,13 @@ type createDTO struct {
 	Name string `json:"name" example:"support"`
 }
 
-type permissionDTO struct {
-	Actions []string `json:"actions" example:"read,update"`
+type updateDTO struct {
+	Name    *string `json:"name" example:"support"`
+	Enabled *bool   `json:"enabled"`
+}
+
+type permissionsDTO struct {
+	Permissions map[string][]string `json:"permissions"`
 }
 
 type memberDTO struct {
@@ -65,12 +69,12 @@ func toDTO(r domain.Role) roleDTO {
 		permissions[resource] = domain.ActionNames(actions)
 	}
 	return roleDTO{
-		ID: r.ID, Name: r.Name, Enabled: r.Enabled, IsDefault: r.IsDefault, IsSuperuser: r.IsSuperuser,
-		Protected: r.Protected(), Permissions: permissions, CreatedAt: r.CreatedAt,
+		ID: r.ID, Name: r.Name, Enabled: r.Enabled, IsDefault: r.IsDefault,
+		Permissions: permissions, CreatedAt: r.CreatedAt,
 	}
 }
 
-// @Summary List roles with their permissions
+// @Summary List the roles the API can change, with their permissions
 // @Tags Roles
 // @Produce json
 // @Security BearerAuth
@@ -136,13 +140,39 @@ func (h *Handler) Delete(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// @Summary Replace the actions of a role on a resource; an empty list removes them
+// @Summary Update the name or the enabled flag of a role
 // @Tags Roles
 // @Produce json
 // @Accept json
 // @Param id path string true "Role ID"
-// @Param resource path string true "Catalog resource"
-// @Param body body permissionDTO true "Request"
+// @Param body body updateDTO true "Request"
+// @Security BearerAuth
+// @Success 200 {object} roleDTO
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Failure 403 {object} mapper.errorBody
+// @Failure 404 {object} mapper.errorBody
+// @Failure 409 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
+// @Router /v1/roles/{id} [patch]
+func (h *Handler) Update(c fiber.Ctx) error {
+	var body updateDTO
+	if err := c.Bind().Body(&body); err != nil {
+		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "invalid body"))
+	}
+	role, err := h.svc.Update(c.Context(), c.Params("id"), domain.RolePatch{Name: body.Name, Enabled: body.Enabled})
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.JSON(toDTO(*role))
+}
+
+// @Summary Replace every permission of a role at once; a resource left out loses its actions
+// @Tags Roles
+// @Produce json
+// @Accept json
+// @Param id path string true "Role ID"
+// @Param body body permissionsDTO true "Request"
 // @Security BearerAuth
 // @Success 200 {object} roleDTO
 // @Failure 400 {object} mapper.errorBody
@@ -150,20 +180,24 @@ func (h *Handler) Delete(c fiber.Ctx) error {
 // @Failure 403 {object} mapper.errorBody
 // @Failure 404 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/roles/{id}/permissions/{resource} [put]
-func (h *Handler) SetPermission(c fiber.Ctx) error {
-	var body permissionDTO
+// @Router /v1/roles/{id}/permissions [put]
+func (h *Handler) SetPermissions(c fiber.Ctx) error {
+	var body permissionsDTO
 	if err := c.Bind().Body(&body); err != nil {
 		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "invalid body"))
 	}
-	if body.Actions == nil {
-		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "actions required").WithField("actions"))
+	if body.Permissions == nil {
+		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "permissions required").WithField("permissions"))
 	}
-	actions, ok := domain.ParseActions(body.Actions)
-	if !ok {
-		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "actions must be create, read, update or delete").WithField("actions"))
+	permissions := make(map[string]domain.Action, len(body.Permissions))
+	for resource, names := range body.Permissions {
+		actions, ok := domain.ParseActions(names)
+		if !ok {
+			return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "actions must be create, read, update or delete").WithField("permissions"))
+		}
+		permissions[resource] = actions
 	}
-	role, err := h.svc.SetPermission(c.Context(), c.Params("id"), c.Params("resource"), actions)
+	role, err := h.svc.SetPermissions(c.Context(), c.Params("id"), permissions)
 	if err != nil {
 		return mapper.WriteError(c, err)
 	}

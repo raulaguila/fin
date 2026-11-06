@@ -164,7 +164,7 @@ install-tools: ## Install pinned Go tooling into GOPATH/bin
 # =========================
 # 1. Environment & Setup
 # =========================
-.PHONY: clean clean-go-cache clean-go-mod-cache init docs tidy dev-backend dev-mailer list-updates
+.PHONY: clean clean-go-cache clean-go-mod-cache init swagger tidy dev-backend dev-mailer list-updates
 
 clean: ## Clean local build artifacts
 	@echo "$(BLUE)🏗️  Cleaning local build artifacts...$(RESET)"
@@ -195,7 +195,7 @@ init: ## Create environment file if missing
 	fi
 	@echo
 
-docs: ## Regenerate the Swagger docs from the handler annotations
+swagger: ## Regenerate the Swagger docs from the handler annotations
 	@$(GO) run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g swagger.go -d internal/adapter/inbound/http/rest -o internal/adapter/inbound/http/rest/docs --parseInternal --outputTypes go
 	@echo "$(GREEN)✅ Swagger docs generated.$(RESET)"
 	@echo

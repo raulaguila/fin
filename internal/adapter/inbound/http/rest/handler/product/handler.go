@@ -18,7 +18,7 @@ type Handler struct {
 	svc input.ProductService
 }
 
-func NewHandler(svc input.ProductService) *Handler {
+func New(svc input.ProductService) *Handler {
 	return &Handler{svc: svc}
 }
 

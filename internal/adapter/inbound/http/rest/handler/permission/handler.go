@@ -13,7 +13,7 @@ type Handler struct {
 	svc input.ResourceCatalog
 }
 
-func NewHandler(svc input.ResourceCatalog) *Handler {
+func New(svc input.ResourceCatalog) *Handler {
 	return &Handler{svc: svc}
 }
 

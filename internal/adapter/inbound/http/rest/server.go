@@ -5,20 +5,20 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
-	recoverer "github.com/gofiber/fiber/v3/middleware/recover"
+	"github.com/gofiber/fiber/v3/middleware/recover"
 
 	"github.com/raulaguila/authenticity/config"
-	authhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/auth"
-	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/health"
+	authhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/auth"
+	healthhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/health"
+	notificationhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/notification"
+	permissionhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/permission"
+	preferencehttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/preference"
+	producthttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/product"
+	rolehttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/role"
+	sessionhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/session"
+	usershttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/user"
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/mapper"
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
-	notificationhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/notification"
-	permissionhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/permission"
-	preferencehttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/preference"
-	producthttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/product"
-	rolehttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/role"
-	sessionhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/session"
-	usershttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/user"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/pkg/logger"
 )
@@ -49,19 +49,28 @@ func splitList(list string) []string {
 	return strings.Split(strings.ReplaceAll(list, " ", ""), ",")
 }
 
-// NewServer builds the Fiber app with middleware and routes.
-func NewServer(cfg *config.Environment, app *input.Application, log *logger.Logger) *fiber.App {
+// New builds the Fiber app with middleware and routes.
+func New(cfg *config.Environment, app *input.Application, log *logger.Logger) *fiber.App {
 	fiberApp := fiber.New(serverConfig(cfg.API))
 
-	fiberApp.Use(middleware.RequestLog(log, cfg.API.EnableLogger))
-	fiberApp.Use(recoverer.New(recoverer.Config{EnableStackTrace: true}))
-	fiberApp.Use(cors.New(cors.Config{
-		AllowOrigins: splitList(cfg.API.CorsOrigins),
-		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"},
-	}))
-	fiberApp.Use(middleware.Timeout(cfg.API.RequestTimeout))
+	if l := middleware.RequestLog(log, cfg.API.EnableLogger); l != nil {
+		fiberApp.Use(l)
+	}
 
-	fiberApp.Get("/health", health.NewHandler(app.Health).Get) // before the limiter: probes must always answer
+	fiberApp.Use(
+		recover.New(recover.Config{EnableStackTrace: true}),
+		cors.New(cors.Config{
+			AllowOrigins:        splitList(cfg.API.CorsOrigins),
+			AllowMethods:        []string{fiber.MethodGet, fiber.MethodPost, fiber.MethodPut, fiber.MethodPatch, fiber.MethodDelete, fiber.MethodOptions},
+			AllowHeaders:        []string{fiber.HeaderAuthorization, fiber.HeaderContentType, fiber.HeaderAccept, fiber.HeaderAcceptLanguage, fiber.HeaderXRequestID, fiber.HeaderOrigin},
+			ExposeHeaders:       []string{fiber.HeaderContentType, fiber.HeaderContentLength, fiber.HeaderXRequestID},
+			AllowPrivateNetwork: true,
+			MaxAge:              3600,
+		}),
+		middleware.Timeout(cfg.API.RequestTimeout),
+	)
+
+	fiberApp.Get("/health", healthhttp.NewHandler(app.Health).Get) // before the limiter: probes must always answer
 	if !cfg.Protected() {
 		mountSwagger(fiberApp, cfg.Version) // never in production: it maps every route
 	}
@@ -72,18 +81,17 @@ func NewServer(cfg *config.Environment, app *input.Application, log *logger.Logg
 	v1 := fiberApp.Group("/v1")
 
 	auth := v1.Group("/auth")
-	authhttp.NewHandler(app.Auth, app.Account).Routes(auth, bearer,
-		middleware.RateLimit(cfg.API.AuthRateLimit), middleware.RateLimit(cfg.API.PasswordRateLimit))
-	sessionhttp.NewHandler(app.Account).Routes(auth.Group("/sessions", bearer))
+	authhttp.New(app.Auth, app.Account).Routes(auth, bearer, middleware.RateLimit(cfg.API.AuthRateLimit), middleware.RateLimit(cfg.API.PasswordRateLimit))
+	sessionhttp.New(app.Account).Routes(auth.Group("/sessions", bearer))
 
 	user := v1.Group("/user", bearer)
-	preferencehttp.NewHandler(app.Account).Routes(user.Group("/preferences"))
-	notificationhttp.NewHandler(app.Account).Routes(user.Group("/notifications"))
+	preferencehttp.New(app.Account).Routes(user.Group("/preferences"))
+	notificationhttp.New(app.Account).Routes(user.Group("/notifications"))
 
-	permissionhttp.NewHandler(app.Resources).Routes(v1.Group("/permissions", bearer), app.Authorizer)
-	rolehttp.NewHandler(app.Roles).Routes(v1.Group("/roles", bearer), app.Authorizer)
-	usershttp.NewHandler(app.Users).Routes(v1.Group("/users", bearer), app.Authorizer)
-	producthttp.NewHandler(app.Products).Routes(v1.Group("/products", bearer), app.Authorizer)
+	permissionhttp.New(app.Resources).Routes(v1.Group("/permissions", bearer), app.Authorizer)
+	rolehttp.New(app.Roles).Routes(v1.Group("/roles", bearer), app.Authorizer)
+	usershttp.New(app.Users).Routes(v1.Group("/users", bearer), app.Authorizer)
+	producthttp.New(app.Products).Routes(v1.Group("/products", bearer), app.Authorizer)
 
 	return fiberApp
 }

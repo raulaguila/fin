@@ -10,8 +10,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/role"
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
-	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/role"
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/pkg/apperror"
@@ -35,7 +35,7 @@ func newApp(svc input.RoleService, authz input.Authorizer) *fiber.App {
 		c.Locals(middleware.LocalUserID, "u1")
 		return c.Next()
 	})
-	role.NewHandler(svc).Routes(group, authz)
+	role.New(svc).Routes(group, authz)
 	return app
 }
 

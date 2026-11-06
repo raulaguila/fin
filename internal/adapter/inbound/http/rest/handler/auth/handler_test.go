@@ -10,7 +10,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/auth"
+	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/auth"
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/pkg/apperror"
@@ -54,7 +54,7 @@ func post(t *testing.T, svc *stubAuth, account stubAccount, path, body string) (
 	t.Helper()
 	pass := func(c fiber.Ctx) error { return c.Next() }
 	app := fiber.New()
-	auth.NewHandler(svc, account).Routes(app, pass, pass, pass)
+	auth.New(svc, account).Routes(app, pass, pass, pass)
 
 	req := httptest.NewRequest(fiber.MethodPost, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

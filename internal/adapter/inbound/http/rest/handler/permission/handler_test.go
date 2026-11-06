@@ -9,8 +9,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/permission"
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
-	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/permission"
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/pkg/apperror"
 )
@@ -47,7 +47,7 @@ func TestResourcesNeedPermissionsRead(t *testing.T) {
 			c.Locals(middleware.LocalUserID, "u1")
 			return c.Next()
 		})
-		permission.NewHandler(stubCatalog{}).Routes(group, stubAuthz{allow: tc.allow})
+		permission.New(stubCatalog{}).Routes(group, stubAuthz{allow: tc.allow})
 
 		resp, err := app.Test(httptest.NewRequest("GET", "/permissions/resources", nil))
 		if err != nil {

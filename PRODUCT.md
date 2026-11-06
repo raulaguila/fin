@@ -4,7 +4,7 @@
 
 ## Platform
 
-`web-api` + `worker` (evidence: `cmd/backend` Fiber HTTP API; `cmd/mailer` outbox consumer planned/bootstrap).
+`web-api` + `worker` (evidence: `cmd/backend` Fiber HTTP API; `cmd/mailer` SMTP outbox consumer), with `cmd/admin` for operator actions.
 
 ## Stack
 
@@ -12,7 +12,7 @@
 - HTTP: Fiber v3
 - Datastore: PostgreSQL 17 (schemas `usr`, `sys`, `app`; golang-migrate)
 - Auth crypto: RSA JWT (access/refresh), Argon2id passwords (PHC), SHA-256 for refresh `jti` and email tokens
-- SMTP: env + AES KEK/DEK helpers (`pkg/aescrypt`); mailer not consuming outbox yet
+- SMTP: configured through environment variables; email tokens sealed with AES-GCM (`pkg/aescrypt`); mailer consumes the Postgres outbox with leases and retries
 - Deploy: Docker Compose (`authenticity_backend`, `authenticity_mailer`, `authenticity_postgres`)
 
 ## Users
@@ -23,9 +23,9 @@ Hypothesis from purpose: applications and operators that need identity (register
 
 ## Product Purpose
 
-Provide identity and authentication for clients: account lifecycle (pending → activate → active), session-based JWT access/refresh with rotation and reuse detection, session management by the user, password reset, live RBAC (resource × CRUD), user preferences, in-app security notifications, and email delivery via Postgres outbox.
+Provide identity and authentication for clients: account lifecycle (pending → activate → active), session-based JWT access/refresh with rotation and reuse detection, session management by the user, password reset, live RBAC (resource × CRUD), role/permission/member management, user administration, user preferences, in-app security notifications, and email delivery via Postgres outbox.
 
-Operational success (from specs, not measured SLOs): only `active` accounts authenticate; plaintext secrets never at rest; HTTP never echoes login `failure_kind`; authz does not trust JWT permission claims.
+Operational success (not measured SLOs): password login requires an active account or an expired lock that can be cleared; a lock does not invalidate existing sessions or prevent refresh. Disabling an account revokes its sessions. Passwords and token plaintext are never stored; HTTP never echoes login `failure_kind`; authz does not trust JWT permission claims.
 
 ## Positioning
 
@@ -36,7 +36,7 @@ Operational success (from specs, not measured SLOs): only `active` accounts auth
 ## Operating Context
 
 - Local/dev via Compose and `config/.env` (`SYS_ENVIRONMENT=development` allows `AUTH_MANUAL_TOKEN_DELIVERY`)
-- Protected envs (`production`/`staging`): CORS cannot be `*`; manual token delivery forbidden; SMTP requires real settings when enabled
+- Protected envs (anything except `development`, `dev`, `local` or `test`): CORS cannot be empty or `*`; manual token delivery forbidden; SMTP is required with TLS and real settings
 - Tenancy: single-tenant identity store (no org/tenant tables in migrations)
 - Regions / on-call / HA topology: Unknown — confirm before designing to that constraint.
 
@@ -58,8 +58,9 @@ Known expensive-by-design paths (qualitative): Argon2id verify on login; authz P
 
 - Hexagonal dependency direction (core ≠ Fiber/GORM)
 - Password Argon2id only; refresh/`usr_token` stored as SHA-256
-- Login gated by `usr_user.status` (only `active` today)
+- Password login gated by account status and lock expiry; existing sessions remain usable during a login lock
 - RBAC B+C (ADR-004): `usr_resource` catalog; actions CRUD bits; admin `is_superuser` and/or `resource='*'`; live authz via view
+- HTTP role administration excludes changes to protected roles; full-access grants and management of users with protected roles go through `cmd/admin`. `roles:update` can change any unprotected role, including the caller's own
 - Email side effects via `sys.outbox` (backend enqueue; mailer consume)
 
 **Must not (v1)**
@@ -84,4 +85,4 @@ Known expensive-by-design paths (qualitative): Argon2id verify on login; authz P
 3. **Authz is live and typed** — load effective permissions at request time; authorize resource types with CRUD bits (or superuser/`*`).
 4. **Side effects are durable first** — email goes through outbox, then the mailer.
 5. **Specs and SQL constrain the product** — CHECKs and ADRs beat ad-hoc feature creep; example `products` exists only to prove RBAC.
-6. **Fail closed on account state** — non-`active` (and lockout) must not authenticate; HTTP responses stay coarse for credential failures.
+6. **Enforce account state** — pending and disabled accounts cannot log in; active locks block password login while preserving existing sessions. HTTP responses stay coarse for credential failures.

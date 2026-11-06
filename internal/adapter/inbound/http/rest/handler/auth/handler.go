@@ -20,7 +20,7 @@ type Handler struct {
 	account input.AccountService
 }
 
-func NewHandler(svc input.AuthService, account input.AccountService) *Handler {
+func New(svc input.AuthService, account input.AccountService) *Handler {
 	return &Handler{svc: svc, account: account}
 }
 

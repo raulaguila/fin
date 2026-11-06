@@ -15,7 +15,7 @@ LOG_FORMAT='text'                               # Log format (text, json, defaul
 LOG_LEVEL='info'                                # Log level (debug, info, warn, error, fatal, default=info)
 
 API_PORT='9978'                                 # API Container PORT
-API_LOGGER='1'                                  # API Logger enable
+API_LOGGER='1'                                  # Log all requests; 0 keeps server errors and degraded responses
 CORS_ORIGINS='*'                                # CORS allowed origins
 API_TRUSTED_PROXIES=''                          # Reverse proxy IPs/CIDRs, comma separated (empty = no proxy)
 API_PROXY_HEADER='X-Real-IP'                    # Client IP header, must be overwritten by the proxy

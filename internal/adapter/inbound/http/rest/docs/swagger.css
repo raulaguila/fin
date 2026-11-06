@@ -1,6 +1,21 @@
-/* Swagger UI ships no dark theme: invert the page, then undo it on code and images. */
-html { background: #fff; filter: invert(92%) hue-rotate(180deg); }
-img, pre { filter: invert(100%) hue-rotate(180deg); }
+/* Keep the existing dark palette, but apply it only when dark mode is selected. */
+html { background: #fff; }
+html[data-swagger-theme="dark"] { filter: invert(92%) hue-rotate(180deg); }
+html[data-swagger-theme="dark"] img,
+html[data-swagger-theme="dark"] pre { filter: invert(100%) hue-rotate(180deg); }
+.swagger-ui .info .title {
+  position: relative; min-height: 44px; padding-right: 56px;
+}
+.swagger-theme-toggle {
+  position: absolute; top: 0; right: 0; display: inline-flex; align-items: center; justify-content: center;
+  box-sizing: border-box; width: 44px; height: 44px; padding: 0;
+  border: 1px solid #89909c; border-radius: 4px; background: #fff; color: #3b4151;
+  font: 600 14px sans-serif; cursor: pointer;
+}
+.swagger-theme-toggle::before { content: "☀"; font-size: 20px; }
+.swagger-theme-toggle[aria-pressed="true"]::before { content: "☾"; }
+.swagger-theme-toggle:hover { background: #f0f1f3; }
+.swagger-theme-toggle:focus-visible { outline: 2px solid #3b4151; outline-offset: 3px; }
 .swagger-ui .topbar { display: none; }
 .swagger-ui .tag-group { margin: 12px 0 0; }
 .swagger-ui .tag-group button {

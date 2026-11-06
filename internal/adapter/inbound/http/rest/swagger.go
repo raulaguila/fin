@@ -45,9 +45,9 @@ import (
 //	@x-tagGroups		[{"name":"System","tags":["Health"]},{"name":"Identity","tags":["Auth","Registration","Password","Sessions"]},{"name":"Account","tags":["Preferences","Notifications"]},{"name":"Access","tags":["Permissions","Roles","Users"]},{"name":"Catalog","tags":["Products"]}]
 
 var (
-	//go:embed swagger.css
+	//go:embed docs/swagger.css
 	swaggerCSS string
-	//go:embed swagger.js
+	//go:embed docs/swagger.js
 	swaggerJS string
 )
 

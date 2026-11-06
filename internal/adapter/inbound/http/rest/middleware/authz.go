@@ -12,6 +12,7 @@ import (
 )
 
 const (
+	LocalUser      = "auth.user"
 	LocalUserID    = "auth.user_id"
 	LocalSessionID = "auth.session_id"
 )
@@ -29,6 +30,7 @@ func Bearer(authn input.Authenticator) fiber.Handler {
 		if err != nil {
 			return mapper.WriteError(c, err)
 		}
+		c.Locals(LocalUser, principal)
 		c.Locals(LocalUserID, principal.UserID)
 		c.Locals(LocalSessionID, principal.SessionID)
 		return c.Next()

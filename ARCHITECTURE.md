@@ -4,7 +4,7 @@
 
 ## Overview
 
-**Confirmed.** Authenticity runs as two long-lived processes plus Postgres: `cmd/backend` serves Fiber HTTP (health, auth, sessions, preferences, notifications, products CRUD); `cmd/mailer` claims `sys.outbox` rows under a 10-minute lease (`SKIP LOCKED`), opens the sealed token and sends SMTP. Composition wires use cases to Postgres. Product constraints live in `PRODUCT.md`; surface briefs in `.keel/surfaces/`.
+**Confirmed.** Authenticity runs as two long-lived processes plus Postgres: `cmd/backend` serves Fiber HTTP (health, auth, sessions, preferences, notifications, permissions, roles, users and products CRUD); `cmd/mailer` claims `sys.outbox` rows under a 10-minute lease (`SKIP LOCKED`), opens the sealed token and sends SMTP. `cmd/admin` handles operator actions. Composition wires use cases to Postgres. Product constraints live in `PRODUCT.md`; surface briefs in `.keel/surfaces/`.
 
 ## Boundaries
 
@@ -25,12 +25,12 @@ core/domain → stdlib only
 |----------|-------------|--------|
 | `internal/core` | — | Domain + ports + use cases; no Fiber/GORM/config |
 | `adapter/inbound/http/rest` | — | DTOs, route map, `apperror`→HTTP |
-| `adapter/outbound/persistence/postgres` | `usr.*`, `sys.outbox` | GORM/`Exec`; `Store` = TxManager + UnitOfWork |
+| `adapter/outbound/persistence/postgres` | `usr.*`, `sys.outbox`, `app.product` | GORM/`Exec`; `Store` = TxManager + UnitOfWork |
 | `cmd/mailer` | outbox claim → SMTP | Poll 2s, batch 10; terminal fail after 8 attempts or smtp_disabled |
 
 **Sacred (product + ADR):** JWT must not carry permission claims; authz loads live from the DB on each check. Plaintext passwords / refresh JTIs / email tokens must not be stored.
 
-**Gap (confirmed):** Authorizer is applied on `/v1/products`; own-account routes only need Bearer. Roles are managed at runtime under `/v1/roles`. Protected roles (`is_superuser` or a `*` grant) are read-only there and `GET /v1/roles` does not list them: full access changes only through `cmd/admin`, and the API never grants `*`. Holding `roles:update` lets someone change every other role, including their own. Users with a protected role get the same treatment under `/v1/users`: not listed, 403 by id, changed only through `cmd/admin`. Nobody disables their own account. Enable puts an account back to `active`, or `pending` if it never set a password; sessions do not come back.
+**Authorization (confirmed):** Authorizer is applied on `/v1/products`, `/v1/permissions`, `/v1/roles` and `/v1/users`; own-account routes use Bearer and queries scoped to the authenticated user. Roles are managed at runtime under `/v1/roles`. Protected roles (`is_superuser` or a `*` grant) cannot be changed there and `GET /v1/roles` does not list them: full access changes only through `cmd/admin`, and the API never grants `*`. Holding `roles:update` lets someone change any unprotected role, including their own. Users with a protected role get the same treatment under `/v1/users`: not listed, 403 by id, changed only through `cmd/admin`. Nobody disables their own account. Enable puts an account back to `active`, or `pending` if it never set a password; sessions do not come back.
 
 ## Data
 
@@ -50,7 +50,7 @@ core/domain → stdlib only
 
 **Tenancy:** single identity database; no org/tenant tables. **Inferred** as single-tenant until PRODUCT users say otherwise.
 
-**Consistency (descriptive — confirm):** auth multi-step writes use `WithinTx` (register, activate, reset confirm). Login writes are atomic single statements instead of one transaction: `RecordFailure` counts in SQL, `RecordSuccess` only applies if the verified hash is still current, so a login in flight can never undo a reset.
+**Consistency:** auth multi-step writes use `WithinTx` (register, activate, reset confirm). Login writes are atomic single statements instead of one transaction: `RecordFailure` counts in SQL, and `RecordSuccess` only applies if the verified hash is still current at that statement.
 
 ## Contracts
 
@@ -59,7 +59,8 @@ core/domain → stdlib only
 | Method | Path |
 |--------|------|
 | GET | `/health` |
-| POST | `/v1/auth/register`, `/activate`, `/login`, `/refresh`, `/logout` |
+| POST | `/v1/auth/register`, `/v1/auth/activate`, `/v1/auth/login`, `/v1/auth/refresh`, `/v1/auth/logout` |
+| POST | `/v1/auth/password-reset/request`, `/v1/auth/password-reset/confirm` |
 | GET | `/v1/auth/me` (Bearer) |
 | GET | `/v1/auth/sessions` (Bearer) |
 | DELETE | `/v1/auth/sessions/others`, `/v1/auth/sessions/:id` (Bearer) |
@@ -134,7 +135,7 @@ core/domain → stdlib only
 
 **Confirmed:** zerolog via `pkg/logger`; base fields `version`, `service` (`backend`|`mailer`), `pid`. Boot logs host/port/env/errors.
 
-**Confirmed:** `RequestLog` records every 5xx with its cause, degraded answers, and every request when `API_LOGGER` is on. The auth use case logs a warning when a best-effort step fails (attempt settlement, notification, token attempt count).
+**Confirmed:** `RequestLog` uses Fiber's zerolog integration for ordinary requests and returned errors, with a wrapper for internal causes stored in `mapper.LocalCause`. It records 5xx responses at error level and degraded answers at warning level even when `API_LOGGER=0`; enabling `API_LOGGER` also records ordinary requests. Each request produces at most one request-log entry. Fields include status, method, client IP, latency, PID and path; query strings, headers and bodies are omitted. Internal application-error causes stay in the log and are not added to HTTP responses. The auth use case logs a warning when a best-effort step fails (attempt settlement, notification, token attempt count).
 
 **Absent (confirmed):** request/correlation IDs; metrics/traces; auth use-case structured audit beyond `usr_login_attempt` rows.
 
@@ -180,9 +181,11 @@ Do not log refresh tokens, passwords, or email token plaintext (payload in outbo
 
 ## API docs
 
-Swagger UI at `/swagger/index.html`, outside protected environments only. Handlers carry `swag` annotations and `make swagger` regenerates `internal/adapter/inbound/http/rest/docs`. Each handler package mounts its own routes (`Routes`); every operation has one `@Tags` tag, by subject; `x-tagGroups` in `rest/swagger.go` groups the tags, rendered by the plugin in `rest/swagger.js` as collapsible sections, closed by default. `swagger_test.go` fails when a route and the docs disagree.
+Swagger UI at `/swagger/index.html`, outside protected environments only. Handlers under `rest/handler` carry `swag` annotations and `make swagger` regenerates `internal/adapter/inbound/http/rest/docs/docs.go`. Each handler package mounts its own routes (`Routes`); every operation has one `@Tags` tag, by subject; `x-tagGroups` in `rest/swagger.go` groups the tags, rendered by the plugin in `rest/docs/swagger.js` as collapsible sections, closed by default. Custom styles live in `rest/docs/swagger.css`. `swagger_test.go` fails when a route and the docs disagree.
+
+An icon-only theme toggle sits at the right of the API title, on the same line. Dark is the default; the selection is saved in browser local storage when available. The button has a tooltip, supports keyboard activation and exposes its accessible name and state with `aria-label` and `aria-pressed`.
 
 ## Known gaps vs intent
 
-1. **Roles/permissions mutation API** — catalog + grants via HTTP still missing.
-2. **Observability thin** — no correlation id / metrics / traces.
+1. **Observability thin** — no correlation id / metrics / traces, or structured administrative audit beyond login attempts.
+2. **Scale and SLOs unmeasured** — no measured throughput, latency or availability targets; the HTTP rate limiter is local to each process.

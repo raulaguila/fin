@@ -90,3 +90,11 @@ func (l *Logger) write(level zerolog.Level, msg string, attrs []slog.Attr) {
 	}
 	ev.Msg(msg)
 }
+
+// Zerolog returns the underlying zerolog logger.
+func (l *Logger) Zerolog() *zerolog.Logger {
+	if l == nil {
+		return nil
+	}
+	return &l.z
+}

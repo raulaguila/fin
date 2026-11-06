@@ -2,7 +2,6 @@ package product
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,14 +47,12 @@ var sortColumns = map[string]string{
 	"name": "name", "price": "price", "created_at": "created_at", "updated_at": "updated_at",
 }
 
-var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
-
 // shortcut: OFFSET and leading-wildcard ILIKE scan what they skip, fine for this example table; move to keyset and pg_trgm when it holds many thousands of rows.
 func (r *Repository) List(ctx context.Context, filter domain.ProductFilter) ([]domain.Product, int64, error) {
 	matching := func() *gorm.DB {
 		q := r.db.WithContext(ctx).Table("app.product")
 		if filter.Search != "" {
-			q = q.Where("name ILIKE ?", "%"+likeEscaper.Replace(filter.Search)+"%")
+			q = q.Where("name ILIKE ?", shared.Contains(filter.Search))
 		}
 		return q
 	}

@@ -49,7 +49,7 @@ AS $$
    WHERE status IN ('sent', 'failed') AND processed_at < now() - retention;
   -- Credential and tokens cascade. A live token means a resumed signup: it stays.
   DELETE FROM usr.usr_user u
-   WHERE u.status IN ('pending', 'expired')
+   WHERE u.status = 'pending'
      AND u.created_at < now() - retention
      AND NOT EXISTS (
        SELECT 1 FROM usr.usr_token t WHERE t.user_id = u.id AND t.expires_at >= now()

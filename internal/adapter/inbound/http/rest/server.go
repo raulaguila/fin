@@ -18,6 +18,7 @@ import (
 	producthttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/product"
 	rolehttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/role"
 	sessionhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/session"
+	usershttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/user"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/pkg/logger"
 )
@@ -81,6 +82,7 @@ func NewServer(cfg *config.Environment, app *input.Application, log *logger.Logg
 
 	permissionhttp.NewHandler(app.Resources).Routes(v1.Group("/permissions", bearer), app.Authorizer)
 	rolehttp.NewHandler(app.Roles).Routes(v1.Group("/roles", bearer), app.Authorizer)
+	usershttp.NewHandler(app.Users).Routes(v1.Group("/users", bearer), app.Authorizer)
 	producthttp.NewHandler(app.Products).Routes(v1.Group("/products", bearer), app.Authorizer)
 
 	return fiberApp

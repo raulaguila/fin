@@ -20,7 +20,6 @@ const (
 	FailureAccountLocked    = "account_locked"
 	FailureAccountDisabled  = "account_disabled"
 	FailureAccountPending   = "account_pending"
-	FailureAccountExpired   = "account_expired"
 	FailureRateLimitedIP    = "rate_limited_ip"
 	FailureRateLimitedEmail = "rate_limited_email"
 

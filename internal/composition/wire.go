@@ -18,6 +18,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/core/usecase/mailer"
 	"github.com/raulaguila/authenticity/internal/core/usecase/product"
 	rolesvc "github.com/raulaguila/authenticity/internal/core/usecase/role"
+	usersvc "github.com/raulaguila/authenticity/internal/core/usecase/user"
 	"github.com/raulaguila/authenticity/internal/infra"
 	"github.com/raulaguila/authenticity/pkg/logger"
 )
@@ -77,6 +78,7 @@ func NewApplication(cfg *config.Environment, res *infra.Resources, log *logger.L
 		Authorizer: authorizer,
 		Resources:  authorizer,
 		Roles:      rolesvc.New(store, store, permReader),
+		Users:      usersvc.New(store, store, output.RealClock{}),
 		Auth:       authSvc,
 		Account:    account.New(store, permReader, output.RealClock{}),
 		Products:   product.New(productrepo.NewRepository(res.PostgresDB)),

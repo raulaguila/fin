@@ -83,15 +83,63 @@ func (r *Repository) Create(ctx context.Context, u *domain.User) error {
 	return nil
 }
 
+// unprotected must agree with domain.Role.Protected.
+const unprotected = `NOT EXISTS (
+	SELECT 1 FROM usr.usr_user_role ur
+	JOIN usr.usr_role r ON r.id = ur.role_id
+	WHERE ur.user_id = u.id AND (
+		r.is_superuser OR EXISTS (SELECT 1 FROM usr.usr_role_permission p WHERE p.role_id = r.id AND p.resource = '*')
+	)
+)`
+
+// shortcut: OFFSET and leading-wildcard ILIKE scan what they skip, fine for thousands of users; move to keyset and pg_trgm beyond that.
+func (r *Repository) List(ctx context.Context, filter domain.UserFilter) ([]domain.User, int64, error) {
+	matching := func() *gorm.DB {
+		q := r.db.WithContext(ctx).Table("usr.usr_user u").Where(unprotected)
+		if filter.Search != "" {
+			pattern := shared.Contains(filter.Search)
+			q = q.Where("(u.name ILIKE ? OR u.email::text ILIKE ?)", pattern, pattern)
+		}
+		if filter.Status != "" {
+			q = q.Where("u.status = ?", filter.Status)
+		}
+		return q
+	}
+	var total int64
+	if err := matching().Count(&total).Error; err != nil {
+		return nil, 0, shared.WrapError(err, "user")
+	}
+	var rows []row
+	err := matching().
+		Select("u.id, u.name, u.email, u.status, u.created_at, u.updated_at").
+		Order("u.name, u.id"). // id keeps pages stable on ties
+		Limit(filter.Page.Limit).Offset(filter.Page.Offset()).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, 0, shared.WrapError(err, "user")
+	}
+	out := make([]domain.User, 0, len(rows))
+	for _, m := range rows {
+		out = append(out, *m.toDomain())
+	}
+	return out, total, nil
+}
+
+func (r *Repository) Enable(ctx context.Context, id string) error {
+	err := r.db.WithContext(ctx).Exec(`
+		UPDATE usr.usr_user u
+		SET status = CASE
+		      WHEN EXISTS (SELECT 1 FROM usr.usr_credential c WHERE c.user_id = u.id AND c.password_hash IS NOT NULL)
+		      THEN ? ELSE ? END,
+		    updated_at = now()
+		WHERE u.id = ? AND u.status = ?
+	`, domain.UserStatusActive, domain.UserStatusPending, id, domain.UserStatusDisabled).Error
+	return shared.WrapError(err, "user")
+}
+
 func (r *Repository) UpdateStatus(ctx context.Context, id, status string) error {
-	res := r.db.WithContext(ctx).Exec(`
-		UPDATE usr.usr_user SET status = ?, updated_at = now() WHERE id = ?
-	`, status, id)
-	if res.Error != nil {
-		return shared.WrapError(res.Error, "user")
-	}
-	if res.RowsAffected == 0 {
-		return shared.WrapError(gorm.ErrRecordNotFound, "user")
-	}
-	return nil
+	err := r.db.WithContext(ctx).Exec(`
+		UPDATE usr.usr_user SET status = ?, updated_at = now() WHERE id = ? AND status <> ?
+	`, status, id, domain.UserStatusDisabled).Error
+	return shared.WrapError(err, "user")
 }

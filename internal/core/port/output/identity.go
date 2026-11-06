@@ -12,7 +12,14 @@ type UserRepository interface {
 	FindByID(ctx context.Context, id string) (*domain.User, error)
 	FindByEmail(ctx context.Context, email string) (*domain.User, error)
 	Create(ctx context.Context, user *domain.User) error
+	// UpdateStatus leaves a disabled account as it is: a login or activation already
+	// running when the account was disabled must not undo that.
 	UpdateStatus(ctx context.Context, id, status string) error
+	// Enable lifts a disable: the account goes back to active, or to pending if it
+	// never set a password. Any other status stays.
+	Enable(ctx context.Context, id string) error
+	// List pages through the users without a protected role.
+	List(ctx context.Context, filter domain.UserFilter) ([]domain.User, int64, error)
 }
 
 // CredentialRepository persists usr.usr_credential.
@@ -72,6 +79,9 @@ type LoginAttemptRepository interface {
 	CountRecentFailuresByIP(ctx context.Context, ip string, since time.Time) (int, error)
 	// CountRecentFailuresByEmailAndIP counts one client's failures against one account.
 	CountRecentFailuresByEmailAndIP(ctx context.Context, email, ip string, since time.Time) (int, error)
+	// ClearFailures forgets what counts against an account since a moment, older
+	// history stays. A password reset proves the owner, who must get back in.
+	ClearFailures(ctx context.Context, email string, since time.Time) error
 	// Lock makes concurrent logins sharing a key wait until the transaction ends.
 	Lock(ctx context.Context, key string) error
 	// Settle replaces the outcome of a reserved attempt.
@@ -95,5 +105,7 @@ type RoleRepository interface {
 	ClearPermissions(ctx context.Context, roleID string) error
 	Grant(ctx context.Context, roleID, resource string, actions domain.Action) error
 	Members(ctx context.Context, roleID string, page domain.Page) ([]domain.User, int64, error)
+	// ForUser returns every role of a user, enabled or not.
+	ForUser(ctx context.Context, userID string) ([]domain.Role, error)
 	Unassign(ctx context.Context, userID, roleID string) error
 }

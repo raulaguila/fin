@@ -20,7 +20,7 @@ import (
 	"github.com/raulaguila/authenticity/pkg/logger"
 )
 
-const usage = "usage: admin [bootstrap] | admin promote | admin disable"
+const usage = "usage: admin [bootstrap] | admin promote | admin disable | admin enable"
 
 // action runs against the database and returns the line to print.
 type action func(context.Context, *admin.Service) (string, error)
@@ -74,6 +74,7 @@ func parse(args []string, in *os.File, out io.Writer) (action, error) {
 	command, ok := map[string]func(*admin.Service, context.Context, string) error{
 		"promote": (*admin.Service).Promote,
 		"disable": (*admin.Service).Disable,
+		"enable":  (*admin.Service).Enable,
 	}[args[0]]
 	if !ok {
 		return nil, errors.New(usage)

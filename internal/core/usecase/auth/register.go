@@ -48,16 +48,13 @@ func (s *Service) Register(ctx context.Context, cmd input.RegisterCommand) (*inp
 		u, findErr := uow.Users().FindByEmail(ctx, email)
 		switch {
 		case findErr == nil:
-			if u.Status != domain.UserStatusPending && u.Status != domain.UserStatusExpired {
+			if u.Status != domain.UserStatusPending {
 				return nil
 			}
 			if cooling, err := s.emailThrottled(ctx, uow, u.ID, domain.TokenPurposeActivation); cooling || err != nil {
 				return err
 			}
 			// Unactivated account: send a fresh token instead of a dead end.
-			if err := uow.Users().UpdateStatus(ctx, u.ID, domain.UserStatusPending); err != nil {
-				return err
-			}
 		case apperror.IsNotFound(findErr):
 			u = &domain.User{Name: name, Email: email, Status: domain.UserStatusPending}
 			if err := uow.Users().Create(ctx, u); err != nil {
@@ -96,7 +93,6 @@ func (s *Service) Activate(ctx context.Context, cmd input.ActivateCommand) error
 
 	if tok, _, err := activationTarget(ctx, s.UOW, hash, now); err != nil {
 		if tok != nil {
-			_ = s.UOW.Users().UpdateStatus(ctx, tok.UserID, domain.UserStatusExpired)
 			if _, err := s.UOW.Tokens().IncrementAttempts(ctx, tok.ID); err != nil {
 				s.warn("Token attempt not counted", err)
 			}
@@ -153,7 +149,7 @@ func activationTarget(ctx context.Context, uow output.UnitOfWork, hash []byte, n
 	if err != nil {
 		return nil, nil, err
 	}
-	if user.Status != domain.UserStatusPending && user.Status != domain.UserStatusExpired {
+	if user.Status != domain.UserStatusPending {
 		return nil, nil, apperror.New(apperror.CodeConflict, "account cannot be activated")
 	}
 	return tok, user, nil

@@ -6,6 +6,7 @@ type Application struct {
 	Authorizer Authorizer
 	Resources  ResourceCatalog
 	Roles      RoleService
+	Users      UserService
 	Auth       AuthService
 	Account    AccountService
 	Products   ProductService

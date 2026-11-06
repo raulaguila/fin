@@ -102,6 +102,9 @@ func (s *Service) ConfirmPasswordReset(ctx context.Context, cmd input.ConfirmPas
 		if err := uow.Sessions().RevokeAllForUser(ctx, tok.UserID, now, domain.RevokePasswordChanged); err != nil {
 			return err
 		}
+		if err := uow.Attempts().ClearFailures(ctx, user.Email, now.Add(-s.Cfg.LoginAttemptEmailWindow)); err != nil {
+			return err
+		}
 		if err := uow.Notifications().Create(ctx, &domain.Notification{
 			UserID:  tok.UserID,
 			Level:   domain.NotificationWarning,

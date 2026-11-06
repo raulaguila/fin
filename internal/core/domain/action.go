@@ -52,6 +52,7 @@ const (
 	ResourcePermissions = "permissions"
 	ResourceProducts    = "products"
 	ResourceRoles       = "roles"
+	ResourceUsers       = "users"
 )
 
 // Resource is an entry of the catalog that grants may name.

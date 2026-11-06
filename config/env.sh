@@ -28,8 +28,8 @@ API_IDLE_TIMEOUT='120s'                         # Keep-alive idle timeout
 API_REQUEST_TIMEOUT='10s'                       # Work budget of one request
 API_SHUTDOWN_TIMEOUT='30s'                      # Wait for requests in flight at shutdown
 
-ACCESS_TOKEN_EXPIRE='50m'                       # Access token expiration (m=min, s=seg, h=hour, default=50m)
-REFRESH_TOKEN_EXPIRE='3h'                       # Refresh token expiration (m=min, s=seg, h=hour, default=3h)
+ACCESS_TOKEN_EXPIRE='50m'                       # Access token expiration (m=min, s=seg, h=hour, default=15m)
+REFRESH_TOKEN_EXPIRE='3h'                       # Refresh token expiration (m=min, s=seg, h=hour, default=60m)
 
 ACCESS_TOKEN='${access_token}'                  # Token to encode access token - PRIVATE TOKEN
 REFRESH_TOKEN='${refresh_token}'                # Token to encode refresh token - PRIVATE TOKEN
@@ -38,7 +38,7 @@ POSTGRES_HOST='postgres'                        # Postgres Container HOST
 POSTGRES_PORT='5444'                            # Postgres Container PORT
 POSTGRES_USER='root'                            # Postgres owner, used only by migrations
 POSTGRES_PASS='${postgres_pass}'                # Postgres owner PASS
-POSTGRES_APP_USER='authenticity_app'            # Role of backend and mailer, created by migration 000009
+POSTGRES_APP_USER='authenticity_app'            # Role of backend and mailer, created by migration 000001
 POSTGRES_APP_PASS='${postgres_app_pass}'        # Its PASS, applied by make db-app-role
 POSTGRES_BASE='authenticity'                    # Postgres BASE
 POSTGRES_MAX_CONNS='40'                         # Postgres pool per process

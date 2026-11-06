@@ -7,6 +7,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
 	"github.com/raulaguila/authenticity/internal/core/usecase/auth"
+	usersvc "github.com/raulaguila/authenticity/internal/core/usecase/user"
 	"github.com/raulaguila/authenticity/pkg/apperror"
 	"github.com/raulaguila/authenticity/pkg/password"
 )
@@ -114,9 +115,18 @@ func (s *Service) Disable(ctx context.Context, email string) error {
 		if err != nil {
 			return err
 		}
-		if err := uow.Users().UpdateStatus(ctx, user.ID, domain.UserStatusDisabled); err != nil {
+		return usersvc.Disable(ctx, uow, user.ID, s.Clock.Now())
+	})
+}
+
+// Enable lifts a disable. It is the only way back for a user with a protected
+// role, which the API does not touch.
+func (s *Service) Enable(ctx context.Context, email string) error {
+	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
+		user, err := uow.Users().FindByEmail(ctx, auth.NormalizeEmail(email))
+		if err != nil {
 			return err
 		}
-		return uow.Sessions().RevokeAllForUser(ctx, user.ID, s.Clock.Now(), domain.RevokeAccountDisabled)
+		return uow.Users().Enable(ctx, user.ID)
 	})
 }

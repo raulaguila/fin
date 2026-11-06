@@ -18,7 +18,7 @@ func productionEnv(t *testing.T) *Environment {
 	return &Environment{
 		Environment: "production",
 		API:         APIConfig{CorsOrigins: "https://app.acme.io", GlobalRateLimit: 100, AuthRateLimit: 10, PasswordRateLimit: 3, RequestTimeout: 1},
-		Auth:        AuthConfig{SessionMaxLifetime: 1, MaxFailedLoginAttempts: 5, AccountLockDuration: 1, LoginAttemptPairMaxFailures: 5},
+		Auth:        AuthConfig{SessionMaxLifetime: 1, MaxFailedLoginAttempts: 5, AccountLockDuration: 1, LoginAttemptPairMaxFailures: 5, LoginAttemptEmailMaxFailures: 5, LoginAttemptIPMaxFailures: 5},
 		Postgres:    PostgresConfig{Password: strings.Repeat("p", minSecretLength), MaxConns: 40},
 		SMTP: SMTPConfig{
 			MasterKey: validKey, Enabled: true, Security: smtpsecurity.ModeStartTLS,
@@ -115,5 +115,19 @@ func TestOnlyTheMailerRunsWithoutFixedKeys(t *testing.T) {
 	env.Service = ServiceMailer
 	if err := validateEnvironment(env); err != nil {
 		t.Fatalf("mailer: %v", err)
+	}
+}
+
+// Zero would refuse every login, while elsewhere it can read as "no limit".
+func TestZeroLoginLimitIsRefused(t *testing.T) {
+	for _, set := range []func(*AuthConfig){
+		func(a *AuthConfig) { a.LoginAttemptEmailMaxFailures = 0 },
+		func(a *AuthConfig) { a.LoginAttemptIPMaxFailures = 0 },
+	} {
+		env := productionEnv(t)
+		set(&env.Auth)
+		if err := validateEnvironment(env); err == nil {
+			t.Fatal("a zero login limit must not start")
+		}
 	}
 }

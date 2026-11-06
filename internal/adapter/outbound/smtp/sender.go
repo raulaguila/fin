@@ -32,9 +32,6 @@ func (s *Sender) Enabled() bool {
 }
 
 func (s *Sender) Send(to, subject, body string) error {
-	if !s.cfg.Enabled {
-		return fmt.Errorf("smtp_disabled")
-	}
 	if s.cfg.Host == "" || s.cfg.From == "" {
 		return fmt.Errorf("smtp_misconfigured")
 	}

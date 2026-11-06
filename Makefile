@@ -360,7 +360,7 @@ migrate-version: ## Show current migration version
 # =========================
 # 5. Docker Compose
 # =========================
-.PHONY: db-app-role admin-bootstrap admin-promote admin-disable compose-up compose-build compose-services compose-down compose-clean compose-remove compose-exec compose-log compose-top compose-stats
+.PHONY: db-app-role admin-bootstrap admin-promote admin-disable admin-enable compose-up compose-build compose-services compose-down compose-clean compose-remove compose-exec compose-log compose-top compose-stats
 
 db-app-role: ## Give the application role its login, with the password in config/.env
 	$(call require_env_file)
@@ -379,6 +379,9 @@ admin-promote: ## Give an active user the admin role, asking the email
 
 admin-disable: ## Disable a user and end their sessions, asking the email
 	@$(COMPOSE_COMMAND) exec backend ./admin disable
+
+admin-enable: ## Enable a disabled user, asking the email
+	@$(COMPOSE_COMMAND) exec backend ./admin enable
 
 compose-up: ## Create and start containers
 	@echo "$(BLUE)🚀 Starting Docker containers...$(RESET)"

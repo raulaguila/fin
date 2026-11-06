@@ -37,10 +37,12 @@ import (
 //	@tag.name			Permissions
 //	@tag.description	Resources that roles may be granted
 //	@tag.name			Roles
-//	@tag.description	Roles, their permissions and members. The admin role cannot be changed
+//	@tag.description	Roles, their permissions and members. Protected roles cannot be changed
+//	@tag.name			Users
+//	@tag.description	Accounts of other people. Users with a protected role stay out of reach
 //	@tag.name			Products
 //	@tag.description	Product catalog
-//	@x-tagGroups		[{"name":"System","tags":["Health"]},{"name":"Identity","tags":["Auth","Registration","Password","Sessions"]},{"name":"Account","tags":["Preferences","Notifications"]},{"name":"Access","tags":["Permissions","Roles"]},{"name":"Catalog","tags":["Products"]}]
+//	@x-tagGroups		[{"name":"System","tags":["Health"]},{"name":"Identity","tags":["Auth","Registration","Password","Sessions"]},{"name":"Account","tags":["Preferences","Notifications"]},{"name":"Access","tags":["Permissions","Roles","Users"]},{"name":"Catalog","tags":["Products"]}]
 
 var (
 	//go:embed swagger.css

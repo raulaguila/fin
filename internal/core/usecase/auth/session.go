@@ -69,8 +69,6 @@ func (s *Service) authenticate(ctx context.Context, email string, cmd input.Logi
 	switch user.Status {
 	case domain.UserStatusPending:
 		return refuse(domain.FailureAccountPending)
-	case domain.UserStatusExpired:
-		return refuse(domain.FailureAccountExpired)
 	case domain.UserStatusDisabled:
 		return refuse(domain.FailureAccountDisabled)
 	case domain.UserStatusLocked:
@@ -129,6 +127,9 @@ func (s *Service) authenticate(ctx context.Context, email string, cmd input.Logi
 		s.noticeNewClient(ctx, user.ID, cmd.IPAddress) // before the session of this login exists
 	}
 	pair, err := s.issueSession(ctx, user.ID, cmd.IPAddress, cmd.UserAgent, now)
+	if apperror.IsCode(err, apperror.CodeInvalidCredentials) {
+		return nil, domain.FailureAccountDisabled, err
+	}
 	return pair, "", err
 }
 
@@ -263,9 +264,6 @@ func (s *Service) Authenticate(ctx context.Context, accessToken string) (*domain
 // settleLock reports whether user is under a running lock. A lapsed lock turns
 // the account active again, so it needs no login to recover.
 func (s *Service) settleLock(ctx context.Context, user *domain.User, now time.Time) (bool, error) {
-	if user.Status != domain.UserStatusLocked {
-		return false, nil
-	}
 	cred, err := s.UOW.Credentials().FindByUserID(ctx, user.ID)
 	if err != nil {
 		return false, err
@@ -304,6 +302,17 @@ func (s *Service) issueSession(ctx context.Context, userID string, ip, ua *strin
 	}
 	if err := s.UOW.Sessions().Create(ctx, sess); err != nil {
 		return nil, err
+	}
+
+	// Disable may have run during the slow verify and missed this session. Read
+	// after the insert, so whichever of the two comes last sees the other.
+	user, err := s.UOW.Users().FindByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user.Status == domain.UserStatusDisabled {
+		s.warn("Session not revoked", s.UOW.Sessions().Revoke(ctx, sessionID, now, domain.RevokeAccountDisabled))
+		return nil, invalidCredentials()
 	}
 
 	return &domain.TokenPair{

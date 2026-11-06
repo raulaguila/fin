@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -93,4 +94,31 @@ func TestResetRevokesSessionsAndTokenIsSingleUse(t *testing.T) {
 
 	_, err = e.svc.Refresh(ctx, input.RefreshCommand{RefreshToken: pair.RefreshToken})
 	wantCode(t, err, apperror.CodeUnauthorized)
+}
+
+// Strangers on many addresses can fill the account limit. A reset proves the
+// owner, who gets back in from anywhere.
+func TestResetLetsTheOwnerBackIn(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	addr := e.activeUser(t)
+	e.svc.Cfg.MaxFailedLoginAttempts = 50
+	for i := 1; i <= 5; i++ {
+		_, err := e.loginFrom(addr, "wrong password", fmt.Sprintf("198.51.100.%d", i))
+		wantCode(t, err, apperror.CodeInvalidCredentials)
+	}
+	_, err := e.loginFrom(addr, strongPassword, "203.0.113.9")
+	wantCode(t, err, apperror.CodeTooManyRequests)
+
+	res, err := e.svc.RequestPasswordReset(ctx, input.RequestPasswordResetCommand{Email: addr})
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := strongPassword + " 2"
+	if err := e.svc.ConfirmPasswordReset(ctx, input.ConfirmPasswordResetCommand{Token: res.ResetToken, Password: changed}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.loginFrom(addr, changed, "203.0.113.9"); err != nil {
+		t.Fatal(err)
+	}
 }

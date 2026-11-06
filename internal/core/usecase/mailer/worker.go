@@ -102,7 +102,7 @@ func (w *Worker) process(ctx context.Context, msg *domain.OutboxMessage, now tim
 	}
 	if err := w.Mail.Send(to, subject, body); err != nil {
 		attempts := msg.Attempts + 1
-		terminal := attempts >= maxAttempts || err.Error() == "smtp_disabled" || err.Error() == "smtp_misconfigured"
+		terminal := attempts >= maxAttempts || err.Error() == "smtp_misconfigured"
 		w.fail(ctx, msg, now, validate.Text(err.Error(), maxErrorBytes), terminal)
 		return
 	}

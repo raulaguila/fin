@@ -13,7 +13,7 @@ CREATE TABLE usr.usr_user (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT chk_usr_user_name_len CHECK (char_length(name) BETWEEN 2 AND 80),
     CONSTRAINT chk_usr_user_status CHECK (
-        status IN ('pending', 'active', 'expired', 'locked', 'disabled')
+        status IN ('pending', 'active', 'locked', 'disabled')
     )
 );
 
@@ -123,7 +123,6 @@ CREATE TABLE usr.usr_login_attempt (
             'account_locked',
             'account_disabled',
             'account_pending',
-            'account_expired',
             'rate_limited_ip',
             'rate_limited_email'
         )
@@ -296,9 +295,9 @@ WHERE name = 'admin';
 -- Comments
 -- ---------------------------------------------------------------------------
 COMMENT ON TABLE usr.usr_user IS
-  'Identity. pending until activation; expired if the activation token lapses unused.';
+  'Identity. pending until activation. disabled stays until someone enables the account.';
 COMMENT ON COLUMN usr.usr_user.status IS
-  'pending | active | expired | locked | disabled. Codes match domain.UserStatus*.';
+  'pending | active | locked | disabled. Codes match domain.UserStatus*.';
 
 COMMENT ON TABLE usr.usr_credential IS
   'Credential 1:1. Hash is NULL until activation.';

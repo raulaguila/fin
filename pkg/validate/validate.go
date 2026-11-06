@@ -3,6 +3,8 @@ package validate
 
 import (
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -13,6 +15,14 @@ import (
 func ID(id string) error {
 	if uuid.Validate(id) != nil {
 		return apperror.New(apperror.CodeInvalidInput, "invalid id").WithField("id")
+	}
+	return nil
+}
+
+// Search refuses a search term that cannot be a piece of stored text.
+func Search(s string, max int) error {
+	if len(s) > max || !utf8.ValidString(s) || strings.ContainsFunc(s, unicode.IsControl) {
+		return apperror.New(apperror.CodeInvalidInput, "invalid search").WithField("search")
 	}
 	return nil
 }

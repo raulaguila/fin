@@ -100,6 +100,10 @@ func (r *Repository) List(ctx context.Context, limit int) ([]domain.Role, error)
 	return r.load(ctx, `(SELECT * FROM usr.usr_role ORDER BY name LIMIT ?)`, limit)
 }
 
+func (r *Repository) ForUser(ctx context.Context, userID string) ([]domain.Role, error) {
+	return r.load(ctx, `(SELECT r.* FROM usr.usr_role r JOIN usr.usr_user_role ur ON ur.role_id = r.id WHERE ur.user_id = ?)`, userID)
+}
+
 func (r *Repository) FindByID(ctx context.Context, id string) (*domain.Role, error) {
 	roles, err := r.load(ctx, `(SELECT * FROM usr.usr_role WHERE id = ?)`, id)
 	if err != nil {

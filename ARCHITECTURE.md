@@ -30,7 +30,7 @@ core/domain → stdlib only
 
 **Sacred (product + ADR):** JWT must not carry permission claims; authz loads live from the DB on each check. Plaintext passwords / refresh JTIs / email tokens must not be stored.
 
-**Gap (confirmed):** Authorizer is applied on `/v1/products`; own-account routes only need Bearer. Roles are managed at runtime under `/v1/roles`. Protected roles (`is_superuser` or a `*` grant) are read-only there and `GET /v1/roles` does not list them: full access changes only through `cmd/admin`, and the API never grants `*`. Holding `roles:update` lets someone change every other role, including their own.
+**Gap (confirmed):** Authorizer is applied on `/v1/products`; own-account routes only need Bearer. Roles are managed at runtime under `/v1/roles`. Protected roles (`is_superuser` or a `*` grant) are read-only there and `GET /v1/roles` does not list them: full access changes only through `cmd/admin`, and the API never grants `*`. Holding `roles:update` lets someone change every other role, including their own. Users with a protected role get the same treatment under `/v1/users`: not listed, 403 by id, changed only through `cmd/admin`. Nobody disables their own account. Enable puts an account back to `active`, or `pending` if it never set a password; sessions do not come back.
 
 ## Data
 
@@ -46,7 +46,7 @@ core/domain → stdlib only
 
 **`app.product`:** owned by backend product use case (CRUD).
 
-**Database roles:** migrations run as the owner (`POSTGRES_USER`). Backend, mailer and `cmd/admin` connect as `authenticity_app` (`POSTGRES_APP_USER`), which reads and writes rows in `usr`, `sys` and `app` and cannot change the schema. Migration 000009 creates it without login; `make db-app-role` sets its password.
+**Database roles:** migrations run as the owner (`POSTGRES_USER`). Backend, mailer and `cmd/admin` connect as `authenticity_app` (`POSTGRES_APP_USER`), which reads and writes rows in `usr`, `sys` and `app` and cannot change the schema. Migration 000001 creates it without login; `make db-app-role` sets its password.
 
 **Tenancy:** single identity database; no org/tenant tables. **Inferred** as single-tenant until PRODUCT users say otherwise.
 
@@ -73,13 +73,16 @@ core/domain → stdlib only
 | PUT | `/v1/roles/:id/permissions`, full map in one transaction (`roles:update`) |
 | GET | `/v1/roles/:id/members` (`roles:read`) |
 | PUT/DELETE | `/v1/roles/:id/members/:user_id` (`roles:update`) |
+| GET | `/v1/users`, `search`, `status` and pagination (`users:read`) |
+| GET | `/v1/users/:id`, with roles (`users:read`) |
+| POST | `/v1/users/:id/disable`, `/v1/users/:id/enable` (`users:update`) |
 | GET/POST | `/v1/products` |
 | GET | `/v1/products/list` |
 | GET/PATCH/DELETE | `/v1/products/:id` |
 
 **Auth tokens:** RS256; access claims `sub`, `sid`, `jti`, `iat`, `exp`; refresh same with `jti` hashed at rest. Defaults: access 15m, refresh 60m.
 
-**Errors (confirmed):** `pkg/apperror` → JSON `{code,message,field?,details?}` via `rest/mapper`; errors raised by Fiber itself (404, 405, 413) use the same shape. Login failures are always `INVALID_CREDENTIALS`: pending, expired, disabled, locked and unknown accounts answer identically, in the same time. Register answers `201` for known emails too; internal `failure_kind` not echoed.
+**Errors (confirmed):** `pkg/apperror` → JSON `{code,message,field?,details?}` via `rest/mapper`; errors raised by Fiber itself (404, 405, 413) use the same shape. Login failures are always `INVALID_CREDENTIALS`: pending, disabled, locked and unknown accounts answer identically, in the same time. Register answers `201` for known emails too; internal `failure_kind` not echoed.
 
 **User object:** login, refresh and `/v1/auth/me` return the same `user`: identity, `is_superuser`, `permissions` (resource → actions) and `preferences`, loaded live. They are response data for the interface to adapt; the server still decides each request from the database, and the JWT still carries none. If the profile fails to load, login and refresh answer the tokens without `user`, since a refresh has already spent the old token, and the request log records `Request degraded` with the cause.
 
@@ -87,7 +90,7 @@ core/domain → stdlib only
 
 **Own-account routes:** the user id comes from the verified token, never from the request, and every query filters by it. Another user's session or notification answers `404`.
 
-**Pagination / idempotency:** `GET /v1/products` and `GET /v1/user/notifications` return `{items, pagination{page,limit,total_items,total_pages}}`; limit defaults to 20, up to 100. Products also take `search`, `sort` (allowlist) and `order`. `GET /v1/products/list` returns enabled products as id and name, up to 1000. Register is idempotent on email: an unactivated account gets a fresh token, any other answers as new and sends nothing. Outbox rows are append-only inserts (no idempotency key column today).
+**Pagination / idempotency:** `GET /v1/products`, `GET /v1/users` and `GET /v1/user/notifications` return `{items, pagination{page,limit,total_items,total_pages}}`; limit defaults to 20, up to 100. Products also take `search`, `sort` (allowlist) and `order`. `GET /v1/products/list` returns enabled products as id and name, up to 1000. Register is idempotent on email: an unactivated account gets a fresh token, any other answers as new and sends nothing. Outbox rows are append-only inserts (no idempotency key column today).
 
 **Contracts (authz on wire):** Bearer middleware calls `input.Authenticator`, which validates the access JWT + live session; `Require(resource, action)` calls Authorizer (fail closed).
 
@@ -150,7 +153,7 @@ Do not log refresh tokens, passwords, or email token plaintext (payload in outbo
 
 **Rollback:** SQL `*.down.sql` per migration; no feature-flag system in code. **Inferred:** expand/contract discipline is human/process, not automated.
 
-**`cmd/admin`:** operator CLI in the backend image. `make admin-bootstrap`, or `./bin/admin` with no argument on the host, asks name, email and password and creates the first admin, active, with no email involved; it does nothing once any admin exists, and refuses an email already in use. The password is never an argument: hidden on a terminal, one line per value on a pipe. `make admin-promote` asks the email and gives that active user the `admin` role; `make admin-disable` asks the email, disables that user and revokes their sessions.
+**`cmd/admin`:** operator CLI in the backend image. `make admin-bootstrap`, or `./bin/admin` with no argument on the host, asks name, email and password and creates the first admin, active, with no email involved; it does nothing once any admin exists, and refuses an email already in use. The password is never an argument: hidden on a terminal, one line per value on a pipe. `make admin-promote` asks the email and gives that active user the `admin` role; `make admin-disable` asks the email, disables that user and revokes their sessions; `make admin-enable` lifts that. `cmd/admin` is the only way to change a user with a protected role.
 
 **Behind a reverse proxy:** set `API_TRUSTED_PROXIES` and keep `API_PROXY_HEADER` on a header the proxy overwrites (`X-Real-IP`), or use `X-Forwarded-For`, read from the right past the trusted proxies.
 

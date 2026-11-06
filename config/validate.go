@@ -71,6 +71,9 @@ func validateAuthConfig(cfg AuthConfig) error {
 	if cfg.LoginAttemptPairMaxFailures <= 0 {
 		return fmt.Errorf("AUTH_LOGIN_ATTEMPT_PAIR_MAX must be greater than 0")
 	}
+	if cfg.LoginAttemptEmailMaxFailures <= 0 || cfg.LoginAttemptIPMaxFailures <= 0 { // 0 would refuse every login
+		return fmt.Errorf("AUTH_LOGIN_ATTEMPT_EMAIL_MAX and AUTH_LOGIN_ATTEMPT_IP_MAX must be greater than 0")
+	}
 	if cfg.SessionMaxLifetime <= 0 {
 		return fmt.Errorf("AUTH_SESSION_MAX_LIFETIME must be greater than 0")
 	}

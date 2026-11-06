@@ -11,7 +11,7 @@ import (
 	"github.com/raulaguila/authenticity/pkg/apperror"
 )
 
-func TestExpiredActivationIsRecordedAndRegisterRecovers(t *testing.T) {
+func TestRegisterRecoversAnExpiredActivation(t *testing.T) {
 	e := newEnv(t)
 	addr := email()
 	first := e.register(t, addr)
@@ -19,8 +19,8 @@ func TestExpiredActivationIsRecordedAndRegisterRecovers(t *testing.T) {
 	e.clock.now = e.clock.now.Add(25 * time.Hour)
 	err := e.svc.Activate(context.Background(), input.ActivateCommand{Token: first.ActivationToken, Password: strongPassword})
 	wantCode(t, err, apperror.CodeTokenExpired)
-	if got := e.userStatus(t, addr); got != domain.UserStatusExpired {
-		t.Fatalf("expiry rolled back: status %s", got)
+	if got := e.userStatus(t, addr); got != domain.UserStatusPending {
+		t.Fatalf("status %s", got)
 	}
 
 	second := e.register(t, addr)

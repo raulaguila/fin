@@ -38,8 +38,8 @@ func New(repo output.ProductRepository) *Service {
 
 func (s *Service) List(ctx context.Context, filter domain.ProductFilter) ([]domain.Product, int64, error) {
 	filter.Search = strings.TrimSpace(filter.Search)
-	if len(filter.Search) > maxSearchBytes || !utf8.ValidString(filter.Search) || strings.ContainsFunc(filter.Search, unicode.IsControl) {
-		return nil, 0, apperror.New(apperror.CodeInvalidInput, "invalid search").WithField("search")
+	if err := validate.Search(filter.Search, maxSearchBytes); err != nil {
+		return nil, 0, err
 	}
 	if filter.Sort == "" {
 		filter.Sort = "created_at"

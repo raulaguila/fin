@@ -6,7 +6,6 @@ import "time"
 const (
 	UserStatusPending  = "pending"
 	UserStatusActive   = "active"
-	UserStatusExpired  = "expired"
 	UserStatusLocked   = "locked"
 	UserStatusDisabled = "disabled"
 )
@@ -43,6 +42,19 @@ type User struct {
 	Status    string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+// UserFilter narrows a user list; empty fields filter nothing.
+type UserFilter struct {
+	Page   Page
+	Search string
+	Status string
+}
+
+// UserDetails is a user with the roles it holds.
+type UserDetails struct {
+	User
+	Roles []Role
 }
 
 // Credential is 1:1 with User.

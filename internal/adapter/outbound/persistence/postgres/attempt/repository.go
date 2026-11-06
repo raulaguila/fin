@@ -15,7 +15,7 @@ import (
 
 // countedFailure excludes refusals that tested no password: counting them would
 // let any repeated request keep a victim blocked forever. Literal on purpose: it
-// must match the partial indexes of migration 000007 for the planner to use them.
+// must match the partial indexes of migration 000002 for the planner to use them.
 const countedFailure = `success = false AND failure_kind NOT IN ('rate_limited_email', 'rate_limited_ip', 'account_locked')`
 
 type Repository struct {
@@ -74,6 +74,11 @@ func (r *Repository) CountRecentFailuresByEmailAndIP(ctx context.Context, email,
 		return 0, shared.WrapError(err, "login_attempt")
 	}
 	return int(n), nil
+}
+
+func (r *Repository) ClearFailures(ctx context.Context, email string, since time.Time) error {
+	err := r.db.WithContext(ctx).Exec(`DELETE FROM usr.usr_login_attempt WHERE email = ? AND created_at >= ? AND `+countedFailure, email, since).Error
+	return shared.WrapError(err, "login_attempt")
 }
 
 func (r *Repository) Lock(ctx context.Context, key string) error {

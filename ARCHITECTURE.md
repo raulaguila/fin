@@ -16,7 +16,7 @@ infra → adapter/outbound/persistence/postgres (opens the connection)
 composition → core/usecase + adapter/outbound
 adapter/inbound → port/input (+ pkg/apperror)
 adapter/outbound → port/output + domain
-core/usecase → domain + ports + pkg/{apperror,password,tokenhash,pointer,validate,aescrypt,clientip,logger}
+core/usecase → domain + policy + ports + pkg/{apperror,password,tokenhash,validate,clientip}
 core/usecase/admin → core/usecase/auth (same identity and password rules, no second copy)
 core/domain → stdlib only
 ```
@@ -42,15 +42,15 @@ core/domain → stdlib only
 
 **`usr` ownership (backend auth and account use cases):** users, credentials, sessions, email tokens, login attempts, role assignment, preferences, notifications; RBAC reader uses `vw_user_effective_permissions` + `is_superuser`.
 
-**`sys.outbox`:** backend INSERT on register / password-reset; mailer claims `pending` → `processing` (lease in `available_at`; a crashed claim returns) → `sent`/`failed`. Tokens stay AES-GCM sealed with `SMTP_MASTER_KEY` and leave the row when done. `sys.fn_cleanup()` (daily via pg_cron) drops history older than 30 days.
+**`sys.outbox`:** backend INSERT on register / password-reset; mailer claims `pending` → `processing` (lease in `available_at`, ownership in `claim_id`; a crashed claim returns and stale confirmations are rejected) → `sent`/`failed`. Tokens stay AES-GCM sealed with `SMTP_MASTER_KEY` and leave the row when done. `sys.fn_cleanup()` (daily via pg_cron) drops history older than 30 days.
 
 **`app.product`:** owned by backend product use case (CRUD).
 
-**Database roles:** migrations run as the owner (`POSTGRES_USER`). Backend, mailer and `cmd/admin` connect as `authenticity_app` (`POSTGRES_APP_USER`), which reads and writes rows in `usr`, `sys` and `app` and cannot change the schema. Migration 000001 creates it without login; `make db-app-role` sets its password.
+**Database roles:** migrations run as the owner (`POSTGRES_USER`). Backend and `cmd/admin` connect as `authenticity_app` (`POSTGRES_APP_USER`), which reads and writes rows in `usr`, `sys` and `app` and cannot change the schema. The mailer uses `authenticity_mailer` (`POSTGRES_MAILER_USER`): SELECT on outbox and UPDATE on delivery columns only. It cannot access identity or products, insert messages, delete them, or change their purpose. Migrations create the roles and grants. After successful migration, `make migrate-up` enables both logins and sets their passwords from `config/.env` in a single transaction; secrets are not stored in versioned SQL.
 
 **Tenancy:** single identity database; no org/tenant tables. **Inferred** as single-tenant until PRODUCT users say otherwise.
 
-**Consistency:** auth multi-step writes use `WithinTx` (register, activate, reset confirm). Login writes are atomic single statements instead of one transaction: `RecordFailure` counts in SQL, and `RecordSuccess` only applies if the verified hash is still current at that statement.
+**Consistency:** auth multi-step writes use `WithinTx` (register, activate, reset confirm). `RecordFailure` counts in SQL. After hashing outside the transaction, login updates the credential conditionally and inserts its session in one short transaction. The credential row lock serializes this with password reset, which changes the password before revoking sessions. Email cooldown/cap checks and issuance share a transaction lock per user and purpose. Initial sessions and refresh both honor the absolute lifetime.
 
 ## Contracts
 
@@ -100,7 +100,7 @@ core/domain → stdlib only
 **Sync (request path, confirmed):**
 
 1. **Register** — tx: user `pending` + empty credential + activation token hash + outbox enqueue; optional plaintext token in response if `AUTH_MANUAL_TOKEN_DELIVERY`.
-2. **Activate** — tx: validate token → Argon2id hash → `active` → default role → mark token used.
+2. **Activate** — validate token and hash outside the transaction; tx: revalidate token → set password → `active` → default role → mark token used.
 3. **Login** — rate-limit checks on attempts → status/lockout → verify password → atomic credential update → create session + issue JWT pair → record attempt.
 4. **Refresh** — parse refresh → load session by `sid` → reuse detection / compare-and-swap rotate → new pair. Each refresh extends the session, never past `AUTH_SESSION_MAX_LIFETIME` (30 days) from login. A lock does not stop refresh. The token rotated in the last 10 s answers `409`, without revoking: the client reads the winner's token and retries.
 5. **Logout** — Bearer resolves the session → revoke it (`user_logout`).
@@ -121,7 +121,7 @@ core/domain → stdlib only
 | Postgres down | Backend/mailer boot fails; health `postgres=fail` |
 | Fiber timeouts | `API_READ/WRITE/IDLE_TIMEOUT` (30s/30s/120s); shutdown `API_SHUTDOWN_TIMEOUT` 30s |
 | Login abuse | DB-backed attempt counters per client+account (5), client (`/64` on IPv6) and account (50) → `TOO_MANY_REQUESTS`; lockout at 50 answers `INVALID_CREDENTIALS`. One client cannot lock the owner out. Each attempt is reserved under an advisory lock before hashing, so parallel requests cannot outrun a limit |
-| Memory | Body limit 16 KiB; at most 4 Argon2 hashes (256 MiB live); `GOMEMLIMIT` and container limits in compose; Argon2 runs outside transactions and drops out when the request times out |
+| Memory | Body limit 16 KiB; at most 4 Argon2 hashes (256 MiB live); `GOMEMLIMIT` and container limits in compose; Argon2 runs outside transactions; waiting for a hashing slot is cancellable, but a running Argon2 calculation finishes. PHC version, costs, salt and digest lengths are bounded before allocation |
 | Email flood | `AUTH_EMAIL_TOKEN_COOLDOWN` (60 s) and `AUTH_EMAIL_TOKEN_HOURLY_MAX` (5) per account and purpose; over the cap the live link survives |
 | Refresh reuse | Session revoked `token_reuse` |
 
@@ -137,7 +137,9 @@ core/domain → stdlib only
 
 **Confirmed:** `RequestLog` uses Fiber's zerolog integration for ordinary requests and returned errors, with a wrapper for internal causes stored in `mapper.LocalCause`. It records 5xx responses at error level and degraded answers at warning level even when `API_LOGGER=0`; enabling `API_LOGGER` also records ordinary requests. Each request produces at most one request-log entry. Fields include status, method, client IP, latency, PID and path; query strings, headers and bodies are omitted. Internal application-error causes stay in the log and are not added to HTTP responses. The auth use case logs a warning when a best-effort step fails (attempt settlement, notification, token attempt count).
 
-**Absent (confirmed):** request/correlation IDs; metrics/traces; auth use-case structured audit beyond `usr_login_attempt` rows.
+**Diagnostics:** `DIAGNOSTICS_ADDRESS` defaults to `127.0.0.1:9091` inside each container. `/metrics` returns JSON with bounded HTTP latency buckets, server errors, hashing queue/active counts and wait time, `database/sql` pool statistics, outbox count/oldest age and runtime heap/GC counters. `/health` checks PostgreSQL and, for the mailer, a successful worker heartbeat within one minute. No public API route exposes these diagnostics. Compose uses healthchecks and stop grace periods of 40s (backend) and 60s (mailer).
+
+**Absent:** distributed tracing and a durable administrative audit trail beyond login history. These require a separate operational/product decision, not a new dependency for the current corrections.
 
 Do not log refresh tokens, passwords, or email token plaintext (payload in outbox is sensitive — treat as secret storage until mailed).
 
@@ -145,8 +147,8 @@ Do not log refresh tokens, passwords, or email token plaintext (payload in outbo
 
 **Confirmed:**
 
-- Schema: `golang-migrate` on `deploy/db/migrations`, applied by hand with `make migrate-up`, then `make db-app-role`; no container runs them
-- Runtime: Docker Compose (`deploy/docker/compose.yml` + `services.compose.yml`: postgres, backend, mailer; app containers run as `nobody`). The mailer gets throwaway JWT keys (`ACCESS_TOKEN=new`, `SYS_SERVICE=mailer`), so a breach there cannot forge tokens
+- Schema: `golang-migrate` on `deploy/db/migrations`, applied by hand with `make migrate-up` (also configures database logins); no container runs them
+- Runtime: Docker Compose (`deploy/docker/compose.yml` + `services.compose.yml`: postgres, backend, mailer; app containers run as `nobody`). The mailer gets throwaway JWT keys (`ACCESS_TOKEN=new`, `SYS_SERVICE=mailer`), and no inherited backend database password; its database role is restricted to outbox delivery
 - Dev: Air (`make dev-backend` / `dev-mailer`); binaries `make build-*`
 - Config: `config/.env` from `config/env.sh` / `make init`
 
@@ -189,3 +191,13 @@ An icon-only theme toggle sits at the right of the API title, on the same line. 
 
 1. **Observability thin** — no correlation id / metrics / traces, or structured administrative audit beyond login attempts.
 2. **Scale and SLOs unmeasured** — no measured throughput, latency or availability targets; the HTTP rate limiter is local to each process.
+
+## Boundaries and verification
+
+Application services use a small logging port, a protected email payload codec and shared identity policies. AES and the JSON outbox format live in `adapter/outbound/emailpayload`. The admin CLI consumes `input.AdminService`. Non-transactional account/user/role dependencies expose only the needed repositories; transactions keep one UnitOfWork so operations still share a single database connection. Generic transaction locks belong to UnitOfWork, not login attempts.
+
+Authentication is split into login, refresh, request authentication, session insertion, attempt limits and notifications. Integration scenarios live under `tests/integration`, while pure policies and handlers keep focused tests beside their code. `tests/architecture` guards dependency direction. SQL record maintenance timestamps use the database/runtime clock; login attempt and email token issuance times, expirations and session rules use the application Clock. Health TTLs and diagnostic heartbeats intentionally use elapsed real time.
+
+Products keep numbered pagination. `cursor=start` selects a count-free cursor page ordered by `(created_at DESC, id DESC)`; subsequent requests send `next_cursor`. Cursor mode only supports that order, with `page=1`; search must remain unchanged while traversing. An exact-sized final page may return a cursor whose following page is empty. Migration 000007 adds the matching composite index and a trigram index for substring search.
+
+Benchmarks: `go test -run '^$' -bench BenchmarkHashParallel -benchmem ./pkg/password` and, with an empty TEST_POSTGRES_URL, `go test -run '^$' -bench BenchmarkHTTPProducts -benchmem ./tests/integration`. The latter exercises Fiber, JWT/session validation, RBAC and SQL through app.Test; TCP/TLS and production traffic are outside its scope. Use deployment measurements before claiming capacity or changing cryptographic cost.

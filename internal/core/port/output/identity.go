@@ -82,8 +82,6 @@ type LoginAttemptRepository interface {
 	// ClearFailures forgets what counts against an account since a moment, older
 	// history stays. A password reset proves the owner, who must get back in.
 	ClearFailures(ctx context.Context, email string, since time.Time) error
-	// Lock makes concurrent logins sharing a key wait until the transaction ends.
-	Lock(ctx context.Context, key string) error
 	// Settle replaces the outcome of a reserved attempt.
 	Settle(ctx context.Context, id string, success bool, failureKind *string) error
 	// Release drops a reserved attempt that tested no password.

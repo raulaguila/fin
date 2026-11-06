@@ -51,7 +51,7 @@ AIR_BIN         := $(GOPATH)/bin/air
 # Pinned tooling (install-tools)
 GOFUMPT_VERSION     := v0.9.2
 GOIMPORTS_VERSION   := v0.41.0
-GOVULNCHECK_VERSION := v1.1.4
+GOVULNCHECK_VERSION := v1.9.0
 LINTER_VERSION      := v2.15.0
 MIGRATE_VERSION     := v4.18.3
 AIR_VERSION         := v1.62.0
@@ -212,7 +212,7 @@ dev-backend: ## Run backend with Air hot-reload
 
 dev-mailer: ## Run mailer with Air hot-reload
 	@echo "$(BLUE)🔥 Starting mailer with hot reload...$(RESET)"
-	@$(AIR_BIN) -c air.mailer.toml
+	@DIAGNOSTICS_ADDRESS=$${DIAGNOSTICS_ADDRESS-127.0.0.1:9092} $(AIR_BIN) -c air.mailer.toml
 
 list-updates: ## List available direct dependency updates
 	@echo "$(BLUE)📦 Checking for available direct dependency updates...$(RESET)"
@@ -327,10 +327,16 @@ migrate-create: ## Create a new migration file (Usage: make migrate-create name=
 	@echo "$(GREEN)✅ Migration file created!$(RESET)"
 	@echo
 
-migrate-up: ## Run database migrations
+migrate-up: ## Run migrations and configure backend and mailer logins
+	$(call require_env_file)
+	@set -a && . ./config/.env && set +a; \
+	test -n "$${POSTGRES_APP_PASS}" && test -n "$${POSTGRES_MAILER_PASS}" || { echo "Set POSTGRES_APP_PASS and POSTGRES_MAILER_PASS in config/.env"; exit 1; }
 	@echo "$(BLUE)🔄 Running migrations... $(RESET)"
 	$(call run_migrate,up)
-	@echo "$(GREEN)✅ Migrations completed!$(RESET)"
+	@set -a && . ./config/.env && set +a; \
+	printf '%s\n' "SELECT format('ALTER ROLE authenticity_app LOGIN PASSWORD %L', :'app_password') \gexec" "SELECT format('ALTER ROLE authenticity_mailer LOGIN PASSWORD %L', :'mailer_password') \gexec" | \
+	$(DOCKER) exec -i authenticity_postgres psql -X -q --single-transaction -v ON_ERROR_STOP=1 -v app_password="$${POSTGRES_APP_PASS}" -v mailer_password="$${POSTGRES_MAILER_PASS}" -U "$${POSTGRES_USER}" -d "$${POSTGRES_BASE}" -p "$${POSTGRES_PORT}"
+	@echo "$(GREEN)✅ Migrations and database logins configured!$(RESET)"
 	@echo
 
 migrate-down: ## Rollback the last migration
@@ -360,16 +366,7 @@ migrate-version: ## Show current migration version
 # =========================
 # 5. Docker Compose
 # =========================
-.PHONY: db-app-role admin-bootstrap admin-promote admin-disable admin-enable compose-up compose-build compose-services compose-down compose-clean compose-remove compose-exec compose-log compose-top compose-stats
-
-db-app-role: ## Give the application role its login, with the password in config/.env
-	$(call require_env_file)
-	@set -a && . ./config/.env && set +a; \
-	test -n "$${POSTGRES_APP_PASS}" || { echo "$(RED)POSTGRES_APP_PASS missing in config/.env.$(RESET)"; exit 1; }; \
-	printf "ALTER ROLE authenticity_app LOGIN PASSWORD '%s';\n" "$${POSTGRES_APP_PASS}" | \
-	docker exec -i authenticity_postgres psql -q -v ON_ERROR_STOP=1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_BASE}" -p "$${POSTGRES_PORT}"
-	@echo "$(GREEN)✅ Application role ready.$(RESET)"
-	@echo
+.PHONY: admin-bootstrap admin-promote admin-disable admin-enable compose-up compose-build compose-services compose-down compose-clean compose-remove compose-exec compose-log compose-top compose-stats
 
 admin-bootstrap: ## Create the first admin, asking name, email and password
 	@$(COMPOSE_COMMAND) exec backend ./admin bootstrap

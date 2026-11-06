@@ -14,6 +14,13 @@ services:
       context: ../..
       dockerfile: deploy/docker/backend/${BASE:-source}.Dockerfile
     restart: always
+    stop_grace_period: 40s
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:$${API_PORT}/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     ports:
       - ${API_PORT}:${API_PORT}
     tty: true
@@ -43,6 +50,13 @@ services:
       context: ../..
       dockerfile: deploy/docker/mailer/${BASE:-source}.Dockerfile
     restart: always
+    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9091/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     tty: true
     env_file: ../../config/.env
     environment:
@@ -51,8 +65,10 @@ services:
       - ACCESS_TOKEN=new  # replaces the real signing keys: this process issues no token
       - REFRESH_TOKEN=new
       - POSTGRES_HOST=postgres
-      - POSTGRES_USER=${POSTGRES_APP_USER:-${POSTGRES_USER}}
-      - POSTGRES_PASS=${POSTGRES_APP_PASS:-${POSTGRES_PASS}}
+      - POSTGRES_USER=${POSTGRES_MAILER_USER:-authenticity_mailer}
+      - POSTGRES_PASS=${POSTGRES_MAILER_PASS:?Set POSTGRES_MAILER_PASS and run make migrate-up}
+      - POSTGRES_APP_PASS= # do not inherit the backend credential from env_file
+      - POSTGRES_URL=host=postgres user=${POSTGRES_MAILER_USER:-authenticity_mailer} password=${POSTGRES_MAILER_PASS:?Set POSTGRES_MAILER_PASS} dbname=${POSTGRES_BASE} port=${POSTGRES_PORT} sslmode=disable
       - POSTGRES_MAX_CONNS=5  # sends one email at a time
       - GOMEMLIMIT=100MiB
     deploy:

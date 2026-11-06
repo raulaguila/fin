@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/raulaguila/authenticity/internal/core/policy"
+
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
@@ -12,13 +14,8 @@ import (
 	"github.com/raulaguila/authenticity/pkg/tokenhash"
 )
 
-const (
-	minPasswordBytes = 8
-	maxPasswordBytes = 128
-)
-
 func (s *Service) RequestPasswordReset(ctx context.Context, cmd input.RequestPasswordResetCommand) (*input.RequestPasswordResetResult, error) {
-	email := NormalizeEmail(cmd.Email)
+	email := policy.NormalizeEmail(cmd.Email)
 	res := &input.RequestPasswordResetResult{}
 
 	user, err := s.UOW.Users().FindByEmail(ctx, email)
@@ -61,7 +58,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, cmd input.RequestPas
 }
 
 func (s *Service) ConfirmPasswordReset(ctx context.Context, cmd input.ConfirmPasswordResetCommand) error {
-	if err := ValidatePassword(cmd.Password); err != nil {
+	if err := policy.ValidatePassword(cmd.Password); err != nil {
 		return err
 	}
 	hash := tokenhash.SHA256Bytes(cmd.Token)
@@ -143,15 +140,4 @@ func hashError(ctx context.Context, err error) error {
 
 func requestTimedOut() error {
 	return apperror.New(apperror.CodeTimedOut, "request timed out")
-}
-
-// ValidatePassword applies the password policy.
-func ValidatePassword(plain string) error {
-	if len(plain) < minPasswordBytes {
-		return apperror.New(apperror.CodeInvalidInput, "password too short").WithField("password")
-	}
-	if len(plain) > maxPasswordBytes {
-		return apperror.New(apperror.CodeInvalidInput, "password too long").WithField("password")
-	}
-	return nil
 }

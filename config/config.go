@@ -20,7 +20,7 @@ import (
 )
 
 type LogConfig struct {
-	Format string `env:"LOG_FORMAT" default:"text"`
+	Format string `env:"LOG_FORMAT" default:"json"`
 	Level  string `env:"LOG_LEVEL" default:"info"`
 }
 
@@ -101,10 +101,11 @@ func (c SMTPConfig) TokenKey() []byte {
 }
 
 type Environment struct {
-	Timezone    *time.Location `env:"TZ" default:"America/Manaus"`
-	Version     string         `env:"SYS_VERSION" default:"1.0.0"`
-	Environment string         `env:"SYS_ENVIRONMENT" default:"production"`
-	Service     string         `env:"SYS_SERVICE" default:"backend"`
+	DiagnosticsAddress string         `env:"DIAGNOSTICS_ADDRESS" default:"127.0.0.1:9091"`
+	Timezone           *time.Location `env:"TZ" default:"America/Manaus"`
+	Version            string         `env:"SYS_VERSION" default:"1.0.0"`
+	Environment        string         `env:"SYS_ENVIRONMENT" default:"production"`
+	Service            string         `env:"SYS_SERVICE" default:"backend"`
 
 	Log      LogConfig
 	API      APIConfig

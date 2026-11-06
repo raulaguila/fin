@@ -2,7 +2,6 @@ package mailer
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
@@ -10,8 +9,6 @@ import (
 
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
-	"github.com/raulaguila/authenticity/pkg/aescrypt"
-	"github.com/raulaguila/authenticity/pkg/logger"
 	"github.com/raulaguila/authenticity/pkg/validate"
 )
 
@@ -34,20 +31,14 @@ type MailSender interface {
 
 // Worker claims outbox rows and sends email.
 type Worker struct {
-	Outbox output.OutboxRepository
-	Mail   MailSender
-	Log    *logger.Logger
-	Clock  output.Clock
-	Key    []byte // AES-256 key opening the sealed token in each payload
-	Batch  int
-	Poll   time.Duration
-}
-
-type emailPayload struct {
-	UserID string `json:"user_id"`
-	Email  string `json:"email"`
-	Name   string `json:"name"`
-	Token  string `json:"token"`
+	Heartbeat func() // optional liveness signal after a successful queue poll or send
+	Outbox    output.OutboxRepository
+	Mail      MailSender
+	Log       output.Logger
+	Clock     output.Clock
+	Codec     output.EmailTokenCodec
+	Batch     int
+	Poll      time.Duration
 }
 
 func (w *Worker) Run(ctx context.Context) error {
@@ -61,14 +52,14 @@ func (w *Worker) Run(ctx context.Context) error {
 	ticker := time.NewTicker(w.Poll)
 	defer ticker.Stop()
 
-	w.Log.Info("Mailer worker started", slog.Int("batch", w.Batch), slog.Duration("poll", w.Poll))
+	output.Log(w.Log).Info("Mailer worker started", slog.Int("batch", w.Batch), slog.Duration("poll", w.Poll))
 	for {
 		if err := w.tick(ctx); err != nil {
-			w.Log.Warn("Mailer tick error", slog.String("error", err.Error()))
+			output.Log(w.Log).Warn("Mailer tick error", slog.String("error", err.Error()))
 		}
 		select {
 		case <-ctx.Done():
-			w.Log.Info("Mailer worker stopped")
+			output.Log(w.Log).Info("Mailer worker stopped")
 			return ctx.Err()
 		case <-ticker.C:
 		}
@@ -81,41 +72,49 @@ func (w *Worker) tick(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if w.Heartbeat != nil {
+		w.Heartbeat()
+	}
 	for i := range msgs {
 		if ctx.Err() != nil { // shutting down: unsent rows return when the lease ends
 			return ctx.Err()
 		}
-		w.process(ctx, &msgs[i], now)
+		w.process(ctx, &msgs[i])
+		if w.Heartbeat != nil {
+			w.Heartbeat()
+		}
 	}
 	return nil
 }
 
-func (w *Worker) process(ctx context.Context, msg *domain.OutboxMessage, now time.Time) {
-	to, subject, body, err := render(msg, w.Key)
+func (w *Worker) process(ctx context.Context, msg *domain.OutboxMessage) {
+	to, subject, body, err := render(msg, w.Codec)
 	if err != nil {
-		w.fail(ctx, msg, now, err.Error(), true)
+		w.fail(ctx, msg, err.Error(), true)
 		return
 	}
 	if !w.Mail.Enabled() {
-		w.fail(ctx, msg, now, "smtp_disabled", true)
+		w.fail(ctx, msg, "smtp_disabled", true)
 		return
 	}
 	if err := w.Mail.Send(to, subject, body); err != nil {
 		attempts := msg.Attempts + 1
 		terminal := attempts >= maxAttempts || err.Error() == "smtp_misconfigured"
-		w.fail(ctx, msg, now, validate.Text(err.Error(), maxErrorBytes), terminal)
+		w.fail(ctx, msg, validate.Text(err.Error(), maxErrorBytes), terminal)
 		return
 	}
+	now := w.Clock.Now()
 	mark, cancel := markContext(ctx)
 	defer cancel()
-	if err := w.Outbox.MarkSent(mark, msg.ID, now); err != nil {
-		w.Log.Warn("MarkSent failed", slog.String("outbox_id", msg.ID), slog.String("error", err.Error()))
+	if err := w.Outbox.MarkSent(mark, msg.ID, msg.ClaimID, now); err != nil {
+		output.Log(w.Log).Warn("MarkSent failed", slog.String("outbox_id", msg.ID), slog.String("error", err.Error()))
 		return
 	}
-	w.Log.Info("Email sent", slog.String("outbox_id", msg.ID), slog.String("purpose", msg.Purpose))
+	output.Log(w.Log).Info("Email sent", slog.String("outbox_id", msg.ID), slog.String("purpose", msg.Purpose))
 }
 
-func (w *Worker) fail(ctx context.Context, msg *domain.OutboxMessage, now time.Time, lastErr string, terminal bool) {
+func (w *Worker) fail(ctx context.Context, msg *domain.OutboxMessage, lastErr string, terminal bool) {
+	now := w.Clock.Now()
 	attempts := msg.Attempts + 1
 	backoff := time.Duration(math.Min(math.Pow(2, float64(attempts)), float64(maxBackoffSecs))) * time.Second
 	available := now.Add(backoff)
@@ -125,11 +124,11 @@ func (w *Worker) fail(ctx context.Context, msg *domain.OutboxMessage, now time.T
 	}
 	mark, cancel := markContext(ctx)
 	defer cancel()
-	if err := w.Outbox.MarkFailed(mark, msg.ID, attempts, available, processed, lastErr, terminal); err != nil {
-		w.Log.Warn("MarkFailed failed", slog.String("outbox_id", msg.ID), slog.String("error", err.Error()))
+	if err := w.Outbox.MarkFailed(mark, msg.ID, msg.ClaimID, attempts, available, processed, lastErr, terminal); err != nil {
+		output.Log(w.Log).Warn("MarkFailed failed", slog.String("outbox_id", msg.ID), slog.String("error", err.Error()))
 		return
 	}
-	w.Log.Warn("Email send failed",
+	output.Log(w.Log).Warn("Email send failed",
 		slog.String("outbox_id", msg.ID),
 		slog.String("purpose", msg.Purpose),
 		slog.Int("attempts", attempts),
@@ -144,25 +143,18 @@ func markContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), markTimeout)
 }
 
-func render(msg *domain.OutboxMessage, key []byte) (to, subject, body string, err error) {
-	var p emailPayload
-	if err := json.Unmarshal(msg.Payload, &p); err != nil {
-		return "", "", "", fmt.Errorf("invalid_payload")
-	}
-	if p.Email == "" || p.Token == "" {
-		return "", "", "", fmt.Errorf("invalid_payload")
-	}
-	token, err := aescrypt.Decrypt(key, p.Token)
+func render(msg *domain.OutboxMessage, codec output.EmailTokenCodec) (to, subject, body string, err error) {
+	p, err := codec.Decode(msg.Payload)
 	if err != nil {
-		return "", "", "", fmt.Errorf("invalid_payload")
+		return "", "", "", err
 	}
 	switch msg.Purpose {
 	case domain.OutboxPurposeActivation:
 		subject = "Activate your account"
-		body = fmt.Sprintf("Hello%s,\n\nUse this activation token:\n\n%s\n", nameSuffix(p.Name), token)
+		body = fmt.Sprintf("Hello%s,\n\nUse this activation token:\n\n%s\n", nameSuffix(p.Name), p.Token)
 	case domain.OutboxPurposePasswordReset:
 		subject = "Password reset"
-		body = fmt.Sprintf("Hello%s,\n\nUse this password reset token:\n\n%s\n", nameSuffix(p.Name), token)
+		body = fmt.Sprintf("Hello%s,\n\nUse this password reset token:\n\n%s\n", nameSuffix(p.Name), p.Token)
 	default:
 		return "", "", "", fmt.Errorf("unknown_purpose")
 	}

@@ -6,7 +6,8 @@ import (
 	"context"
 	"slices"
 	"strings"
-	"time"
+
+	"github.com/raulaguila/authenticity/internal/core/policy"
 
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
@@ -20,14 +21,14 @@ const maxSearchBytes = 120
 var statuses = []string{domain.UserStatusPending, domain.UserStatusActive, domain.UserStatusLocked, domain.UserStatusDisabled}
 
 type Service struct {
-	UOW   output.UnitOfWork
+	UOW   output.UserStore
 	Tx    output.TxManager
 	Clock output.Clock
 }
 
 var _ input.UserService = (*Service)(nil)
 
-func New(uow output.UnitOfWork, tx output.TxManager, clock output.Clock) *Service {
+func New(uow output.UserStore, tx output.TxManager, clock output.Clock) *Service {
 	return &Service{UOW: uow, Tx: tx, Clock: clock}
 }
 
@@ -57,7 +58,7 @@ func (s *Service) Disable(ctx context.Context, actorID, id string) error {
 		if target.ID == actorID {
 			return apperror.New(apperror.CodeForbidden, "your own account cannot be disabled")
 		}
-		return Disable(ctx, uow, target.ID, s.Clock.Now())
+		return policy.Disable(ctx, uow, target.ID, s.Clock.Now())
 	})
 }
 
@@ -69,18 +70,9 @@ func (s *Service) Enable(ctx context.Context, id string) error {
 	return s.UOW.Users().Enable(ctx, target.ID)
 }
 
-// Disable blocks a user and revokes their sessions, so access tokens stop at the
-// next request: Bearer checks the session every time.
-func Disable(ctx context.Context, uow output.UnitOfWork, id string, now time.Time) error {
-	if err := uow.Users().UpdateStatus(ctx, id, domain.UserStatusDisabled); err != nil {
-		return err
-	}
-	return uow.Sessions().RevokeAllForUser(ctx, id, now, domain.RevokeAccountDisabled)
-}
-
 // reachable loads a user the API may see. Nothing here can give a user a protected
 // role, so the answer cannot go stale before a write.
-func reachable(ctx context.Context, uow output.UnitOfWork, id string) (*domain.UserDetails, error) {
+func reachable(ctx context.Context, uow output.UserStore, id string) (*domain.UserDetails, error) {
 	if err := validate.ID(id); err != nil {
 		return nil, err
 	}

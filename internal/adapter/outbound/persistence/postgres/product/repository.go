@@ -47,7 +47,7 @@ var sortColumns = map[string]string{
 	"name": "name", "price": "price", "created_at": "created_at", "updated_at": "updated_at",
 }
 
-// shortcut: OFFSET and leading-wildcard ILIKE scan what they skip, fine for this example table; move to keyset and pg_trgm when it holds many thousands of rows.
+// List keeps numbered pages compatible; cursor mode avoids OFFSET and COUNT.
 func (r *Repository) List(ctx context.Context, filter domain.ProductFilter) ([]domain.Product, int64, error) {
 	matching := func() *gorm.DB {
 		q := r.db.WithContext(ctx).Table("app.product")
@@ -56,9 +56,11 @@ func (r *Repository) List(ctx context.Context, filter domain.ProductFilter) ([]d
 		}
 		return q
 	}
-	var total int64
-	if err := matching().Count(&total).Error; err != nil {
-		return nil, 0, shared.WrapError(err, "product")
+	total := int64(-1) // cursor pages deliberately do not calculate a total
+	if !filter.Cursor {
+		if err := matching().Count(&total).Error; err != nil {
+			return nil, 0, shared.WrapError(err, "product")
+		}
 	}
 	column, ok := sortColumns[filter.Sort]
 	if !ok {
@@ -68,12 +70,19 @@ func (r *Repository) List(ctx context.Context, filter domain.ProductFilter) ([]d
 	if filter.Order == "asc" {
 		direction = "ASC"
 	}
+	q := matching()
+	order := "app.product." + column + " " + direction + ", app.product.id"
+	if filter.Cursor {
+		order = "app.product.created_at DESC, app.product.id DESC"
+		if filter.After != nil {
+			q = q.Where("(app.product.created_at, app.product.id) < (?, ?::uuid)", filter.After.CreatedAt, filter.After.ID)
+		}
+	} else {
+		q = q.Offset(filter.Page.Offset())
+	}
 	var rows []row
-	err := matching().
-		Select("id, name, price::text AS price, enabled, created_at, updated_at").
-		Order(column + " " + direction + ", id"). // id keeps pages stable on ties
-		Limit(filter.Page.Limit).Offset(filter.Page.Offset()).
-		Scan(&rows).Error
+	err := q.Select("id, name, price::text AS price, enabled, created_at, updated_at").Order(order).Limit(filter.Page.Limit).Scan(&rows).Error
+
 	if err != nil {
 		return nil, 0, shared.WrapError(err, "product")
 	}

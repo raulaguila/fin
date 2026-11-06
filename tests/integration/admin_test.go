@@ -1,4 +1,4 @@
-package postgres_test
+package integration_test
 
 import (
 	"context"
@@ -70,9 +70,9 @@ func TestBootstrapCreatesOneWorkingAdmin(t *testing.T) {
 	svc := admin.New(e.store, e.clock)
 
 	taken := e.activeUser(t)
-	_, err := svc.Bootstrap(ctx, admin.BootstrapCommand{Name: "Root", Email: taken, Password: strongPassword})
+	_, err := svc.Bootstrap(ctx, input.BootstrapCommand{Name: "Root", Email: taken, Password: strongPassword})
 	wantCode(t, err, apperror.CodeConflict)
-	_, err = svc.Bootstrap(ctx, admin.BootstrapCommand{Name: "Root", Email: email(), Password: "short"})
+	_, err = svc.Bootstrap(ctx, input.BootstrapCommand{Name: "Root", Email: email(), Password: "short"})
 	wantCode(t, err, apperror.CodeInvalidInput)
 
 	const runs = 4
@@ -83,7 +83,7 @@ func TestBootstrapCreatesOneWorkingAdmin(t *testing.T) {
 		addrs[i] = email()
 		wg.Go(func() {
 			var err error
-			created[i], err = svc.Bootstrap(ctx, admin.BootstrapCommand{Name: "Root", Email: addrs[i], Password: strongPassword})
+			created[i], err = svc.Bootstrap(ctx, input.BootstrapCommand{Name: "Root", Email: addrs[i], Password: strongPassword})
 			if err != nil {
 				t.Error(err)
 			}

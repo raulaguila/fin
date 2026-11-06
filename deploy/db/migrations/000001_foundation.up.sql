@@ -26,7 +26,7 @@ $$;
 COMMENT ON FUNCTION public.fn_set_updated_at() IS
   'BEFORE UPDATE: fills updated_at. The business clock stays in the application.';
 
--- Only migrations keep the owner. `make db-app-role` gives this role its login
+-- Only migrations keep the owner. `make migrate-up` gives this role its login
 -- and the password from config/.env.
 DO $$
 BEGIN

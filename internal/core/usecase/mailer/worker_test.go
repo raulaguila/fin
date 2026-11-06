@@ -9,6 +9,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/emailpayload"
+
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/pkg/aescrypt"
 )
@@ -29,7 +31,7 @@ func (f *fakeOutbox) ClaimPending(context.Context, int, time.Time, time.Duration
 	return f.msgs, nil
 }
 
-func (f *fakeOutbox) MarkSent(ctx context.Context, id string, _ time.Time) error {
+func (f *fakeOutbox) MarkSent(ctx context.Context, id, _ string, _ time.Time) error {
 	if ctx.Err() != nil {
 		f.markErr = ctx.Err()
 		return ctx.Err()
@@ -41,7 +43,7 @@ func (f *fakeOutbox) MarkSent(ctx context.Context, id string, _ time.Time) error
 	return nil
 }
 
-func (f *fakeOutbox) MarkFailed(_ context.Context, id string, _ int, _ time.Time, _ *time.Time, lastErr string, terminal bool) error {
+func (f *fakeOutbox) MarkFailed(_ context.Context, id, _ string, _ int, _ time.Time, _ *time.Time, lastErr string, terminal bool) error {
 	f.lastErr = lastErr
 	if f.failed == nil {
 		f.failed = map[string]bool{}
@@ -86,7 +88,7 @@ func sealed(t *testing.T, plain string) string {
 func TestTickOpensTokenAndMarksSent(t *testing.T) {
 	box := &fakeOutbox{msgs: []domain.OutboxMessage{message(t, "1", sealed(t, "plain-token"), 0)}}
 	mail := &fakeMail{}
-	w := &Worker{Outbox: box, Mail: mail, Key: testKey, Clock: fixedClock{}}
+	w := &Worker{Outbox: box, Mail: mail, Codec: emailpayload.New(testKey), Clock: fixedClock{}}
 	if err := w.tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +100,7 @@ func TestTickOpensTokenAndMarksSent(t *testing.T) {
 func TestUnreadableTokenFailsWithoutSending(t *testing.T) {
 	box := &fakeOutbox{msgs: []domain.OutboxMessage{message(t, "1", "plain-legacy-token", 0)}}
 	mail := &fakeMail{}
-	w := &Worker{Outbox: box, Mail: mail, Key: testKey, Clock: fixedClock{}}
+	w := &Worker{Outbox: box, Mail: mail, Codec: emailpayload.New(testKey), Clock: fixedClock{}}
 	if err := w.tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +114,7 @@ func TestRetriesThenGivesUp(t *testing.T) {
 		message(t, "retry", sealed(t, "x"), 0),
 		message(t, "last", sealed(t, "x"), maxAttempts-1),
 	}}
-	w := &Worker{Outbox: box, Mail: &fakeMail{err: errors.New("boom")}, Key: testKey, Clock: fixedClock{}}
+	w := &Worker{Outbox: box, Mail: &fakeMail{err: errors.New("boom")}, Codec: emailpayload.New(testKey), Clock: fixedClock{}}
 	if err := w.tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +126,7 @@ func TestRetriesThenGivesUp(t *testing.T) {
 func TestLongErrorStaysValidForPostgres(t *testing.T) {
 	box := &fakeOutbox{msgs: []domain.OutboxMessage{message(t, "m", sealed(t, "x"), 0)}}
 	long := strings.Repeat("a", maxErrorBytes-1) + "é"
-	w := &Worker{Outbox: box, Mail: &fakeMail{err: errors.New(long)}, Key: testKey, Clock: fixedClock{}}
+	w := &Worker{Outbox: box, Mail: &fakeMail{err: errors.New(long)}, Codec: emailpayload.New(testKey), Clock: fixedClock{}}
 	if err := w.tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +139,7 @@ func TestShutdownMidSendStillRecordsResultAndStops(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	box := &fakeOutbox{msgs: []domain.OutboxMessage{message(t, "1", sealed(t, "x"), 0), message(t, "2", sealed(t, "x"), 0)}}
 	mail := &fakeMail{onSend: cancel}
-	w := &Worker{Outbox: box, Mail: mail, Key: testKey, Clock: fixedClock{}}
+	w := &Worker{Outbox: box, Mail: mail, Codec: emailpayload.New(testKey), Clock: fixedClock{}}
 	if err := w.tick(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("got %v", err)
 	}
@@ -149,7 +151,7 @@ func TestShutdownMidSendStillRecordsResultAndStops(t *testing.T) {
 func TestSlowSendDoesNotEatTheMarkTimeout(t *testing.T) {
 	box := &fakeOutbox{msgs: []domain.OutboxMessage{message(t, "1", sealed(t, "x"), 0)}}
 	mail := &fakeMail{onSend: func() { time.Sleep(300 * time.Millisecond) }}
-	w := &Worker{Outbox: box, Mail: mail, Key: testKey, Clock: fixedClock{}}
+	w := &Worker{Outbox: box, Mail: mail, Codec: emailpayload.New(testKey), Clock: fixedClock{}}
 	if err := w.tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}

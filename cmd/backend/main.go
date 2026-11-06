@@ -35,6 +35,13 @@ func main() {
 		os.Exit(1)
 	}
 	defer res.Shutdown(log)
+	_, stopDiagnostics, err := res.StartDiagnostics(cfg.DiagnosticsAddress, false)
+	if err != nil {
+		log.Error("Diagnostics failed", slog.String("error", err.Error()))
+		res.Shutdown(log)
+		os.Exit(1)
+	}
+	defer stopDiagnostics()
 
 	fiberApp := rest.New(cfg, composition.NewApplication(cfg, res, log), log)
 

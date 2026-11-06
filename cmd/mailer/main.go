@@ -35,11 +35,20 @@ func main() {
 		os.Exit(1)
 	}
 	defer res.Shutdown(log)
+	diagnostics, stopDiagnostics, err := res.StartDiagnostics(cfg.DiagnosticsAddress, true)
+	if err != nil {
+		log.Error("Diagnostics failed", slog.String("error", err.Error()))
+		res.Shutdown(log)
+		os.Exit(1)
+	}
+	defer stopDiagnostics()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	if err := composition.NewMailer(cfg, res, log).Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+	worker := composition.NewMailer(cfg, res, log)
+	worker.Heartbeat = diagnostics.Heartbeat
+	if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		log.Error("Mailer stopped with error", slog.String("error", err.Error()))
 		os.Exit(1)
 	}

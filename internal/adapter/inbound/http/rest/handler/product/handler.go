@@ -1,6 +1,8 @@
 package product
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"strconv"
 	"time"
 
@@ -40,6 +42,15 @@ type productDTO struct {
 	Enabled   bool      `json:"enabled"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// productPaginationDTO documents both numbered and cursor pagination.
+type productPaginationDTO struct {
+	Page       int     `json:"page,omitempty"`
+	Limit      int     `json:"limit"`
+	TotalItems *int64  `json:"total_items,omitempty"`
+	TotalPages *int64  `json:"total_pages,omitempty"`
+	NextCursor *string `json:"next_cursor,omitempty"`
 }
 
 type optionDTO struct {
@@ -82,12 +93,13 @@ func priceString(v any) (string, error) {
 // @Tags Products
 // @Produce json
 // @Param page query int false "Page" default(1)
+// @Param cursor query string false "Use start for the first cursor page, then next_cursor; requires created_at desc and omits totals"
 // @Param limit query int false "Items per page, up to 100" default(20)
 // @Param search query string false "Part of the name"
 // @Param sort query string false "Sort field" Enums(name, price, created_at, updated_at) default(created_at)
 // @Param order query string false "Sort direction" Enums(asc, desc) default(desc)
 // @Security BearerAuth
-// @Success 200 {object} object{items=[]productDTO,pagination=mapper.PaginationDTO}
+// @Success 200 {object} object{items=[]productDTO,pagination=productPaginationDTO}
 // @Failure 400 {object} mapper.errorBody
 // @Failure 401 {object} mapper.errorBody
 // @Failure 403 {object} mapper.errorBody
@@ -100,6 +112,16 @@ func (h *Handler) List(c fiber.Ctx) error {
 		Sort:   c.Query("sort"),
 		Order:  c.Query("order"),
 	}
+	if raw := c.Query("cursor"); raw != "" {
+		filter.Cursor = true
+		if raw != "start" {
+			cursor, err := decodeCursor(raw)
+			if err != nil {
+				return mapper.WriteError(c, err)
+			}
+			filter.After = cursor
+		}
+	}
 	items, total, err := h.svc.List(c.Context(), filter)
 	if err != nil {
 		return mapper.WriteError(c, err)
@@ -108,7 +130,20 @@ func (h *Handler) List(c fiber.Ctx) error {
 	for _, p := range items {
 		out = append(out, toDTO(p))
 	}
-	return c.JSON(fiber.Map{"items": out, "pagination": mapper.Pagination(filter.Page, total)})
+	if filter.Cursor {
+		next := ""
+		if len(items) == filter.Page.Limit {
+			last := items[len(items)-1]
+			raw, err := json.Marshal(domain.ProductCursor{CreatedAt: last.CreatedAt, ID: last.ID})
+			if err != nil {
+				return err
+			}
+			next = base64.RawURLEncoding.EncodeToString(raw)
+		}
+		return c.JSON(fiber.Map{"items": out, "pagination": productPaginationDTO{Limit: filter.Page.Limit, NextCursor: pointer.Of(next)}})
+	}
+	page := mapper.Pagination(filter.Page, total)
+	return c.JSON(fiber.Map{"items": out, "pagination": productPaginationDTO{Page: page.Page, Limit: page.Limit, TotalItems: &page.TotalItems, TotalPages: &page.TotalPages}})
 }
 
 // @Summary List enabled products as id and name, for pickers
@@ -231,4 +266,20 @@ func (h *Handler) Delete(c fiber.Ctx) error {
 		return mapper.WriteError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func decodeCursor(raw string) (*domain.ProductCursor, error) {
+	invalid := apperror.New(apperror.CodeInvalidInput, "invalid cursor").WithField("cursor")
+	if len(raw) > 512 {
+		return nil, invalid
+	}
+	data, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil {
+		return nil, invalid
+	}
+	var cursor domain.ProductCursor
+	if err := json.Unmarshal(data, &cursor); err != nil {
+		return nil, invalid
+	}
+	return &cursor, nil
 }

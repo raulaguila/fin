@@ -1,4 +1,4 @@
-package postgres_test
+package integration_test
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/emailpayload"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -63,7 +65,7 @@ func migrate(url string) error {
 		return err
 	}
 	defer func() { _ = conn.Close(ctx) }()
-	files, err := filepath.Glob("../../../../../deploy/db/migrations/*.up.sql")
+	files, err := filepath.Glob("../../deploy/db/migrations/*.up.sql")
 	if err != nil {
 		return err
 	}
@@ -90,7 +92,7 @@ type env struct {
 	clock *clock
 }
 
-func newEnv(t *testing.T) *env {
+func newEnv(t testing.TB) *env {
 	t.Helper()
 	if err := testDB.Exec("DELETE FROM sys.outbox").Error; err != nil {
 		t.Fatal(err)
@@ -110,14 +112,13 @@ func newEnv(t *testing.T) *env {
 		LoginAttemptPairMaxFailures:  5,
 		LoginAttemptIPWindow:         time.Minute,
 		LoginAttemptIPMaxFailures:    20,
-		OutboxKey:                    testKey,
-	})
+	}, emailpayload.New(testKey))
 	return &env{svc: svc, store: store, clock: c}
 }
 
 func email() string { return "u" + uuid.NewString()[:8] + "@acme.io" }
 
-func (e *env) register(t *testing.T, addr string) *input.RegisterResult {
+func (e *env) register(t testing.TB, addr string) *input.RegisterResult {
 	t.Helper()
 	res, err := e.svc.Register(context.Background(), input.RegisterCommand{Name: "Ana", Email: addr})
 	if err != nil {
@@ -126,7 +127,7 @@ func (e *env) register(t *testing.T, addr string) *input.RegisterResult {
 	return res
 }
 
-func (e *env) activeUser(t *testing.T) string {
+func (e *env) activeUser(t testing.TB) string {
 	t.Helper()
 	addr := email()
 	res := e.register(t, addr)
@@ -140,7 +141,7 @@ func (e *env) login(addr, pass string) (*domain.TokenPair, error) {
 	return e.svc.Login(context.Background(), input.LoginCommand{Email: addr, Password: pass})
 }
 
-func (e *env) userStatus(t *testing.T, addr string) string {
+func (e *env) userStatus(t testing.TB, addr string) string {
 	t.Helper()
 	u, err := e.store.Users().FindByEmail(context.Background(), addr)
 	if err != nil {
@@ -149,7 +150,7 @@ func (e *env) userStatus(t *testing.T, addr string) string {
 	return u.Status
 }
 
-func wantCode(t *testing.T, err error, code apperror.Code) {
+func wantCode(t testing.TB, err error, code apperror.Code) {
 	t.Helper()
 	if !apperror.IsCode(err, code) {
 		t.Fatalf("want %s, got %v", code, err)
@@ -164,7 +165,7 @@ func (e *env) account() *account.Service {
 	return account.New(e.store, rbac.NewRepository(testDB), e.clock)
 }
 
-func (e *env) userID(t *testing.T, addr string) string {
+func (e *env) userID(t testing.TB, addr string) string {
 	t.Helper()
 	u, err := e.store.Users().FindByEmail(context.Background(), addr)
 	if err != nil {
@@ -173,7 +174,7 @@ func (e *env) userID(t *testing.T, addr string) string {
 	return u.ID
 }
 
-func (e *env) loginAt(t *testing.T, addr, ip string) *domain.TokenPair {
+func (e *env) loginAt(t testing.TB, addr, ip string) *domain.TokenPair {
 	t.Helper()
 	pair, err := e.svc.Login(context.Background(), input.LoginCommand{Email: addr, Password: strongPassword, IPAddress: &ip})
 	if err != nil {
@@ -182,7 +183,7 @@ func (e *env) loginAt(t *testing.T, addr, ip string) *domain.TokenPair {
 	return pair
 }
 
-func (e *env) titles(t *testing.T, userID string) []string {
+func (e *env) titles(t testing.TB, userID string) []string {
 	t.Helper()
 	items, _, err := e.account().Notifications(context.Background(), userID, domain.NewPage(1, 100))
 	if err != nil {

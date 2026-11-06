@@ -5,13 +5,14 @@ access_token=$(openssl genrsa 2048 | base64 | tr -d \\n)
 refresh_token=$(openssl genrsa 2048 | base64 | tr -d \\n)
 # 32 bytes (AES-256) as 64-char hex. Seals email tokens in sys.outbox.
 smtp_master_key=$(openssl rand -hex 32)
-postgres_pass=$(openssl rand -hex 24)
-postgres_app_pass=$(openssl rand -hex 24)
+postgres_pass=$(openssl rand -hex 12)
+postgres_app_pass=$(openssl rand -hex 12)
+postgres_mailer_pass=$(openssl rand -hex 12)
 
 echo "TZ='America/Manaus'                             # Set system time zone
 SYS_VERSION='${release_version}'                             # System version
 SYS_ENVIRONMENT='development'                    # System environment
-LOG_FORMAT='text'                               # Log format (text, json, default=text)
+LOG_FORMAT='json'                               # Log format (text, json, default=json)
 LOG_LEVEL='info'                                # Log level (debug, info, warn, error, fatal, default=info)
 
 API_PORT='9978'                                 # API Container PORT
@@ -38,8 +39,10 @@ POSTGRES_HOST='postgres'                        # Postgres Container HOST
 POSTGRES_PORT='5444'                            # Postgres Container PORT
 POSTGRES_USER='root'                            # Postgres owner, used only by migrations
 POSTGRES_PASS='${postgres_pass}'                # Postgres owner PASS
-POSTGRES_APP_USER='authenticity_app'            # Role of backend and mailer, created by migration 000001
-POSTGRES_APP_PASS='${postgres_app_pass}'        # Its PASS, applied by make db-app-role
+POSTGRES_APP_USER='authenticity_app'            # Role of backend, created by migration 000001
+POSTGRES_APP_PASS='${postgres_app_pass}'        # Its PASS, applied by make migrate-up
+POSTGRES_MAILER_USER='authenticity_mailer'       # Outbox-only role, migration 000006
+POSTGRES_MAILER_PASS='${postgres_mailer_pass}'   # Applied by make migrate-up
 POSTGRES_BASE='authenticity'                    # Postgres BASE
 POSTGRES_MAX_CONNS='40'                         # Postgres pool per process
 

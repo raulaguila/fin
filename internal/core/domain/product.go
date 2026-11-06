@@ -5,6 +5,8 @@ import "time"
 // ProductFilter selects one page of products.
 type ProductFilter struct {
 	Page   Page
+	Cursor bool // created_at DESC, id DESC; omits the expensive total count
+	After  *ProductCursor
 	Search string
 	Sort   string
 	Order  string
@@ -25,4 +27,9 @@ type ProductPatch struct {
 	Name    *string
 	Price   *string
 	Enabled *bool
+}
+
+type ProductCursor struct {
+	CreatedAt time.Time `json:"created_at"`
+	ID        string    `json:"id"`
 }

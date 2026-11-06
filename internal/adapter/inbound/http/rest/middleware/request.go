@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/raulaguila/authenticity/pkg/telemetry"
+
 	fiberzerolog "github.com/gofiber/contrib/v3/zerolog"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/limiter"
@@ -53,6 +55,7 @@ func RequestLog(log *logger.Logger, all bool) fiber.Handler {
 
 	return func(c fiber.Ctx) error {
 		start := time.Now()
+		defer func() { telemetry.ObserveRequest(time.Since(start), c.Response().StatusCode()) }()
 		err := handler(c) // contrib invokes the error handler before logging
 		cause, _ := c.Locals(mapper.LocalCause).(error)
 		if cause == nil {

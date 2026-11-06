@@ -15,7 +15,7 @@ import (
 
 	"github.com/raulaguila/authenticity/config"
 	"github.com/raulaguila/authenticity/internal/composition"
-	"github.com/raulaguila/authenticity/internal/core/usecase/admin"
+	ports "github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/internal/infra"
 	"github.com/raulaguila/authenticity/pkg/logger"
 )
@@ -23,7 +23,7 @@ import (
 const usage = "usage: admin [bootstrap] | admin promote | admin disable | admin enable"
 
 // action runs against the database and returns the line to print.
-type action func(context.Context, *admin.Service) (string, error)
+type action func(context.Context, ports.AdminService) (string, error)
 
 func main() {
 	run, err := parse(os.Args[1:], os.Stdin, os.Stderr)
@@ -60,7 +60,7 @@ func parse(args []string, in *os.File, out io.Writer) (action, error) {
 		if err != nil {
 			return nil, err
 		}
-		return func(ctx context.Context, svc *admin.Service) (string, error) {
+		return func(ctx context.Context, svc ports.AdminService) (string, error) {
 			created, err := svc.Bootstrap(ctx, cmd)
 			if !created {
 				return "an admin already exists: nothing done", err
@@ -71,10 +71,10 @@ func parse(args []string, in *os.File, out io.Writer) (action, error) {
 	if len(args) != 1 {
 		return nil, errors.New(usage)
 	}
-	command, ok := map[string]func(*admin.Service, context.Context, string) error{
-		"promote": (*admin.Service).Promote,
-		"disable": (*admin.Service).Disable,
-		"enable":  (*admin.Service).Enable,
+	command, ok := map[string]func(ports.AdminService, context.Context, string) error{
+		"promote": (ports.AdminService).Promote,
+		"disable": (ports.AdminService).Disable,
+		"enable":  (ports.AdminService).Enable,
 	}[args[0]]
 	if !ok {
 		return nil, errors.New(usage)
@@ -83,7 +83,7 @@ func parse(args []string, in *os.File, out io.Writer) (action, error) {
 	if err != nil {
 		return nil, err
 	}
-	return func(ctx context.Context, svc *admin.Service) (string, error) {
+	return func(ctx context.Context, svc ports.AdminService) (string, error) {
 		return args[0] + " ok: " + email, command(svc, ctx, email)
 	}, nil
 }
@@ -100,8 +100,8 @@ func ask(reader *bufio.Reader, out io.Writer, label string) (string, error) {
 // readBootstrap prompts for the first admin. The password is never an argument,
 // which would leak through ps and the shell history; on a terminal it is not
 // echoed, and a pipe (CI) gives one value per line.
-func readBootstrap(in *os.File, out io.Writer) (admin.BootstrapCommand, error) {
-	var cmd admin.BootstrapCommand
+func readBootstrap(in *os.File, out io.Writer) (ports.BootstrapCommand, error) {
+	var cmd ports.BootstrapCommand
 	reader := bufio.NewReader(in)
 	secret := func(label string) (string, error) {
 		if !term.IsTerminal(int(in.Fd())) {

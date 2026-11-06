@@ -1,4 +1,4 @@
-package postgres_test
+package integration_test
 
 import (
 	"context"
@@ -104,4 +104,77 @@ func TestProductUpdateKeepsFieldsItDoesNotCarry(t *testing.T) {
 	missing := "11111111-1111-4111-8111-111111111111"
 	_, err = svc.Update(ctx, input.UpdateProductCommand{ID: missing, Name: &name})
 	wantCode(t, err, apperror.CodeNotFound)
+}
+
+func TestProductPriceSortUsesNumericColumn(t *testing.T) {
+	ctx := context.Background()
+	svc := product.New(productrepo.NewRepository(testDB))
+	for _, p := range []struct{ name, price string }{{"Sort audit two", "2"}, {"Sort audit ten", "10"}, {"Sort audit hundred", "100"}} {
+		if _, err := svc.Create(ctx, input.CreateProductCommand{Name: p.name, Price: p.price}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, order := range []string{"asc", "desc"} {
+		items, _, err := svc.List(ctx, domain.ProductFilter{Page: domain.NewPage(1, 20), Search: "Sort audit", Sort: "price", Order: order})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"2.00", "10.00", "100.00"}
+		if order == "desc" {
+			want = []string{"100.00", "10.00", "2.00"}
+		}
+		if len(items) != 3 {
+			t.Fatalf("items=%d", len(items))
+		}
+		for i, p := range items {
+			if p.Price != want[i] {
+				t.Fatalf("%s: item %d price=%s", order, i, p.Price)
+			}
+		}
+	}
+}
+
+func TestProductCursorTraversesTiesWithoutCounting(t *testing.T) {
+	ctx := context.Background()
+	svc := product.New(productrepo.NewRepository(testDB))
+	if err := testDB.Exec("DELETE FROM app.product").Error; err != nil {
+		t.Fatal(err)
+	}
+	for range 7 {
+		if _, err := svc.Create(ctx, input.CreateProductCommand{Name: "Cursor test", Price: "2"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := testDB.Exec("UPDATE app.product SET created_at = '2026-01-01T00:00:00Z'").Error; err != nil {
+		t.Fatal(err)
+	}
+	filter := domain.ProductFilter{Page: domain.NewPage(1, 2), Cursor: true}
+	seen := map[string]bool{}
+	for range 5 {
+		items, total, err := svc.List(ctx, filter)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if total != -1 {
+			t.Fatal("cursor performed total count")
+		}
+		for _, p := range items {
+			if seen[p.ID] {
+				t.Fatalf("duplicate %s", p.ID)
+			}
+			seen[p.ID] = true
+		}
+		if len(items) < 2 {
+			break
+		}
+		last := items[len(items)-1]
+		filter.After = &domain.ProductCursor{CreatedAt: last.CreatedAt, ID: last.ID}
+	}
+	if len(seen) != 7 {
+		t.Fatalf("read %d of 7", len(seen))
+	}
+	filter.Sort = "price"
+	if _, _, err := svc.List(ctx, filter); !apperror.IsCode(err, apperror.CodeInvalidInput) {
+		t.Fatalf("unsupported cursor sort: %v", err)
+	}
 }

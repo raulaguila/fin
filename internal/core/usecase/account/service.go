@@ -18,14 +18,14 @@ var languageFormat = regexp.MustCompile(`^[a-z]{2}(-[A-Z]{2})?$`)
 
 // Service implements input.AccountService.
 type Service struct {
-	UOW   output.UnitOfWork
+	UOW   output.AccountStore
 	Perms output.PermissionReader
 	Clock output.Clock
 }
 
 var _ input.AccountService = (*Service)(nil)
 
-func New(uow output.UnitOfWork, perms output.PermissionReader, clock output.Clock) *Service {
+func New(uow output.AccountStore, perms output.PermissionReader, clock output.Clock) *Service {
 	return &Service{UOW: uow, Perms: perms, Clock: clock}
 }
 

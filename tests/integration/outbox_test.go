@@ -1,4 +1,4 @@
-package postgres_test
+package integration_test
 
 import (
 	"context"
@@ -32,7 +32,7 @@ func TestOutboxHoldsSealedTokenUntilDone(t *testing.T) {
 		t.Fatalf("decrypt: %q %v", plain, err)
 	}
 
-	if err := e.store.Outbox().MarkSent(ctx, msgs[0].ID, e.clock.now); err != nil {
+	if err := e.store.Outbox().MarkSent(ctx, msgs[0].ID, msgs[0].ClaimID, e.clock.now); err != nil {
 		t.Fatal(err)
 	}
 	var left int64

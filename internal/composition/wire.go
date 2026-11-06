@@ -2,6 +2,7 @@ package composition
 
 import (
 	"github.com/raulaguila/authenticity/config"
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/emailpayload"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/outbox"
 	productrepo "github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/product"
@@ -24,7 +25,7 @@ import (
 )
 
 // NewAdmin wires the operator use cases of cmd/admin.
-func NewAdmin(res *infra.Resources) *admin.Service {
+func NewAdmin(res *infra.Resources) input.AdminService {
 	return admin.New(postgres.NewStore(res.PostgresDB), output.RealClock{})
 }
 
@@ -35,7 +36,7 @@ func NewMailer(cfg *config.Environment, res *infra.Resources, log *logger.Logger
 		Mail:   smtpmail.NewSender(cfg.SMTP),
 		Log:    log,
 		Clock:  output.RealClock{},
-		Key:    cfg.SMTP.TokenKey(),
+		Codec:  emailpayload.New(cfg.SMTP.TokenKey()),
 	}
 }
 
@@ -66,8 +67,7 @@ func NewApplication(cfg *config.Environment, res *infra.Resources, log *logger.L
 		LoginAttemptIPMaxFailures:    cfg.Auth.LoginAttemptIPMaxFailures,
 		EmailTokenCooldown:           cfg.Auth.EmailTokenCooldown,
 		EmailTokenHourlyMax:          cfg.Auth.EmailTokenHourlyMax,
-		OutboxKey:                    cfg.SMTP.TokenKey(),
-	})
+	}, emailpayload.New(cfg.SMTP.TokenKey()))
 
 	authSvc.Log = log
 

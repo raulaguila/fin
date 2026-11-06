@@ -8,7 +8,7 @@ import (
 
 // ProductRepository persists app.product.
 type ProductRepository interface {
-	// List returns one page and the count of all matches.
+	// List returns one page and the count of all matches (-1 in cursor mode).
 	List(ctx context.Context, filter domain.ProductFilter) ([]domain.Product, int64, error)
 	// ListOptions returns enabled products with only id and name.
 	ListOptions(ctx context.Context, limit int) ([]domain.Product, error)

@@ -4,10 +4,11 @@ package admin
 import (
 	"context"
 
+	"github.com/raulaguila/authenticity/internal/core/policy"
+	"github.com/raulaguila/authenticity/internal/core/port/input"
+
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
-	"github.com/raulaguila/authenticity/internal/core/usecase/auth"
-	usersvc "github.com/raulaguila/authenticity/internal/core/usecase/user"
 	"github.com/raulaguila/authenticity/pkg/apperror"
 	"github.com/raulaguila/authenticity/pkg/password"
 )
@@ -24,22 +25,15 @@ func New(tx output.TxManager, clock output.Clock) *Service {
 	return &Service{Tx: tx, Clock: clock}
 }
 
-// BootstrapCommand describes the first admin.
-type BootstrapCommand struct {
-	Name     string
-	Email    string
-	Password string
-}
-
 // Bootstrap creates the first admin, active and ready to log in, with no email
 // involved. Once any admin exists it does nothing and returns false. An email
 // already in use is an error: someone else may have registered it.
-func (s *Service) Bootstrap(ctx context.Context, cmd BootstrapCommand) (bool, error) {
-	name, email, err := auth.ValidateIdentity(cmd.Name, cmd.Email)
+func (s *Service) Bootstrap(ctx context.Context, cmd input.BootstrapCommand) (bool, error) {
+	name, email, err := policy.ValidateIdentity(cmd.Name, cmd.Email)
 	if err != nil {
 		return false, err
 	}
-	if err := auth.ValidatePassword(cmd.Password); err != nil {
+	if err := policy.ValidatePassword(cmd.Password); err != nil {
 		return false, err
 	}
 	// Hashed before the transaction: Argon2 must not hold a database connection.
@@ -49,7 +43,7 @@ func (s *Service) Bootstrap(ctx context.Context, cmd BootstrapCommand) (bool, er
 	}
 	created := false
 	err = s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
-		if err := uow.Attempts().Lock(ctx, "admin:bootstrap"); err != nil { // two runs at once make one admin
+		if err := uow.Lock(ctx, "admin:bootstrap"); err != nil { // two runs at once make one admin
 			return err
 		}
 		adminID, err := uow.Roles().FindIDByName(ctx, adminRole)
@@ -92,7 +86,7 @@ func (s *Service) Bootstrap(ctx context.Context, cmd BootstrapCommand) (bool, er
 // Promote gives an active user the admin role.
 func (s *Service) Promote(ctx context.Context, email string) error {
 	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
-		user, err := uow.Users().FindByEmail(ctx, auth.NormalizeEmail(email))
+		user, err := uow.Users().FindByEmail(ctx, policy.NormalizeEmail(email))
 		if err != nil {
 			return err
 		}
@@ -111,11 +105,11 @@ func (s *Service) Promote(ctx context.Context, email string) error {
 // the next request: Bearer checks the session every time.
 func (s *Service) Disable(ctx context.Context, email string) error {
 	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
-		user, err := uow.Users().FindByEmail(ctx, auth.NormalizeEmail(email))
+		user, err := uow.Users().FindByEmail(ctx, policy.NormalizeEmail(email))
 		if err != nil {
 			return err
 		}
-		return usersvc.Disable(ctx, uow, user.ID, s.Clock.Now())
+		return policy.Disable(ctx, uow, user.ID, s.Clock.Now())
 	})
 }
 
@@ -123,10 +117,12 @@ func (s *Service) Disable(ctx context.Context, email string) error {
 // role, which the API does not touch.
 func (s *Service) Enable(ctx context.Context, email string) error {
 	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
-		user, err := uow.Users().FindByEmail(ctx, auth.NormalizeEmail(email))
+		user, err := uow.Users().FindByEmail(ctx, policy.NormalizeEmail(email))
 		if err != nil {
 			return err
 		}
 		return uow.Users().Enable(ctx, user.ID)
 	})
 }
+
+var _ input.AdminService = (*Service)(nil)

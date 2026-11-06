@@ -23,6 +23,7 @@ func NewRepository(db *gorm.DB) *Repository {
 }
 
 type row struct {
+	ClaimID     uuid.UUID  `gorm:"column:claim_id"`
 	ID          uuid.UUID  `gorm:"column:id"`
 	Purpose     string     `gorm:"column:purpose"`
 	Payload     []byte     `gorm:"column:payload"`
@@ -37,6 +38,7 @@ type row struct {
 func (m row) toDomain() domain.OutboxMessage {
 	return domain.OutboxMessage{
 		ID:          m.ID.String(),
+		ClaimID:     m.ClaimID.String(),
 		Purpose:     m.Purpose,
 		Payload:     m.Payload,
 		Status:      m.Status,
@@ -71,11 +73,11 @@ func (r *Repository) ClaimPending(ctx context.Context, limit int, now time.Time,
 			LIMIT ?
 		)
 		UPDATE sys.outbox o
-		SET status = 'processing', available_at = ?
+		SET status = 'processing', available_at = ?, claim_id = ?
 		FROM cte
 		WHERE o.id = cte.id
-		RETURNING o.id, o.purpose, o.payload, o.status, o.attempts, o.available_at, o.created_at, o.processed_at, o.last_error
-	`, now, limit, now.Add(lease)).Scan(&rows).Error
+		RETURNING o.id, o.claim_id, o.purpose, o.payload, o.status, o.attempts, o.available_at, o.created_at, o.processed_at, o.last_error
+	`, now, limit, now.Add(lease), uuid.New()).Scan(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "outbox")
 	}
@@ -86,12 +88,12 @@ func (r *Repository) ClaimPending(ctx context.Context, limit int, now time.Time,
 	return out, nil
 }
 
-func (r *Repository) MarkSent(ctx context.Context, id string, processedAt time.Time) error {
+func (r *Repository) MarkSent(ctx context.Context, id, claimID string, processedAt time.Time) error {
 	res := r.db.WithContext(ctx).Exec(`
 		UPDATE sys.outbox
 		SET status = 'sent', processed_at = ?, last_error = NULL, payload = payload - 'token'
-		WHERE id = ?
-	`, processedAt, id)
+		WHERE id = ? AND claim_id = ?::uuid AND status = 'processing'
+	`, processedAt, id, claimID)
 	if res.Error != nil {
 		return shared.WrapError(res.Error, "outbox")
 	}
@@ -101,7 +103,7 @@ func (r *Repository) MarkSent(ctx context.Context, id string, processedAt time.T
 	return nil
 }
 
-func (r *Repository) MarkFailed(ctx context.Context, id string, attempts int, availableAt time.Time, processedAt *time.Time, lastError string, terminal bool) error {
+func (r *Repository) MarkFailed(ctx context.Context, id, claimID string, attempts int, availableAt time.Time, processedAt *time.Time, lastError string, terminal bool) error {
 	status := domain.OutboxStatusPending
 	if terminal {
 		status = domain.OutboxStatusFailed
@@ -110,8 +112,8 @@ func (r *Repository) MarkFailed(ctx context.Context, id string, attempts int, av
 		UPDATE sys.outbox
 		SET status = ?, attempts = ?, available_at = ?, processed_at = ?, last_error = ?,
 		    payload = CASE WHEN ? THEN payload - 'token' ELSE payload END
-		WHERE id = ?
-	`, status, attempts, availableAt, processedAt, lastError, terminal, id)
+		WHERE id = ? AND claim_id = ?::uuid AND status = 'processing'
+	`, status, attempts, availableAt, processedAt, lastError, terminal, id, claimID)
 	if res.Error != nil {
 		return shared.WrapError(res.Error, "outbox")
 	}

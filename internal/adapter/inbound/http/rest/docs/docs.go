@@ -614,6 +614,12 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "Use start for the first cursor page, then next_cursor; requires created_at desc and omits totals",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "default": 20,
                         "description": "Items per page, up to 100",
@@ -664,7 +670,7 @@ const docTemplate = `{
                                     }
                                 },
                                 "pagination": {
-                                    "$ref": "#/definitions/mapper.PaginationDTO"
+                                    "$ref": "#/definitions/product.productPaginationDTO"
                                 }
                             }
                         }
@@ -2345,6 +2351,26 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "product.productPaginationDTO": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "next_cursor": {
+                    "type": "string"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total_items": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
                 }
             }
         },

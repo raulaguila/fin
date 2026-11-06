@@ -2,21 +2,15 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
-	"github.com/raulaguila/authenticity/pkg/aescrypt"
 	"github.com/raulaguila/authenticity/pkg/apperror"
-	"github.com/raulaguila/authenticity/pkg/logger"
 	"github.com/raulaguila/authenticity/pkg/tokenhash"
 )
-
-const maxEmailBytes = 254 // RFC 5321
 
 // Config holds auth policy from environment (no config package import).
 type Config struct {
@@ -33,7 +27,6 @@ type Config struct {
 	LoginAttemptIPMaxFailures    int
 	EmailTokenCooldown           time.Duration // minimum gap between emails of one purpose to one user
 	EmailTokenHourlyMax          int           // 0 means no cap
-	OutboxKey                    []byte        // AES-256 key sealing email tokens at rest in sys.outbox
 }
 
 // Service implements identity auth flows.
@@ -43,7 +36,8 @@ type Service struct {
 	Tokens output.TokenIssuer
 	Clock  output.Clock
 	Cfg    Config
-	Log    *logger.Logger // optional: a nil logger drops the message
+	Codec  output.EmailTokenCodec
+	Log    output.Logger // optional: a nil logger drops the message
 }
 
 var _ input.AuthService = (*Service)(nil)
@@ -54,14 +48,15 @@ func New(
 	tokens output.TokenIssuer,
 	clock output.Clock,
 	cfg Config,
+	codec output.EmailTokenCodec,
 ) *Service {
-	return &Service{Tx: tx, UOW: uow, Tokens: tokens, Clock: clock, Cfg: cfg}
+	return &Service{Tx: tx, UOW: uow, Tokens: tokens, Clock: clock, Cfg: cfg, Codec: codec}
 }
 
 // warn reports a side step that failed without failing the request.
 func (s *Service) warn(msg string, err error) {
 	if err != nil {
-		s.Log.Warn(msg, slog.String("error", err.Error()))
+		output.Log(s.Log).Warn(msg, slog.String("error", err.Error()))
 	}
 }
 
@@ -69,6 +64,9 @@ func (s *Service) warn(msg string, err error) {
 // addresses flooding one mailbox. The hourly cap also protects the link already
 // sent, since each new token kills the one before it.
 func (s *Service) emailThrottled(ctx context.Context, uow output.UnitOfWork, userID, purpose string) (bool, error) {
+	if err := uow.Lock(ctx, "email:"+userID+":"+purpose); err != nil {
+		return false, err
+	}
 	now := s.Clock.Now()
 	recent, err := uow.Tokens().IssuedSince(ctx, userID, purpose, now.Add(-s.Cfg.EmailTokenCooldown))
 	if recent || err != nil || s.Cfg.EmailTokenHourlyMax <= 0 {
@@ -76,16 +74,6 @@ func (s *Service) emailThrottled(ctx context.Context, uow output.UnitOfWork, use
 	}
 	n, err := uow.Tokens().CountIssuedSince(ctx, userID, purpose, now.Add(-time.Hour))
 	return n >= s.Cfg.EmailTokenHourlyMax, err
-}
-
-// NormalizeEmail makes an address safe to compare and to store: Postgres refuses
-// NUL, and the email index refuses very long values, so a stored attempt never fails.
-func NormalizeEmail(raw string) string {
-	email := strings.ToLower(strings.TrimSpace(strings.ReplaceAll(raw, "\x00", "")))
-	if len(email) > maxEmailBytes {
-		email = strings.ToValidUTF8(email[:maxEmailBytes], "")
-	}
-	return email
 }
 
 // issueEmailToken replaces the user's live token and queues the email. The
@@ -99,22 +87,15 @@ func (s *Service) issueEmailToken(ctx context.Context, uow output.UnitOfWork, u 
 		Purpose:   purpose,
 		TokenHash: tokenhash.SHA256Bytes(plain),
 		ExpiresAt: s.Clock.Now().Add(ttl),
+		CreatedAt: s.Clock.Now(),
 	}
 	if err := uow.Tokens().Create(ctx, tok); err != nil {
 		return err
 	}
-	sealed, err := aescrypt.Encrypt(s.Cfg.OutboxKey, plain)
+	payload, err := s.Codec.Encode(output.EmailToken{UserID: u.ID, Email: u.Email, Name: u.Name, Token: plain})
 	if err != nil {
-		return apperror.New(apperror.CodeInternal, "token sealing failed").WithCause(err)
+		return apperror.New(apperror.CodeInternal, "email token encoding failed").WithCause(err)
 	}
-	payload, err := json.Marshal(map[string]any{
-		"user_id": u.ID,
-		"email":   u.Email,
-		"name":    u.Name,
-		"token":   sealed,
-	})
-	if err != nil {
-		return apperror.New(apperror.CodeInternal, "payload encoding failed").WithCause(err)
-	}
+
 	return uow.Outbox().Enqueue(ctx, purpose, payload)
 }

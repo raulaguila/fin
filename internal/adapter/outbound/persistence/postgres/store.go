@@ -12,6 +12,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/preference"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/role"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/session"
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/shared"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/token"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/user"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
@@ -48,3 +49,7 @@ var (
 	_ output.TxManager  = (*Store)(nil)
 	_ output.UnitOfWork = (*Store)(nil)
 )
+
+func (s *Store) Lock(ctx context.Context, key string) error {
+	return shared.WrapError(s.db.WithContext(ctx).Exec(`SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`, key).Error, "transaction lock")
+}

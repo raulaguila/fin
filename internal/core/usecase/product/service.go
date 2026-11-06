@@ -53,6 +53,20 @@ func (s *Service) List(ctx context.Context, filter domain.ProductFilter) ([]doma
 	if filter.Order != "asc" && filter.Order != "desc" {
 		return nil, 0, apperror.New(apperror.CodeInvalidInput, "order must be asc or desc").WithField("order")
 	}
+	filter.Page = domain.NewPage(filter.Page.Number, filter.Page.Limit)
+	if filter.Cursor {
+		if filter.Sort != "created_at" || filter.Order != "desc" || filter.Page.Number != 1 {
+			return nil, 0, apperror.New(apperror.CodeInvalidInput, "cursor requires created_at desc and no page offset").WithField("cursor")
+		}
+		if filter.After != nil {
+			if err := validate.ID(filter.After.ID); err != nil {
+				return nil, 0, err
+			}
+			if filter.After.CreatedAt.IsZero() {
+				return nil, 0, apperror.New(apperror.CodeInvalidInput, "invalid cursor").WithField("cursor")
+			}
+		}
+	}
 	return s.Repo.List(ctx, filter)
 }
 

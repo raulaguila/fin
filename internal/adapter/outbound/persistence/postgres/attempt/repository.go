@@ -30,10 +30,13 @@ func NewRepository(db *gorm.DB) *Repository {
 
 func (r *Repository) Create(ctx context.Context, a *domain.LoginAttempt) error {
 	id := uuid.New()
+	if a.CreatedAt.IsZero() {
+		a.CreatedAt = time.Now()
+	}
 	err := r.db.WithContext(ctx).Exec(`
 		INSERT INTO usr.usr_login_attempt (id, created_at, email, ip_address, user_agent, success, failure_kind)
-		VALUES (?, now(), ?, ?::inet, ?, ?, ?)
-	`, id, a.Email, a.IPAddress, a.UserAgent, a.Success, a.FailureKind).Error
+		VALUES (?, ?, ?, ?::inet, ?, ?, ?)
+	`, id, a.CreatedAt, a.Email, a.IPAddress, a.UserAgent, a.Success, a.FailureKind).Error
 	if err != nil {
 		return shared.WrapError(err, "login_attempt")
 	}
@@ -78,11 +81,6 @@ func (r *Repository) CountRecentFailuresByEmailAndIP(ctx context.Context, email,
 
 func (r *Repository) ClearFailures(ctx context.Context, email string, since time.Time) error {
 	err := r.db.WithContext(ctx).Exec(`DELETE FROM usr.usr_login_attempt WHERE email = ? AND created_at >= ? AND `+countedFailure, email, since).Error
-	return shared.WrapError(err, "login_attempt")
-}
-
-func (r *Repository) Lock(ctx context.Context, key string) error {
-	err := r.db.WithContext(ctx).Exec(`SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`, key).Error
 	return shared.WrapError(err, "login_attempt")
 }
 

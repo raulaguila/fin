@@ -65,6 +65,12 @@ func validateAPIConfig(cfg APIConfig) error {
 }
 
 func validateAuthConfig(cfg AuthConfig) error {
+	if cfg.AccessExpiration <= 0 || cfg.RefreshExpiration <= 0 || cfg.RegistrationTokenTTL <= 0 || cfg.PasswordResetTokenTTL <= 0 {
+		return fmt.Errorf("token expiration durations must be greater than 0")
+	}
+	if cfg.LoginAttemptEmailWindow <= 0 || cfg.LoginAttemptIPWindow <= 0 || cfg.EmailTokenCooldown < 0 || cfg.EmailTokenHourlyMax < 0 {
+		return fmt.Errorf("login windows must be positive; email cooldown and cap cannot be negative")
+	}
 	if cfg.MaxFailedLoginAttempts <= 0 {
 		return fmt.Errorf("AUTH_MAX_FAILED_LOGIN_ATTEMPTS must be greater than 0")
 	}

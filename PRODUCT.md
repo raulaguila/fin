@@ -12,7 +12,7 @@
 - HTTP: Fiber v3
 - Datastore: PostgreSQL 17 (schemas `usr`, `sys`, `app`; golang-migrate)
 - Auth crypto: RSA JWT (access/refresh), Argon2id passwords (PHC), SHA-256 for refresh `jti` and email tokens
-- SMTP: configured through environment variables; email tokens sealed with AES-GCM (`pkg/aescrypt`); mailer consumes the Postgres outbox with leases and retries
+- SMTP: configured through environment variables; email tokens sealed with AES-GCM (`pkg/aescrypt`); mailer consumes the Postgres outbox with fenced leases, retries and a restricted database role
 - Deploy: Docker Compose (`authenticity_backend`, `authenticity_mailer`, `authenticity_postgres`)
 
 ## Users
@@ -86,3 +86,5 @@ Known expensive-by-design paths (qualitative): Argon2id verify on login; authz P
 4. **Side effects are durable first** — email goes through outbox, then the mailer.
 5. **Specs and SQL constrain the product** — CHECKs and ADRs beat ad-hoc feature creep; example `products` exists only to prove RBAC.
 6. **Enforce account state** — pending and disabled accounts cannot log in; active locks block password login while preserving existing sessions. HTTP responses stay coarse for credential failures.
+
+Operational safeguards include atomic login/reset coordination, serialized per-account email limits, absolute session expiry from initial login, and stale-worker rejection for outbox acknowledgements. Product prices sort numerically. Cursor pagination is available for chronological traversal without totals. JSON logs and private process diagnostics support operational measurements without introducing a cache for live authorization.

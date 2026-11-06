@@ -12,6 +12,8 @@ type TxManager interface {
 
 // UnitOfWork exposes transactional repositories.
 type UnitOfWork interface {
+	// Lock serializes a named operation until the enclosing transaction ends.
+	Lock(ctx context.Context, key string) error
 	Users() UserRepository
 	Credentials() CredentialRepository
 	Sessions() SessionRepository
@@ -21,4 +23,24 @@ type UnitOfWork interface {
 	Outbox() OutboxRepository
 	Preferences() PreferenceRepository
 	Notifications() NotificationRepository
+}
+
+// AccountStore exposes only the repositories this application service reads or updates.
+type AccountStore interface {
+	Users() UserRepository
+	Sessions() SessionRepository
+	Preferences() PreferenceRepository
+	Notifications() NotificationRepository
+}
+
+// UserStore exposes only the repositories this application service reads or updates.
+type UserStore interface {
+	Users() UserRepository
+	Roles() RoleRepository
+}
+
+// RoleStore exposes only the repositories this application service reads or updates.
+type RoleStore interface {
+	Users() UserRepository
+	Roles() RoleRepository
 }

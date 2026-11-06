@@ -48,7 +48,10 @@ func (m row) toDomain() *domain.EmailToken {
 
 func (r *Repository) Create(ctx context.Context, t *domain.EmailToken) error {
 	id := uuid.New()
-	now := time.Now()
+	now := t.CreatedAt
+	if now.IsZero() {
+		now = time.Now()
+	}
 	err := r.db.WithContext(ctx).Exec(`
 		INSERT INTO usr.usr_token (id, user_id, purpose, token_hash, expires_at, used_at, attempts, created_at)
 		VALUES (?, ?, ?, ?, ?, NULL, 0, ?)

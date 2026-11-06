@@ -20,14 +20,14 @@ const listCap = 1000
 var nameFormat = regexp.MustCompile(`^[a-z0-9_-]{2,40}$`)
 
 type Service struct {
-	UOW   output.UnitOfWork
+	UOW   output.RoleStore
 	Tx    output.TxManager
 	Perms output.PermissionReader
 }
 
 var _ input.RoleService = (*Service)(nil)
 
-func New(uow output.UnitOfWork, tx output.TxManager, perms output.PermissionReader) *Service {
+func New(uow output.RoleStore, tx output.TxManager, perms output.PermissionReader) *Service {
 	return &Service{UOW: uow, Tx: tx, Perms: perms}
 }
 
@@ -102,7 +102,7 @@ func (s *Service) SetPermissions(ctx context.Context, roleID string, permissions
 		if err := validate.ID(roleID); err != nil {
 			return err
 		}
-		if err := uow.Attempts().Lock(ctx, "role:"+roleID); err != nil { // two saves at once would collide on the rows
+		if err := uow.Lock(ctx, "role:"+roleID); err != nil { // two saves at once would collide on the rows
 			return err
 		}
 		if _, err := s.editable(ctx, uow, roleID); err != nil {
@@ -163,7 +163,7 @@ func (s *Service) RemoveMember(ctx context.Context, roleID, userID string) error
 
 // editable loads a role the API may change. No transaction: nothing here can
 // make a role protected, so the answer cannot go stale before the write.
-func (s *Service) editable(ctx context.Context, uow output.UnitOfWork, id string) (*domain.Role, error) {
+func (s *Service) editable(ctx context.Context, uow output.RoleStore, id string) (*domain.Role, error) {
 	if err := validate.ID(id); err != nil {
 		return nil, err
 	}

@@ -52,6 +52,7 @@ type LoginAttempt struct {
 
 // TokenPair is issued on login/refresh.
 type TokenPair struct {
+	UserID       string
 	AccessToken  string
 	RefreshToken string
 	ExpiresIn    int64 // access TTL seconds

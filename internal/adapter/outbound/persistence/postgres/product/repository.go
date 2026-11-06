@@ -2,6 +2,7 @@ package product
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,20 +43,61 @@ func (m row) toDomain() domain.Product {
 	}
 }
 
-func (r *Repository) List(ctx context.Context, limit int) ([]domain.Product, error) {
+// sortColumns is the allowlist behind ORDER BY, which takes no bind parameters.
+var sortColumns = map[string]string{
+	"name": "name", "price": "price", "created_at": "created_at", "updated_at": "updated_at",
+}
+
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+// shortcut: OFFSET and leading-wildcard ILIKE scan what they skip, fine for this example table; move to keyset and pg_trgm when it holds many thousands of rows.
+func (r *Repository) List(ctx context.Context, filter domain.ProductFilter) ([]domain.Product, int64, error) {
+	matching := func() *gorm.DB {
+		q := r.db.WithContext(ctx).Table("app.product")
+		if filter.Search != "" {
+			q = q.Where("name ILIKE ?", "%"+likeEscaper.Replace(filter.Search)+"%")
+		}
+		return q
+	}
+	var total int64
+	if err := matching().Count(&total).Error; err != nil {
+		return nil, 0, shared.WrapError(err, "product")
+	}
+	column, ok := sortColumns[filter.Sort]
+	if !ok {
+		column = "created_at"
+	}
+	direction := "DESC"
+	if filter.Order == "asc" {
+		direction = "ASC"
+	}
+	var rows []row
+	err := matching().
+		Select("id, name, price::text AS price, enabled, created_at, updated_at").
+		Order(column + " " + direction + ", id"). // id keeps pages stable on ties
+		Limit(filter.Page.Limit).Offset(filter.Page.Offset()).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, 0, shared.WrapError(err, "product")
+	}
+	out := make([]domain.Product, 0, len(rows))
+	for _, m := range rows {
+		out = append(out, m.toDomain())
+	}
+	return out, total, nil
+}
+
+func (r *Repository) ListOptions(ctx context.Context, limit int) ([]domain.Product, error) {
 	var rows []row
 	err := r.db.WithContext(ctx).Raw(`
-		SELECT id, name, price::text, enabled, created_at, updated_at
-		FROM app.product
-		ORDER BY created_at DESC
-		LIMIT ?
+		SELECT id, name FROM app.product WHERE enabled ORDER BY name, id LIMIT ?
 	`, limit).Scan(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "product")
 	}
 	out := make([]domain.Product, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, row.toDomain())
+	for _, m := range rows {
+		out = append(out, m.toDomain())
 	}
 	return out, nil
 }
@@ -90,17 +132,20 @@ func (r *Repository) Create(ctx context.Context, p *domain.Product) error {
 }
 
 func (r *Repository) Update(ctx context.Context, p *domain.Product) error {
-	res := r.db.WithContext(ctx).Exec(`
+	var updated []time.Time
+	err := r.db.WithContext(ctx).Raw(`
 		UPDATE app.product
 		SET name = ?, price = ?::numeric, enabled = ?, updated_at = now()
 		WHERE id = ?
-	`, p.Name, p.Price, p.Enabled, p.ID)
-	if res.Error != nil {
-		return shared.WrapError(res.Error, "product")
+		RETURNING updated_at
+	`, p.Name, p.Price, p.Enabled, p.ID).Scan(&updated).Error
+	if err != nil {
+		return shared.WrapError(err, "product")
 	}
-	if res.RowsAffected == 0 {
+	if len(updated) == 0 {
 		return shared.WrapError(gorm.ErrRecordNotFound, "product")
 	}
+	p.UpdatedAt = updated[0]
 	return nil
 }
 

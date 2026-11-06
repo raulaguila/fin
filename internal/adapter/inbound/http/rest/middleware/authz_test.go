@@ -2,17 +2,14 @@ package middleware_test
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
 	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/port/output"
 	"github.com/raulaguila/authenticity/pkg/apperror"
 )
 
@@ -30,8 +27,6 @@ func (s stubAuthz) Authorize(ctx context.Context, userID, resource string, need 
 func (s stubAuthz) LoadEffective(ctx context.Context, userID string) (*domain.EffectivePermissions, error) {
 	return &domain.EffectivePermissions{UserID: userID, ByResource: map[string]domain.Action{}}, nil
 }
-
-func (s stubAuthz) Invalidate(ctx context.Context, userID string) error { return nil }
 
 func withUser(c fiber.Ctx) error {
 	c.Locals(middleware.LocalUserID, "u1")
@@ -65,59 +60,40 @@ func TestRequireAllowsAndDenies(t *testing.T) {
 	}
 }
 
-type stubTokens struct {
-	output.TokenIssuer
-	claims *output.AccessClaims
+type stubAuthn struct {
+	calls *[]string
+	err   error
 }
 
-func (s stubTokens) ParseAccess(token string) (*output.AccessClaims, error) {
-	if token != "good" {
-		return nil, errors.New("bad token")
+func (s stubAuthn) Authenticate(_ context.Context, token string) (*domain.Principal, error) {
+	*s.calls = append(*s.calls, token)
+	if s.err != nil {
+		return nil, s.err
 	}
-	return s.claims, nil
-}
-
-type stubSessions struct {
-	output.SessionRepository
-	sess *domain.Session
-	err  error
-}
-
-func (s stubSessions) FindByID(context.Context, string) (*domain.Session, error) {
-	return s.sess, s.err
+	return &domain.Principal{UserID: "u1", SessionID: "s1"}, nil
 }
 
 func TestBearer(t *testing.T) {
-	future, past := time.Now().Add(time.Hour), time.Now().Add(-time.Hour)
-	claims := &output.AccessClaims{UserID: "u1", SessionID: "s1"}
-	live := &domain.Session{UserID: "u1", ExpiresAt: future}
-
 	cases := []struct {
 		name   string
 		header string
-		claims *output.AccessClaims
-		sess   *domain.Session
 		err    error
 		want   int
+		called bool
 	}{
-		{"valid", "Bearer good", claims, live, nil, fiber.StatusOK},
-		{"no header", "", claims, live, nil, fiber.StatusUnauthorized},
-		{"wrong scheme", "Basic good", claims, live, nil, fiber.StatusUnauthorized},
-		{"empty token", "Bearer  ", claims, live, nil, fiber.StatusUnauthorized},
-		{"bad token", "Bearer bad", claims, live, nil, fiber.StatusUnauthorized},
-		{"no subject", "Bearer good", &output.AccessClaims{SessionID: "s1"}, live, nil, fiber.StatusUnauthorized},
-		{"expired token", "Bearer good", &output.AccessClaims{UserID: "u1", SessionID: "s1", ExpiresAt: past}, live, nil, fiber.StatusUnauthorized},
-		{"unknown session", "Bearer good", claims, nil, apperror.New(apperror.CodeNotFound, "x"), fiber.StatusUnauthorized},
-		{"database down", "Bearer good", claims, nil, apperror.New(apperror.CodeDatabaseError, "x"), fiber.StatusInternalServerError},
-		{"other user's session", "Bearer good", claims, &domain.Session{UserID: "u2", ExpiresAt: future}, nil, fiber.StatusUnauthorized},
-		{"revoked session", "Bearer good", claims, &domain.Session{UserID: "u1", ExpiresAt: future, RevokedAt: &past}, nil, fiber.StatusUnauthorized},
-		{"expired session", "Bearer good", claims, &domain.Session{UserID: "u1", ExpiresAt: past}, nil, fiber.StatusUnauthorized},
+		{"valid", "Bearer good", nil, fiber.StatusOK, true},
+		{"no header", "", nil, fiber.StatusUnauthorized, false},
+		{"wrong scheme", "Basic good", nil, fiber.StatusUnauthorized, false},
+		{"empty token", "Bearer  ", nil, fiber.StatusUnauthorized, false},
+		{"refused", "Bearer bad", apperror.New(apperror.CodeUnauthorized, "x"), fiber.StatusUnauthorized, true},
+		{"database down", "Bearer good", apperror.New(apperror.CodeDatabaseError, "x"), fiber.StatusInternalServerError, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			var calls []string
 			app := fiber.New()
-			app.Get("/", middleware.Bearer(stubTokens{claims: tc.claims}, stubSessions{sess: tc.sess, err: tc.err}), func(c fiber.Ctx) error {
-				if middleware.UserID(c) != "u1" {
+			app.Get("/", middleware.Bearer(stubAuthn{calls: &calls, err: tc.err}), func(c fiber.Ctx) error {
+				if middleware.UserID(c) != "u1" || middleware.SessionID(c) != "s1" {
 					return c.SendStatus(fiber.StatusTeapot)
 				}
 				return c.SendStatus(fiber.StatusOK)
@@ -130,6 +106,9 @@ func TestBearer(t *testing.T) {
 			}
 			if resp.StatusCode != tc.want {
 				t.Fatalf("status %d, want %d", resp.StatusCode, tc.want)
+			}
+			if (len(calls) == 1) != tc.called {
+				t.Fatalf("authenticator calls: %v", calls)
 			}
 		})
 	}

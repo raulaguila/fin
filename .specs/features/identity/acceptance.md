@@ -22,3 +22,6 @@ Critérios derivados do schema e dos fluxos `/v1/auth/*`. Cobertura: testes de i
 - DELETE de role com usuários vinculados falha.
 - Quinta tentativa inválida no mesmo token SMTP marca `used_at`.
 - Access JWT não carrega mapa de permissões; authz é ao vivo.
+- `admin bootstrap` cria um admin ativo; com admin existente nada faz; e-mail em uso é erro, nunca promove conta alheia; execuções simultâneas criam um só.
+- Sessão ou notificação de outro usuário responde `404` e nada muda.
+- `permissions` no corpo da resposta é só para a interface: a autorização continua lendo o banco a cada requisição.

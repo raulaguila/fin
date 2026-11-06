@@ -45,6 +45,17 @@ func (r *Repository) FindIDByName(ctx context.Context, name string) (string, err
 	return id, nil
 }
 
+func (r *Repository) HasMembers(ctx context.Context, roleID string) (bool, error) {
+	var found bool
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT EXISTS (SELECT 1 FROM usr.usr_user_role WHERE role_id = ?)
+	`, roleID).Scan(&found).Error
+	if err != nil {
+		return false, shared.WrapError(err, "user_role")
+	}
+	return found, nil
+}
+
 func (r *Repository) Assign(ctx context.Context, userID, roleID string) error {
 	err := r.db.WithContext(ctx).Exec(`
 		INSERT INTO usr.usr_user_role (user_id, role_id, created_at)

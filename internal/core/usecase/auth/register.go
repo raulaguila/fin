@@ -17,14 +17,23 @@ import (
 	"github.com/raulaguila/authenticity/pkg/tokenhash"
 )
 
-func (s *Service) Register(ctx context.Context, cmd input.RegisterCommand) (*input.RegisterResult, error) {
-	name := strings.TrimSpace(cmd.Name)
-	email := normalizeEmail(cmd.Email)
+// ValidateIdentity returns the name and email a new account stores.
+func ValidateIdentity(rawName, rawEmail string) (name, email string, err error) {
+	name = strings.TrimSpace(rawName)
+	email = NormalizeEmail(rawEmail)
 	if n := utf8.RuneCountInString(name); n < 2 || n > 80 || strings.ContainsFunc(name, unicode.IsControl) {
-		return nil, apperror.New(apperror.CodeInvalidInput, "name must be 2-80 characters").WithField("name")
+		return "", "", apperror.New(apperror.CodeInvalidInput, "name must be 2-80 characters").WithField("name")
 	}
-	if addr, err := mail.ParseAddress(email); err != nil || addr.Address != email || email != strings.ToLower(strings.TrimSpace(cmd.Email)) {
-		return nil, apperror.New(apperror.CodeInvalidInput, "invalid email").WithField("email")
+	if addr, err := mail.ParseAddress(email); err != nil || addr.Address != email || email != strings.ToLower(strings.TrimSpace(rawEmail)) {
+		return "", "", apperror.New(apperror.CodeInvalidInput, "invalid email").WithField("email")
+	}
+	return name, email, nil
+}
+
+func (s *Service) Register(ctx context.Context, cmd input.RegisterCommand) (*input.RegisterResult, error) {
+	name, email, err := ValidateIdentity(cmd.Name, cmd.Email)
+	if err != nil {
+		return nil, err
 	}
 
 	plain, err := tokenhash.RandomURLSafe()
@@ -79,7 +88,7 @@ func (s *Service) Register(ctx context.Context, cmd input.RegisterCommand) (*inp
 }
 
 func (s *Service) Activate(ctx context.Context, cmd input.ActivateCommand) error {
-	if err := validatePassword(cmd.Password); err != nil {
+	if err := ValidatePassword(cmd.Password); err != nil {
 		return err
 	}
 	hash := tokenhash.SHA256Bytes(cmd.Token)
@@ -99,7 +108,6 @@ func (s *Service) Activate(ctx context.Context, cmd input.ActivateCommand) error
 		return hashError(ctx, err)
 	}
 
-	var userID string
 	err = s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
 		tok, user, err := activationTarget(ctx, uow, hash, now)
 		if err != nil {
@@ -118,16 +126,9 @@ func (s *Service) Activate(ctx context.Context, cmd input.ActivateCommand) error
 		if err := uow.Roles().Assign(ctx, user.ID, roleID); err != nil {
 			return err
 		}
-		userID = user.ID
 		return uow.Tokens().MarkUsed(ctx, tok.ID, now)
 	})
-	if err != nil {
-		return err
-	}
-	if s.Authz != nil {
-		_ = s.Authz.Invalidate(ctx, userID)
-	}
-	return nil
+	return err
 }
 
 // activationTarget checks an activation token. An expired token comes back with

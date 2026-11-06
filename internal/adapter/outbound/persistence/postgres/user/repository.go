@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,9 +45,6 @@ func (r row) toDomain() *domain.User {
 func (r *Repository) FindByID(ctx context.Context, id string) (*domain.User, error) {
 	var m row
 	err := r.db.WithContext(ctx).Table("usr.usr_user").Where("id = ?", id).Take(&m).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, shared.WrapError(err, "user")
-	}
 	if err != nil {
 		return nil, shared.WrapError(err, "user")
 	}
@@ -58,9 +54,6 @@ func (r *Repository) FindByID(ctx context.Context, id string) (*domain.User, err
 func (r *Repository) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
 	var m row
 	err := r.db.WithContext(ctx).Table("usr.usr_user").Where("email = ?", email).Take(&m).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, shared.WrapError(err, "user")
-	}
 	if err != nil {
 		return nil, shared.WrapError(err, "user")
 	}

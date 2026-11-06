@@ -75,7 +75,7 @@ func TestBodyLimitAnswersBeforeHandlers(t *testing.T) {
 
 func TestRateLimitGroupsIPv6ByPrefix(t *testing.T) {
 	app := fiber.New(serverConfig(config.APIConfig{TrustedProxies: "0.0.0.0", ProxyHeader: "X-Real-IP"}))
-	app.Use(middleware.RateLimit("test", 1, nil))
+	app.Use(middleware.RateLimit(1))
 	app.Get("/", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 
 	get := func(ip string) int {
@@ -105,7 +105,7 @@ func TestRateLimitGroupsIPv6ByPrefix(t *testing.T) {
 
 func TestRateLimitCountsEachClientBehindProxy(t *testing.T) {
 	app := fiber.New(serverConfig(config.APIConfig{TrustedProxies: "0.0.0.0", ProxyHeader: "X-Real-IP"}))
-	app.Use(middleware.RateLimit("test", 1, nil))
+	app.Use(middleware.RateLimit(1))
 	app.Get("/", func(c fiber.Ctx) error { return c.SendString(c.IP()) })
 
 	get := func(ip string) int {

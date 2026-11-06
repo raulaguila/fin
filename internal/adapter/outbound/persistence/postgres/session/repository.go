@@ -10,6 +10,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/shared"
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
+	"github.com/raulaguila/authenticity/pkg/clientip"
 )
 
 type Repository struct {
@@ -121,6 +122,58 @@ func (r *Repository) RevokeAllForUser(ctx context.Context, userID string, now ti
 		return shared.WrapError(err, "session")
 	}
 	return nil
+}
+
+func (r *Repository) ListActive(ctx context.Context, userID string, now time.Time, limit int) ([]domain.Session, error) {
+	var rows []row
+	err := r.db.WithContext(ctx).Table("usr.usr_session").
+		Where("user_id = ? AND revoked_at IS NULL AND expires_at > ?", userID, now).
+		Order("last_seen_at DESC").Limit(limit).Find(&rows).Error
+	if err != nil {
+		return nil, shared.WrapError(err, "session")
+	}
+	out := make([]domain.Session, 0, len(rows))
+	for _, m := range rows {
+		out = append(out, *m.toDomain())
+	}
+	return out, nil
+}
+
+func (r *Repository) RevokeOwned(ctx context.Context, id, userID string, now time.Time, reason string) (bool, error) {
+	res := r.db.WithContext(ctx).Exec(`
+		UPDATE usr.usr_session
+		SET revoked_at = ?, revocation_reason = ?, last_seen_at = ?
+		WHERE id = ? AND user_id = ? AND revoked_at IS NULL
+	`, now, reason, now, id, userID)
+	if res.Error != nil {
+		return false, shared.WrapError(res.Error, "session")
+	}
+	return res.RowsAffected == 1, nil
+}
+
+func (r *Repository) RevokeOthers(ctx context.Context, userID, keepID string, now time.Time, reason string) error {
+	err := r.db.WithContext(ctx).Exec(`
+		UPDATE usr.usr_session
+		SET revoked_at = ?, revocation_reason = ?, last_seen_at = ?
+		WHERE user_id = ? AND id <> ? AND revoked_at IS NULL
+	`, now, reason, now, userID, keepID).Error
+	return shared.WrapError(err, "session")
+}
+
+func (r *Repository) KnownClient(ctx context.Context, userID, ip string) (bool, error) {
+	first, last := clientip.Range(ip)
+	var known bool
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT NOT EXISTS (SELECT 1 FROM usr.usr_session WHERE user_id = ?)
+		    OR EXISTS (
+		        SELECT 1 FROM usr.usr_session
+		        WHERE user_id = ? AND ip_address BETWEEN ?::inet AND ?::inet
+		    )
+	`, userID, userID, first, last).Scan(&known).Error
+	if err != nil {
+		return false, shared.WrapError(err, "session")
+	}
+	return known, nil
 }
 
 func nilIfEmpty(b []byte) []byte {

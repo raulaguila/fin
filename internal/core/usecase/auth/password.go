@@ -18,7 +18,7 @@ const (
 )
 
 func (s *Service) RequestPasswordReset(ctx context.Context, cmd input.RequestPasswordResetCommand) (*input.RequestPasswordResetResult, error) {
-	email := normalizeEmail(cmd.Email)
+	email := NormalizeEmail(cmd.Email)
 	res := &input.RequestPasswordResetResult{}
 
 	user, err := s.UOW.Users().FindByEmail(ctx, email)
@@ -61,7 +61,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, cmd input.RequestPas
 }
 
 func (s *Service) ConfirmPasswordReset(ctx context.Context, cmd input.ConfirmPasswordResetCommand) error {
-	if err := validatePassword(cmd.Password); err != nil {
+	if err := ValidatePassword(cmd.Password); err != nil {
 		return err
 	}
 	hash := tokenhash.SHA256Bytes(cmd.Token)
@@ -100,6 +100,14 @@ func (s *Service) ConfirmPasswordReset(ctx context.Context, cmd input.ConfirmPas
 		if err := uow.Sessions().RevokeAllForUser(ctx, tok.UserID, now, domain.RevokePasswordChanged); err != nil {
 			return err
 		}
+		if err := uow.Notifications().Create(ctx, &domain.Notification{
+			UserID:  tok.UserID,
+			Level:   domain.NotificationWarning,
+			Title:   "Password changed",
+			Message: "Your password was changed and every session was ended.",
+		}); err != nil {
+			return err
+		}
 		return uow.Tokens().MarkUsed(ctx, tok.ID, now)
 	})
 }
@@ -132,7 +140,8 @@ func requestTimedOut() error {
 	return apperror.New(apperror.CodeTimedOut, "request timed out")
 }
 
-func validatePassword(plain string) error {
+// ValidatePassword applies the password policy.
+func ValidatePassword(plain string) error {
 	if len(plain) < minPasswordBytes {
 		return apperror.New(apperror.CodeInvalidInput, "password too short").WithField("password")
 	}

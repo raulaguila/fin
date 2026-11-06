@@ -11,7 +11,7 @@ internal/infra
 internal/composition
 internal/core/{domain,port,usecase}
 internal/adapter/inbound/http/rest
-internal/adapter/outbound/{persistence/postgres,cache}
+internal/adapter/outbound/{persistence/postgres,smtp,tokens}
 pkg/{logger,apperror,aescrypt,smtpsecurity,pointer,password,tokenhash,tokens}
 ```
 

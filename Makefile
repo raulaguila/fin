@@ -164,7 +164,7 @@ install-tools: ## Install pinned Go tooling into GOPATH/bin
 # =========================
 # 1. Environment & Setup
 # =========================
-.PHONY: clean clean-go-cache clean-go-mod-cache init tidy dev-backend dev-mailer list-updates
+.PHONY: clean clean-go-cache clean-go-mod-cache init docs tidy dev-backend dev-mailer list-updates
 
 clean: ## Clean local build artifacts
 	@echo "$(BLUE)🏗️  Cleaning local build artifacts...$(RESET)"
@@ -193,6 +193,11 @@ init: ## Create environment file if missing
 		if [ -f .env ] && [ ! -f config/.env ]; then mv .env config/.env; fi; \
 		echo "$(GREEN)✅ Environment file successfully created and configured!$(RESET)"; \
 	fi
+	@echo
+
+docs: ## Regenerate the Swagger docs from the handler annotations
+	@$(GO) run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g swagger.go -d internal/adapter/inbound/http/rest -o internal/adapter/inbound/http/rest/docs --parseInternal --outputTypes go
+	@echo "$(GREEN)✅ Swagger docs generated.$(RESET)"
 	@echo
 
 tidy: ## Clean and tidy dependencies
@@ -355,13 +360,16 @@ migrate-version: ## Show current migration version
 # =========================
 # 5. Docker Compose
 # =========================
-.PHONY: admin-promote admin-disable compose-up compose-build compose-services compose-down compose-clean compose-remove compose-exec compose-log compose-top compose-stats
+.PHONY: admin-bootstrap admin-promote admin-disable compose-up compose-build compose-services compose-down compose-clean compose-remove compose-exec compose-log compose-top compose-stats
 
-admin-promote: ## Give an active user the admin role (Usage: make admin-promote email=a@b.c)
-	@$(COMPOSE_COMMAND) exec backend ./admin promote "$(email)"
+admin-bootstrap: ## Create the first admin, asking name, email and password
+	@$(COMPOSE_COMMAND) exec backend ./admin bootstrap
 
-admin-disable: ## Disable a user and end their sessions (Usage: make admin-disable email=a@b.c)
-	@$(COMPOSE_COMMAND) exec backend ./admin disable "$(email)"
+admin-promote: ## Give an active user the admin role, asking the email
+	@$(COMPOSE_COMMAND) exec backend ./admin promote
+
+admin-disable: ## Disable a user and end their sessions, asking the email
+	@$(COMPOSE_COMMAND) exec backend ./admin disable
 
 compose-up: ## Create and start containers
 	@echo "$(BLUE)🚀 Starting Docker containers...$(RESET)"

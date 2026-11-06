@@ -40,7 +40,6 @@ type Service struct {
 	Tokens output.TokenIssuer
 	Clock  output.Clock
 	Cfg    Config
-	Authz  input.Authorizer // optional; invalidates effective-permission cache
 }
 
 var _ input.AuthService = (*Service)(nil)
@@ -51,12 +50,11 @@ func New(
 	tokens output.TokenIssuer,
 	clock output.Clock,
 	cfg Config,
-	authz input.Authorizer,
 ) *Service {
 	if clock == nil {
 		clock = output.RealClock{}
 	}
-	return &Service{Tx: tx, UOW: uow, Tokens: tokens, Clock: clock, Cfg: cfg, Authz: authz}
+	return &Service{Tx: tx, UOW: uow, Tokens: tokens, Clock: clock, Cfg: cfg}
 }
 
 // emailThrottled limits emails per account: the per-IP limit does not stop many
@@ -72,9 +70,9 @@ func (s *Service) emailThrottled(ctx context.Context, uow output.UnitOfWork, use
 	return n >= s.Cfg.EmailTokenHourlyMax, err
 }
 
-// normalizeEmail makes an address safe to compare and to store: Postgres refuses
+// NormalizeEmail makes an address safe to compare and to store: Postgres refuses
 // NUL, and the email index refuses very long values, so a stored attempt never fails.
-func normalizeEmail(raw string) string {
+func NormalizeEmail(raw string) string {
 	email := strings.ToLower(strings.TrimSpace(strings.ReplaceAll(raw, "\x00", "")))
 	if len(email) > maxEmailBytes {
 		email = strings.ToValidUTF8(email[:maxEmailBytes], "")

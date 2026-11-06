@@ -11,10 +11,9 @@
 - Language / runtime: Go (`go.mod` module `github.com/raulaguila/authenticity`, Go 1.26.x)
 - HTTP: Fiber v3
 - Datastore: PostgreSQL 17 (schemas `usr`, `sys`, `app`; golang-migrate)
-- Cache: Valkey/Redis (`go-redis`; required in v1 for authz effective map)
 - Auth crypto: RSA JWT (access/refresh), Argon2id passwords (PHC), SHA-256 for refresh `jti` and email tokens
 - SMTP: env + AES KEK/DEK helpers (`pkg/aescrypt`); mailer not consuming outbox yet
-- Deploy: Docker Compose (`authenticity_backend`, `authenticity_mailer`, `authenticity_postgres`, Valkey)
+- Deploy: Docker Compose (`authenticity_backend`, `authenticity_mailer`, `authenticity_postgres`)
 
 ## Users
 
@@ -24,7 +23,7 @@ Hypothesis from purpose: applications and operators that need identity (register
 
 ## Product Purpose
 
-Provide identity and authentication for clients: account lifecycle (pending → activate → active), session-based JWT access/refresh with rotation and reuse detection, password reset, live RBAC (resource × CRUD), and email delivery via Postgres outbox.
+Provide identity and authentication for clients: account lifecycle (pending → activate → active), session-based JWT access/refresh with rotation and reuse detection, session management by the user, password reset, live RBAC (resource × CRUD), user preferences, in-app security notifications, and email delivery via Postgres outbox.
 
 Operational success (from specs, not measured SLOs): only `active` accounts authenticate; plaintext secrets never at rest; HTTP never echoes login `failure_kind`; authz does not trust JWT permission claims.
 
@@ -51,7 +50,7 @@ Unknown — confirm before designing to that constraint.
 
 Unknown — confirm before designing to that constraint.
 
-Known expensive-by-design paths (qualitative): Argon2id verify on login; authz cache miss → Postgres view; mailer/SMTP when enabled.
+Known expensive-by-design paths (qualitative): Argon2id verify on login; authz Postgres view on each check; mailer/SMTP when enabled.
 
 ## Capabilities and Constraints
 
@@ -60,9 +59,8 @@ Known expensive-by-design paths (qualitative): Argon2id verify on login; authz c
 - Hexagonal dependency direction (core ≠ Fiber/GORM)
 - Password Argon2id only; refresh/`usr_token` stored as SHA-256
 - Login gated by `usr_user_status.is_login_allowed` (only `active` today)
-- RBAC B+C (ADR-004): `usr_resource` catalog; actions CRUD bits; admin `is_superuser` and/or `resource='*'`; live authz via view → cache
+- RBAC B+C (ADR-004): `usr_resource` catalog; actions CRUD bits; admin `is_superuser` and/or `resource='*'`; live authz via view
 - Email side effects via `sys.outbox` (backend enqueue; mailer consume)
-- Cache provider `redis` or `valkey` in v1
 
 **Must not (v1)**
 

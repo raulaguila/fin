@@ -47,20 +47,8 @@ func validateEnvironment(env *Environment) error {
 	if env.Postgres.MaxConns <= 0 {
 		return fmt.Errorf("POSTGRES_MAX_CONNS must be greater than 0")
 	}
-	if err := validateCacheBackend(env.Cache.Backend); err != nil {
-		return err
-	}
 
 	return nil
-}
-
-func validateCacheBackend(value string) error {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "", "redis", "valkey":
-		return nil
-	default:
-		return fmt.Errorf("CACHE_PROVIDER must be one of redis or valkey")
-	}
 }
 
 func validateAPIConfig(cfg APIConfig) error {
@@ -122,10 +110,8 @@ func validateProtectedSecrets(env *Environment) error {
 			return fmt.Errorf("%s must hold a fixed key in %s environment", name, env.Environment)
 		}
 	}
-	for name, value := range map[string]string{"POSTGRES_PASS": env.Postgres.Password, "CACHE_PASS": env.Cache.Password} {
-		if len(value) < minSecretLength {
-			return fmt.Errorf("%s must have at least %d characters in %s environment", name, minSecretLength, env.Environment)
-		}
+	if len(env.Postgres.Password) < minSecretLength {
+		return fmt.Errorf("POSTGRES_PASS must have at least %d characters in %s environment", minSecretLength, env.Environment)
 	}
 	return nil
 }

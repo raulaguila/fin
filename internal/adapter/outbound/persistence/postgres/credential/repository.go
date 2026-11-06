@@ -2,7 +2,6 @@ package credential
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"gorm.io/gorm"
@@ -49,9 +48,6 @@ func (m row) toDomain() *domain.Credential {
 func (r *Repository) FindByUserID(ctx context.Context, userID string) (*domain.Credential, error) {
 	var m row
 	err := r.db.WithContext(ctx).Table("usr.usr_credential").Where("user_id = ?", userID).Take(&m).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, shared.WrapError(err, "credential")
-	}
 	if err != nil {
 		return nil, shared.WrapError(err, "credential")
 	}

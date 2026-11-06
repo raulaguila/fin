@@ -32,7 +32,7 @@ func main() {
 	log := initLogger(cfg)
 	log.Info("Configuration loaded", slog.String("version", cfg.Version), slog.String("environment", cfg.Environment))
 
-	res, err := infra.New(cfg, log, false)
+	res, err := infra.New(cfg, log)
 	if err != nil {
 		log.Error("Infrastructure bootstrap failed", slog.String("error", err.Error()))
 		os.Exit(1)

@@ -10,11 +10,9 @@ Derivado de `config/validate.go`, CHECKs SQL e comentários de tabela.
 - `AUTH_MANUAL_TOKEN_DELIVERY` não pode estar ligado
 - SMTP habilitado exige `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` reais (sem placeholder `example.com`)
 
-## Auth e cache
+## Auth
 
 - `AUTH_MAX_FAILED_LOGIN_ATTEMPTS` e `AUTH_ACCOUNT_LOCK_DURATION` > 0
-- `CACHE_PROVIDER`: `redis` ou `valkey`
-- Cache obrigatório na v1 (effective permissions e demais usos de `infra.New`)
 
 ## Segredos
 

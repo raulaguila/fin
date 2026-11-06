@@ -20,7 +20,6 @@ func productionEnv(t *testing.T) *Environment {
 		API:         APIConfig{CorsOrigins: "https://app.acme.io", GlobalRateLimit: 100, AuthRateLimit: 10, PasswordRateLimit: 3, RequestTimeout: 1},
 		Auth:        AuthConfig{MaxFailedLoginAttempts: 5, AccountLockDuration: 1, LoginAttemptPairMaxFailures: 5},
 		Postgres:    PostgresConfig{Password: strings.Repeat("p", minSecretLength), MaxConns: 40},
-		Cache:       CacheConfig{Password: strings.Repeat("c", minSecretLength)},
 		SMTP: SMTPConfig{
 			MasterKey: validKey, Enabled: true, Security: smtpsecurity.ModeStartTLS,
 			Host: "smtp.acme.io", User: "u", Password: "p", From: "no-reply@acme.io",
@@ -61,7 +60,6 @@ func TestProductionRefuses(t *testing.T) {
 		"manual token":  func(e *Environment) { e.Auth.AllowManualTokenDelivery = true },
 		"wildcard cors": func(e *Environment) { e.API.CorsOrigins = "*" },
 		"weak db pass":  func(e *Environment) { e.Postgres.Password = "root" },
-		"weak cache":    func(e *Environment) { e.Cache.Password = "" },
 		"smtp off":      func(e *Environment) { e.SMTP.Enabled = false },
 		"smtp no tls":   func(e *Environment) { e.SMTP.Security = smtpsecurity.ModeNone },
 		"bad token key": func(e *Environment) { e.SMTP.MasterKey = "short" },

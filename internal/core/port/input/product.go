@@ -21,7 +21,8 @@ type UpdateProductCommand struct {
 
 // ProductService is the inbound port for product CRUD.
 type ProductService interface {
-	List(ctx context.Context, limit int) ([]domain.Product, error)
+	List(ctx context.Context, filter domain.ProductFilter) ([]domain.Product, int64, error)
+	Options(ctx context.Context) ([]domain.Product, error)
 	Get(ctx context.Context, id string) (*domain.Product, error)
 	Create(ctx context.Context, cmd CreateProductCommand) (*domain.Product, error)
 	Update(ctx context.Context, cmd UpdateProductCommand) (*domain.Product, error)

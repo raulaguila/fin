@@ -15,7 +15,6 @@ const reportTTL = time.Second
 // CheckUseCase aggregates dependency pings.
 type CheckUseCase struct {
 	Postgres output.Pinger
-	Cache    output.Pinger // optional; nil → skipped
 
 	mu   sync.Mutex
 	last *domain.HealthReport
@@ -24,8 +23,8 @@ type CheckUseCase struct {
 
 var _ input.HealthChecker = (*CheckUseCase)(nil)
 
-func New(postgres output.Pinger, cache output.Pinger) *CheckUseCase {
-	return &CheckUseCase{Postgres: postgres, Cache: cache}
+func New(postgres output.Pinger) *CheckUseCase {
+	return &CheckUseCase{Postgres: postgres}
 }
 
 // Check reuses a fresh report: /health has no rate limit, so without this every
@@ -42,7 +41,7 @@ func (u *CheckUseCase) Check(ctx context.Context) (*domain.HealthReport, error) 
 
 func (u *CheckUseCase) probe(ctx context.Context) *domain.HealthReport {
 	report := &domain.HealthReport{
-		Checks: make(map[string]domain.CheckStatus, 2),
+		Checks: make(map[string]domain.CheckStatus, 1),
 	}
 
 	if u.Postgres == nil {
@@ -51,14 +50,6 @@ func (u *CheckUseCase) probe(ctx context.Context) *domain.HealthReport {
 		report.Checks["postgres"] = domain.CheckFail
 	} else {
 		report.Checks["postgres"] = domain.CheckOK
-	}
-
-	if u.Cache == nil {
-		report.Checks["cache"] = domain.CheckSkipped
-	} else if err := u.Cache.Ping(ctx); err != nil {
-		report.Checks["cache"] = domain.CheckFail
-	} else {
-		report.Checks["cache"] = domain.CheckOK
 	}
 
 	report.Aggregate()

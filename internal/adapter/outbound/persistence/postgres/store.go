@@ -7,7 +7,9 @@ import (
 
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/attempt"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/credential"
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/notification"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/outbox"
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/preference"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/role"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/session"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/token"
@@ -31,6 +33,10 @@ func (s *Store) Tokens() output.TokenRepository           { return token.NewRepo
 func (s *Store) Attempts() output.LoginAttemptRepository  { return attempt.NewRepository(s.db) }
 func (s *Store) Roles() output.RoleRepository             { return role.NewRepository(s.db) }
 func (s *Store) Outbox() output.OutboxRepository          { return outbox.NewRepository(s.db) }
+func (s *Store) Preferences() output.PreferenceRepository { return preference.NewRepository(s.db) }
+func (s *Store) Notifications() output.NotificationRepository {
+	return notification.NewRepository(s.db)
+}
 
 func (s *Store) WithinTx(ctx context.Context, fn func(ctx context.Context, uow output.UnitOfWork) error) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

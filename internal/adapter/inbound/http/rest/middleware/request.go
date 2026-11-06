@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/limiter"
 
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/mapper"
-	"github.com/raulaguila/authenticity/internal/core/port/output"
 	"github.com/raulaguila/authenticity/pkg/apperror"
 	"github.com/raulaguila/authenticity/pkg/clientip"
 	"github.com/raulaguila/authenticity/pkg/logger"
@@ -69,41 +67,19 @@ func Timeout(d time.Duration) fiber.Handler {
 	}
 }
 
-const rateWindow = time.Minute
-
-// RateLimit allows max requests per client per minute. name separates limiters
-// sharing one counter. A nil counter, or one that fails, leaves counting in this
-// process: limits stay on, but each instance counts alone.
-func RateLimit(name string, max int, counter output.RateCounter) fiber.Handler {
-	key := func(c fiber.Ctx) string {
-		first, _ := clientip.Range(c.IP())
-		return name + ":" + first
-	}
-	reached := func(c fiber.Ctx) error {
-		return mapper.WriteError(c, apperror.New(apperror.CodeTooManyRequests, "too many requests"))
-	}
-	local := limiter.New(limiter.Config{Max: max, Expiration: rateWindow, KeyGenerator: key, LimitReached: reached})
-	if counter == nil {
-		return local
-	}
-
-	return func(c fiber.Ctx) error {
-		hits, reset, err := counter.Hit(c.Context(), key(c), rateWindow)
-		if err != nil {
-			return local(c)
-		}
-		seconds := strconv.Itoa(int(reset.Seconds()) + 1)
-		remaining := int64(max) - hits
-		if remaining < 0 {
-			remaining = 0
-		}
-		c.Set("X-RateLimit-Limit", strconv.Itoa(max))
-		c.Set("X-RateLimit-Remaining", strconv.FormatInt(remaining, 10))
-		c.Set("X-RateLimit-Reset", seconds)
-		if hits > int64(max) {
-			c.Set(fiber.HeaderRetryAfter, seconds)
-			return reached(c)
-		}
-		return c.Next()
-	}
+// RateLimit allows max requests per client per minute.
+// shortcut: counters live in process memory and reset on restart. Each instance
+// or prefork child counts alone; put limit_req in the proxy before scaling out.
+func RateLimit(max int) fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:        max,
+		Expiration: time.Minute,
+		KeyGenerator: func(c fiber.Ctx) string {
+			first, _ := clientip.Range(c.IP())
+			return first
+		},
+		LimitReached: func(c fiber.Ctx) error {
+			return mapper.WriteError(c, apperror.New(apperror.CodeTooManyRequests, "too many requests"))
+		},
+	})
 }

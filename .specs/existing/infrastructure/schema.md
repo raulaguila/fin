@@ -30,6 +30,8 @@ Fonte: `deploy/db/migrations`. Schema `usr` = identidade; `sys` = outbox; `app` 
 - `usr_credential`: 1:1; Argon2id; NULL até activate; `failed_login_attempts` >= 0.
 - `usr_session`: logout (`sid`) + refresh (SHA-256 do `jti`); rotação via `previous_refresh_token_hash`; revogação `user_logout` | `token_reuse` | `password_changed` | `expired` com `revoked_at`. IP/UA snapshot, não device tracking.
 - `usr_token`: `activation` | `password_reset`; SHA-256; um ativo por user+purpose; 5ª recusa marca `used_at`.
+- `usr_preference`: 1:1 com usuário, `theme` e `language`; sem linha valem os defaults.
+- `usr_notification`: avisos de segurança por usuário; lidas saem após a retenção de `fn_cleanup`, não lidas após o triplo.
 - `usr_login_attempt`: append-only, inclusive e-mail inexistente; sem FK de user.
 
 ## RBAC (ADR-004)

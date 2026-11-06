@@ -21,7 +21,7 @@ const refreshRaceWindow = 10 * time.Second
 const settleTimeout = 2 * time.Second
 
 func (s *Service) Login(ctx context.Context, cmd input.LoginCommand) (*domain.TokenPair, error) {
-	email := normalizeEmail(cmd.Email)
+	email := NormalizeEmail(cmd.Email)
 	now := s.Clock.Now()
 
 	attemptID, err := s.reserveAttempt(ctx, email, cmd.IPAddress, cmd.UserAgent, now)
@@ -110,6 +110,8 @@ func (s *Service) authenticate(ctx context.Context, email string, cmd input.Logi
 			if err := s.UOW.Users().UpdateStatus(ctx, user.ID, domain.UserStatusLocked); err != nil {
 				return nil, domain.FailureBadPassword, err
 			}
+			s.notify(ctx, user.ID, domain.NotificationWarning, "Account locked",
+				"Too many failed logins. Login stays blocked until "+lockedUntil.UTC().Format(time.RFC3339)+".")
 		}
 		return nil, domain.FailureBadPassword, invalidCredentials()
 	}
@@ -123,6 +125,7 @@ func (s *Service) authenticate(ctx context.Context, email string, cmd input.Logi
 		return nil, domain.FailureBadPassword, invalidCredentials()
 	}
 
+	s.noticeNewClient(ctx, user.ID, cmd.IPAddress) // before the session of this login exists
 	pair, err := s.issueSession(ctx, user.ID, cmd.IPAddress, cmd.UserAgent, now)
 	return pair, "", err
 }
@@ -161,7 +164,7 @@ func (s *Service) Refresh(ctx context.Context, cmd input.RefreshCommand) (*domai
 		if bytes.Equal(sess.PreviousRefreshTokenHash, jtiHash) && now.Sub(sess.LastSeenAt) < refreshRaceWindow {
 			return nil, refreshRaceLost()
 		}
-		return nil, s.revokeForReuse(ctx, sess.ID, now)
+		return nil, s.revokeForReuse(ctx, sess, now)
 	}
 
 	user, err := s.UOW.Users().FindByID(ctx, sess.UserID)
@@ -192,6 +195,7 @@ func (s *Service) Refresh(ctx context.Context, cmd input.RefreshCommand) (*domai
 	}
 
 	return &domain.TokenPair{
+		UserID:       user.ID,
 		AccessToken:  access,
 		RefreshToken: newRefresh,
 		ExpiresIn:    int64(s.Tokens.AccessTTL().Seconds()),
@@ -205,19 +209,49 @@ func refreshRaceLost() error {
 	return apperror.New(apperror.CodeConflict, "refresh already in progress")
 }
 
-func (s *Service) revokeForReuse(ctx context.Context, sessionID string, now time.Time) error {
-	if err := s.UOW.Sessions().Revoke(ctx, sessionID, now, domain.RevokeTokenReuse); err != nil {
+func (s *Service) revokeForReuse(ctx context.Context, sess *domain.Session, now time.Time) error {
+	if err := s.UOW.Sessions().Revoke(ctx, sess.ID, now, domain.RevokeTokenReuse); err != nil {
 		return err
 	}
+	s.notify(ctx, sess.UserID, domain.NotificationCritical, "Session ended",
+		"An old refresh token was used again, so that session was ended. If it was not you, change your password.")
 	return apperror.New(apperror.CodeUnauthorized, "refresh token reuse detected")
 }
 
-func (s *Service) Logout(ctx context.Context, cmd input.LogoutCommand) error {
-	claims, err := s.Tokens.ParseAccess(cmd.AccessToken)
+func (s *Service) Logout(ctx context.Context, sessionID string) error {
+	return s.UOW.Sessions().Revoke(ctx, sessionID, s.Clock.Now(), domain.RevokeUserLogout)
+}
+
+// Authenticate checks the token and its session on every request, so a revoked
+// session stops at once instead of when the token expires.
+func (s *Service) Authenticate(ctx context.Context, accessToken string) (*domain.Principal, error) {
+	claims, err := s.Tokens.ParseAccess(accessToken)
 	if err != nil {
-		return apperror.New(apperror.CodeUnauthorized, "invalid access token").WithCause(err)
+		return nil, apperror.New(apperror.CodeUnauthorized, "invalid access token").WithCause(err)
 	}
-	return s.UOW.Sessions().Revoke(ctx, claims.SessionID, s.Clock.Now(), domain.RevokeUserLogout)
+	if claims.UserID == "" || claims.SessionID == "" {
+		return nil, apperror.New(apperror.CodeUnauthorized, "invalid access token")
+	}
+	now := s.Clock.Now()
+	if !claims.ExpiresAt.IsZero() && !claims.ExpiresAt.After(now) {
+		return nil, apperror.New(apperror.CodeTokenExpired, "access token expired")
+	}
+	sess, err := s.UOW.Sessions().FindByID(ctx, claims.SessionID)
+	if apperror.IsNotFound(err) {
+		return nil, apperror.New(apperror.CodeUnauthorized, "session not found")
+	}
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case sess.UserID != claims.UserID:
+		return nil, apperror.New(apperror.CodeUnauthorized, "session mismatch")
+	case sess.RevokedAt != nil:
+		return nil, apperror.New(apperror.CodeUnauthorized, "session revoked")
+	case !sess.ExpiresAt.After(now):
+		return nil, apperror.New(apperror.CodeTokenExpired, "session expired")
+	}
+	return &domain.Principal{UserID: claims.UserID, SessionID: claims.SessionID}, nil
 }
 
 // settleLock reports whether user is under a running lock. A lapsed lock turns
@@ -266,6 +300,7 @@ func (s *Service) issueSession(ctx context.Context, userID string, ip, ua *strin
 	}
 
 	return &domain.TokenPair{
+		UserID:       userID,
 		AccessToken:  access,
 		RefreshToken: refresh,
 		ExpiresIn:    int64(s.Tokens.AccessTTL().Seconds()),
@@ -342,6 +377,21 @@ func (s *Service) overLimit(ctx context.Context, attempts output.LoginAttemptRep
 		return domain.FailureRateLimitedIP, nil
 	}
 	return "", nil
+}
+
+// notify is best effort: a lost notice must not cost the login or refresh it reports on.
+func (s *Service) notify(ctx context.Context, userID, level, title, message string) {
+	_ = s.UOW.Notifications().Create(ctx, &domain.Notification{UserID: userID, Level: level, Title: title, Message: message})
+}
+
+// noticeNewClient warns about a login from a client this account never used.
+func (s *Service) noticeNewClient(ctx context.Context, userID string, ip *string) {
+	if ip == nil || *ip == "" {
+		return
+	}
+	if known, err := s.UOW.Sessions().KnownClient(ctx, userID, *ip); err == nil && !known {
+		s.notify(ctx, userID, domain.NotificationInfo, "New login", "New login from "+*ip+".")
+	}
 }
 
 func invalidCredentials() error {

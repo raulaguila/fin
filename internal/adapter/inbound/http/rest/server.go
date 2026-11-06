@@ -10,11 +10,12 @@ import (
 	"github.com/raulaguila/authenticity/config"
 	authhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/auth"
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/health"
-	mehttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/me"
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
+	notificationhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/notification"
+	preferencehttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/preference"
 	producthttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/product"
+	sessionhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/session"
 	"github.com/raulaguila/authenticity/internal/composition"
-	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/pkg/logger"
 )
 
@@ -61,44 +62,28 @@ func NewServer(cfg *config.Environment, app *composition.Application, log *logge
 	fiberApp.Use(middleware.Timeout(cfg.API.RequestTimeout))
 
 	healthHandler := health.NewHandler(app.Health)
-	authHandler := authhttp.NewHandler(app.Auth)
-	meHandler := mehttp.NewHandler(app.Authorizer)
-	productHandler := producthttp.NewHandler(app.Products)
-
-	bearer := middleware.Bearer(app.Tokens, app.Sessions)
-	requirePermRead := middleware.Require(app.Authorizer, "permissions", domain.ActionRead)
-	requireProductRead := middleware.Require(app.Authorizer, "products", domain.ActionRead)
-	requireProductCreate := middleware.Require(app.Authorizer, "products", domain.ActionCreate)
-	requireProductUpdate := middleware.Require(app.Authorizer, "products", domain.ActionUpdate)
-	requireProductDelete := middleware.Require(app.Authorizer, "products", domain.ActionDelete)
 
 	fiberApp.Get("/health", healthHandler.Get) // before the limiter: probes must always answer
+	if !cfg.Protected() {
+		mountSwagger(fiberApp, cfg.Version) // never in production: it maps every route
+	}
 
-	fiberApp.Use(middleware.RateLimit("global", cfg.API.GlobalRateLimit, app.Rates))
-	authLimit := middleware.RateLimit("auth", cfg.API.AuthRateLimit, app.Rates)
-	passwordLimit := middleware.RateLimit("password", cfg.API.PasswordRateLimit, app.Rates)
+	fiberApp.Use(middleware.RateLimit(cfg.API.GlobalRateLimit))
+	bearer := middleware.Bearer(app.Auth)
 
 	v1 := fiberApp.Group("/v1")
-	v1.Get("/health", healthHandler.Get)
+	healthHandler.Routes(v1)
 
 	auth := v1.Group("/auth")
-	auth.Post("/register", authLimit, authHandler.Register)
-	auth.Post("/activate", authLimit, authHandler.Activate)
-	auth.Post("/login", authLimit, authHandler.Login)
-	auth.Post("/refresh", authHandler.Refresh)
-	auth.Post("/logout", bearer, authHandler.Logout)
-	auth.Post("/password-reset/request", passwordLimit, authHandler.RequestPasswordReset)
-	auth.Post("/password-reset/confirm", passwordLimit, authHandler.ConfirmPasswordReset)
+	authhttp.NewHandler(app.Auth, app.Account).Routes(auth, bearer,
+		middleware.RateLimit(cfg.API.AuthRateLimit), middleware.RateLimit(cfg.API.PasswordRateLimit))
+	sessionhttp.NewHandler(app.Account).Routes(auth.Group("/sessions", bearer))
 
-	v1.Get("/me", bearer, meHandler.Get)
-	v1.Get("/me/permissions", bearer, requirePermRead, meHandler.Permissions)
+	user := v1.Group("/user", bearer)
+	preferencehttp.NewHandler(app.Account).Routes(user.Group("/preferences"))
+	notificationhttp.NewHandler(app.Account).Routes(user.Group("/notifications"))
 
-	products := v1.Group("/products", bearer)
-	products.Get("/", requireProductRead, productHandler.List)
-	products.Get("/:id", requireProductRead, productHandler.Get)
-	products.Post("/", requireProductCreate, productHandler.Create)
-	products.Patch("/:id", requireProductUpdate, productHandler.Update)
-	products.Delete("/:id", requireProductDelete, productHandler.Delete)
+	producthttp.NewHandler(app.Products).Routes(v1.Group("/products", bearer), app.Authorizer)
 
 	return fiberApp
 }

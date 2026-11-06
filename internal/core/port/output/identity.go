@@ -40,22 +40,51 @@ type SessionRepository interface {
 	// Revoke is idempotent: an unknown or already revoked session is not an error.
 	Revoke(ctx context.Context, id string, now time.Time, reason string) error
 	RevokeAllForUser(ctx context.Context, userID string, now time.Time, reason string) error
+	// ListActive returns the live sessions of a user, most recently used first.
+	ListActive(ctx context.Context, userID string, now time.Time, limit int) ([]domain.Session, error)
+	// RevokeOwned revokes a live session of this user. False means there is none.
+	RevokeOwned(ctx context.Context, id, userID string, now time.Time, reason string) (bool, error)
+	// RevokeOthers revokes every session of the user except keepID.
+	RevokeOthers(ctx context.Context, userID, keepID string, now time.Time, reason string) error
+	// KnownClient reports whether this client already logged in to the account.
+	// An account with no session yet knows every client: its first login is no news.
+	KnownClient(ctx context.Context, userID, ip string) (bool, error)
 }
 
-// OutboxRepository persists sys.outbox.
-type OutboxRepository interface {
-	Enqueue(ctx context.Context, purpose string, payload []byte) error
-	// ClaimPending leases due rows until now+lease; a crashed worker's rows come back after that.
-	ClaimPending(ctx context.Context, limit int, now time.Time, lease time.Duration) ([]domain.OutboxMessage, error)
-	MarkSent(ctx context.Context, id string, processedAt time.Time) error
-	MarkFailed(ctx context.Context, id string, attempts int, availableAt time.Time, processedAt *time.Time, lastError string, terminal bool) error
+// TokenRepository persists usr.usr_token.
+type TokenRepository interface {
+	Create(ctx context.Context, token *domain.EmailToken) error
+	FindActiveByHash(ctx context.Context, purpose string, hash []byte) (*domain.EmailToken, error)
+	MarkUsed(ctx context.Context, id string, usedAt time.Time) error
+	IncrementAttempts(ctx context.Context, id string) (attempts int, err error)
+	InvalidateActive(ctx context.Context, userID, purpose string) error
+	// IssuedSince reports whether a live token of this purpose was created at or after since.
+	IssuedSince(ctx context.Context, userID, purpose string, since time.Time) (bool, error)
+	// CountIssuedSince counts tokens of this purpose created at or after since, spent ones too.
+	CountIssuedSince(ctx context.Context, userID, purpose string, since time.Time) (int, error)
 }
 
-// ProductRepository persists app.product.
-type ProductRepository interface {
-	List(ctx context.Context, limit int) ([]domain.Product, error)
-	FindByID(ctx context.Context, id string) (*domain.Product, error)
-	Create(ctx context.Context, p *domain.Product) error
-	Update(ctx context.Context, p *domain.Product) error
-	Delete(ctx context.Context, id string) error
+// LoginAttemptRepository appends login audits.
+type LoginAttemptRepository interface {
+	Create(ctx context.Context, attempt *domain.LoginAttempt) error
+	CountRecentFailuresByEmail(ctx context.Context, email string, since time.Time) (int, error)
+	// CountRecentFailuresByIP counts the whole client: an IPv6 address counts its /64.
+	CountRecentFailuresByIP(ctx context.Context, ip string, since time.Time) (int, error)
+	// CountRecentFailuresByEmailAndIP counts one client's failures against one account.
+	CountRecentFailuresByEmailAndIP(ctx context.Context, email, ip string, since time.Time) (int, error)
+	// Lock makes concurrent logins sharing a key wait until the transaction ends.
+	Lock(ctx context.Context, key string) error
+	// Settle replaces the outcome of a reserved attempt.
+	Settle(ctx context.Context, id string, success bool, failureKind *string) error
+	// Release drops a reserved attempt that tested no password.
+	Release(ctx context.Context, id string) error
+}
+
+// RoleRepository resolves roles and assigns them to users.
+type RoleRepository interface {
+	FindDefaultRoleID(ctx context.Context) (string, error)
+	FindIDByName(ctx context.Context, name string) (string, error)
+	Assign(ctx context.Context, userID, roleID string) error
+	// HasMembers reports whether any user holds the role.
+	HasMembers(ctx context.Context, roleID string) (bool, error)
 }

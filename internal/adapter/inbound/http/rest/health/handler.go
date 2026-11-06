@@ -15,12 +15,25 @@ func NewHandler(uc input.HealthChecker) *Handler {
 	return &Handler{uc: uc}
 }
 
+// Routes mounts the versioned health route; /health stays outside, before the limiter.
+func (h *Handler) Routes(r fiber.Router) {
+	r.Get("/health", h.Get)
+}
+
 type responseDTO struct {
 	Status string            `json:"status"`
 	Checks map[string]string `json:"checks"`
 }
 
 // Get handles GET /health (and /v1/health).
+//
+// @Summary Service status
+// @Tags Health
+// @Produce json
+// @Success 200 {object} responseDTO
+// @Failure 503 {object} mapper.errorBody
+// @Router /health [get]
+// @Router /v1/health [get]
 func (h *Handler) Get(c fiber.Ctx) error {
 	report, err := h.uc.Check(c.Context())
 	if err != nil {

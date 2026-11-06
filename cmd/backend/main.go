@@ -29,14 +29,14 @@ func main() {
 	log := initLogger(cfg)
 	log.Info("Configuration loaded", slog.Int("port", cfg.API.Port), slog.String("version", cfg.Version), slog.String("environment", cfg.Environment))
 
-	res, err := infra.New(cfg, log, true)
+	res, err := infra.New(cfg, log)
 	if err != nil {
 		log.Error("Infrastructure bootstrap failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 	defer res.Shutdown(log)
 
-	fiberApp := rest.NewServer(cfg, composition.NewApplication(cfg, res, log), log)
+	fiberApp := rest.NewServer(cfg, composition.NewApplication(cfg, res), log)
 
 	addr := fmt.Sprintf(":%d", cfg.API.Port)
 	go func() {

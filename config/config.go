@@ -79,16 +79,6 @@ type PostgresConfig struct {
 	URL      string `env:"POSTGRES_URL" default:"host=${POSTGRES_HOST} user=${POSTGRES_USER} password=${POSTGRES_PASS} dbname=${POSTGRES_BASE} port=${POSTGRES_PORT} sslmode=disable TimeZone=${TZ}"`
 }
 
-type CacheConfig struct {
-	Backend  string        `env:"CACHE_PROVIDER" default:"valkey"`
-	Host     string        `env:"CACHE_HOST" default:"cache"`
-	Port     int           `env:"CACHE_PORT" default:"6379"`
-	User     string        `env:"CACHE_USER" default:"default"`
-	Password string        `env:"CACHE_PASS" default:""`
-	DB       int           `env:"CACHE_DB" default:"0"`
-	TTL      time.Duration `env:"CACHE_TTL" default:"10m"`
-}
-
 type SMTPConfig struct {
 	// MasterKey is the AES-256 key (64 hex chars) sealing email tokens in
 	// sys.outbox. Changing it makes queued emails undeliverable.
@@ -119,8 +109,12 @@ type Environment struct {
 	API      APIConfig
 	Auth     AuthConfig
 	Postgres PostgresConfig
-	Cache    CacheConfig
 	SMTP     SMTPConfig
+}
+
+// Protected reports whether production rules apply.
+func (e *Environment) Protected() bool {
+	return isProtectedEnvironment(e.Environment)
 }
 
 func init() {

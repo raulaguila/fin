@@ -4,7 +4,7 @@
 
 ## Overview
 
-**Confirmed.** Authenticity runs as two long-lived processes plus Postgres and Valkey/Redis: `cmd/backend` serves Fiber HTTP (health, auth, me, products CRUD); `cmd/mailer` claims `sys.outbox` rows under a 10-minute lease (`SKIP LOCKED`), opens the sealed token and sends SMTP. Composition wires use cases to Postgres/cache. Product constraints live in `PRODUCT.md`; surface briefs in `.keel/surfaces/`.
+**Confirmed.** Authenticity runs as two long-lived processes plus Postgres: `cmd/backend` serves Fiber HTTP (health, auth, sessions, preferences, notifications, products CRUD); `cmd/mailer` claims `sys.outbox` rows under a 10-minute lease (`SKIP LOCKED`), opens the sealed token and sends SMTP. Composition wires use cases to Postgres. Product constraints live in `PRODUCT.md`; surface briefs in `.keel/surfaces/`.
 
 ## Boundaries
 
@@ -15,7 +15,8 @@ cmd → composition / infra / adapter/inbound / config / pkg
 composition → core/usecase + adapter/outbound
 adapter/inbound → port/input (+ pkg/apperror)
 adapter/outbound → port/output + domain
-core/usecase → domain + ports + pkg/{apperror,password,tokenhash,pointer}
+core/usecase → domain + ports + pkg/{apperror,password,tokenhash,pointer,validate,aescrypt,clientip}
+core/usecase/admin → core/usecase/auth (same identity and password rules, no second copy)
 core/domain → stdlib only
 ```
 
@@ -24,12 +25,11 @@ core/domain → stdlib only
 | `internal/core` | — | Domain + ports + use cases; no Fiber/GORM/config |
 | `adapter/inbound/http/rest` | — | DTOs, route map, `apperror`→HTTP |
 | `adapter/outbound/persistence/postgres` | `usr.*`, `sys.outbox` | GORM/`Exec`; `Store` = TxManager + UnitOfWork |
-| `adapter/outbound/cache` | Valkey keys | Authz effective map, rate limit counters |
 | `cmd/mailer` | outbox claim → SMTP | Poll 2s, batch 10; terminal fail after 8 attempts or smtp_disabled |
 
-**Sacred (product + ADR):** JWT must not carry permission claims; authz loads live from DB/cache. Plaintext passwords / refresh JTIs / email tokens must not be stored.
+**Sacred (product + ADR):** JWT must not carry permission claims; authz loads live from the DB on each check. Plaintext passwords / refresh JTIs / email tokens must not be stored.
 
-**Gap (confirmed):** Authorizer is applied on protected routes (`/v1/me/permissions`, `/v1/products`, logout via Bearer). Role/permission mutation APIs still missing.
+**Gap (confirmed):** Authorizer is applied on `/v1/products`; own-account routes only need Bearer. Role/permission mutation APIs still missing.
 
 ## Data
 
@@ -37,10 +37,9 @@ core/domain → stdlib only
 
 | Store | Role | Consistency notes |
 |-------|------|-------------------|
-| PostgreSQL schemas `usr`, `sys`, `app` | Source of truth | Single DB; migrations 000001–000007 |
-| Valkey/Redis (`CACHE_*`) | Authz cache | Key `authz:effective:{userID}`; TTL `CACHE_TTL` (default 10m). Boot **fails** if cache unreachable when `enableCache=true` |
+| PostgreSQL schemas `usr`, `sys`, `app` | Source of truth | Single DB; migrations 000001–000008 |
 
-**`usr` ownership (backend auth use case):** users, credentials, sessions, email tokens, login attempts, role assignment; RBAC reader uses `vw_user_effective_permissions` + `is_superuser`.
+**`usr` ownership (backend auth and account use cases):** users, credentials, sessions, email tokens, login attempts, role assignment, preferences, notifications; RBAC reader uses `vw_user_effective_permissions` + `is_superuser`.
 
 **`sys.outbox`:** backend INSERT on register / password-reset; mailer claims `pending` → `processing` (lease in `available_at`; a crashed claim returns) → `sent`/`failed`. Tokens stay AES-GCM sealed with `SMTP_MASTER_KEY` and leave the row when done. `sys.fn_cleanup()` (daily via pg_cron) drops history older than 30 days.
 
@@ -48,7 +47,7 @@ core/domain → stdlib only
 
 **Tenancy:** single identity database; no org/tenant tables. **Inferred** as single-tenant until PRODUCT users say otherwise.
 
-**Consistency (descriptive — confirm):** auth multi-step writes use `WithinTx` (register, activate, reset confirm). Login writes are atomic single statements instead of one transaction: `RecordFailure` counts in SQL, `RecordSuccess` only applies if the verified hash is still current, so a login in flight can never undo a reset. Authz cache `Invalidate` runs after activate (default role grant).
+**Consistency (descriptive — confirm):** auth multi-step writes use `WithinTx` (register, activate, reset confirm). Login writes are atomic single statements instead of one transaction: `RecordFailure` counts in SQL, `RecordSuccess` only applies if the verified hash is still current, so a login in flight can never undo a reset.
 
 ## Contracts
 
@@ -58,18 +57,27 @@ core/domain → stdlib only
 |--------|------|
 | GET | `/health`, `/v1/health` |
 | POST | `/v1/auth/register`, `/activate`, `/login`, `/refresh`, `/logout` |
-| GET | `/v1/me` (Bearer) |
-| GET | `/v1/me/permissions` (Bearer + `permissions:read`) |
+| GET | `/v1/auth/me` (Bearer) |
+| GET | `/v1/auth/sessions` (Bearer) |
+| DELETE | `/v1/auth/sessions/others`, `/v1/auth/sessions/:id` (Bearer) |
+| GET/PUT | `/v1/user/preferences` (Bearer) |
+| GET | `/v1/user/notifications`, `/v1/user/notifications/count` (Bearer) |
+| PUT | `/v1/user/notifications/:id/read` (Bearer) |
 | GET/POST | `/v1/products` |
+| GET | `/v1/products/list` |
 | GET/PATCH/DELETE | `/v1/products/:id` |
 
 **Auth tokens:** RS256; access claims `sub`, `sid`, `jti`, `iat`, `exp`; refresh same with `jti` hashed at rest. Defaults: access 15m, refresh 60m.
 
 **Errors (confirmed):** `pkg/apperror` → JSON `{code,message,field?,details?}` via `rest/mapper`. Login failures are always `INVALID_CREDENTIALS`: pending, expired, disabled, locked and unknown accounts answer identically, in the same time. Register answers `201` for known emails too; internal `failure_kind` not echoed.
 
-**Pagination / idempotency:** `GET /v1/products` returns full list (no cursor/limit yet). Register is idempotent on email: an unactivated account gets a fresh token, any other answers as new and sends nothing. Outbox rows are append-only inserts (no idempotency key column today).
+**User object:** login, refresh and `/v1/auth/me` return the same `user`: identity, `is_superuser`, `permissions` (resource → actions) and `preferences`, loaded live. They are response data for the interface to adapt; the server still decides each request from the database, and the JWT still carries none. If the profile fails to load, login and refresh answer the tokens without `user`: a refresh has already spent the old token.
 
-**Contracts (authz on wire):** Bearer middleware validates access JWT + live session; `Require(resource, action)` calls Authorizer (fail closed).
+**Own-account routes:** the user id comes from the verified token, never from the request, and every query filters by it. Another user's session or notification answers `404`.
+
+**Pagination / idempotency:** `GET /v1/products` and `GET /v1/user/notifications` return `{items, pagination{page,limit,total_items,total_pages}}`; limit defaults to 20, up to 100. Products also take `search`, `sort` (allowlist) and `order`. `GET /v1/products/list` returns enabled products as id and name, up to 1000. Register is idempotent on email: an unactivated account gets a fresh token, any other answers as new and sends nothing. Outbox rows are append-only inserts (no idempotency key column today).
+
+**Contracts (authz on wire):** Bearer middleware calls `input.Authenticator`, which validates the access JWT + live session; `Require(resource, action)` calls Authorizer (fail closed).
 
 ## Control flow
 
@@ -82,9 +90,11 @@ core/domain → stdlib only
 5. **Logout** — parse access → revoke session (`user_logout`).
 6. **Password reset** — request enqueues outbox; confirm hashes password, revokes all sessions, marks token used.
 
+**Notifications:** written by the auth use case for password changed (same transaction as the reset), account locked, refresh token reuse and login from a client never seen on the account (best effort: a lost notice does not fail the login). Clients poll. First login notifies nothing. Text is English; there is no per-language template.
+
 **Async (confirmed):** mailer claims outbox with `SKIP LOCKED`, sends SMTP (or terminal `smtp_disabled`), backoff on retryable failure.
 
-**Health:** aggregates Postgres ping + cache ping (`ok` / `degraded` / `down`).
+**Health:** Postgres ping (`ok` / `down`), reused for 1 s.
 
 ## Failure domains
 
@@ -93,14 +103,13 @@ core/domain → stdlib only
 | Domain | Behavior |
 |--------|----------|
 | Postgres down | Backend/mailer boot fails; health `postgres=fail` |
-| Cache down | Backend boot fails (`infra.New` with cache); health would mark cache fail if process were up without it |
 | Fiber timeouts | `API_READ/WRITE/IDLE_TIMEOUT` (30s/30s/120s); shutdown `API_SHUTDOWN_TIMEOUT` 30s |
 | Login abuse | DB-backed attempt counters per client+account (5), client (`/64` on IPv6) and account (50) → `TOO_MANY_REQUESTS`; lockout at 50 answers `INVALID_CREDENTIALS`. One client cannot lock the owner out. Each attempt is reserved under an advisory lock before hashing, so parallel requests cannot outrun a limit |
 | Memory | Body limit 16 KiB; at most 4 Argon2 hashes (256 MiB live); `GOMEMLIMIT` and container limits in compose; Argon2 runs outside transactions and drops out when the request times out |
 | Email flood | `AUTH_EMAIL_TOKEN_COOLDOWN` (60 s) and `AUTH_EMAIL_TOKEN_HOURLY_MAX` (5) per account and purpose; over the cap the live link survives |
 | Refresh reuse | Session revoked `token_reuse` |
 
-**HTTP limits:** `API_RATE_LIMIT_*` per client IP (IPv6 by `/64`) per minute, counted atomically in Valkey and shared by all instances. If Valkey fails, each instance counts alone in memory, adding about 200 ms per request; login and email limits live in Postgres and still hold.
+**HTTP limits:** `API_RATE_LIMIT_*` per client IP (IPv6 by `/64`) per minute, in process memory: one instance, no prefork. Counters reset on restart; add `limit_req` in the proxy before scaling out. Login and email limits live in Postgres and hold across instances.
 
 **Not implemented (confirmed):** separate DLQ table (terminal fails stay on outbox as `failed`).
 
@@ -119,13 +128,13 @@ Do not log refresh tokens, passwords, or email token plaintext (payload in outbo
 **Confirmed:**
 
 - Schema: `golang-migrate` on `deploy/db/migrations`; compose service `migrate` applies it before backend and mailer start (`make migrate-*` for manual use)
-- Runtime: Docker Compose (`deploy/docker/compose.yml` + `services.compose.yml`: postgres, valkey, migrate, backend, mailer; app containers run as `nobody`)
+- Runtime: Docker Compose (`deploy/docker/compose.yml` + `services.compose.yml`: postgres, backend, mailer; the `migrate` service is commented out, so apply migrations by hand with `make migrate-up`; app containers run as `nobody`)
 - Dev: Air (`make dev-backend` / `dev-mailer`); binaries `make build-*`
 - Config: `config/.env` from `config/env.sh` / `make init`
 
 **Rollback:** SQL `*.down.sql` per migration; no feature-flag system in code. **Inferred:** expand/contract discipline is human/process, not automated.
 
-**`cmd/admin`:** operator CLI in the backend image. `make admin-promote email=…` gives an active user the `admin` role (first admin included); `make admin-disable email=…` disables the user and revokes their sessions.
+**`cmd/admin`:** operator CLI in the backend image. `make admin-bootstrap`, or `./bin/admin` with no argument on the host, asks name, email and password and creates the first admin, active, with no email involved; it does nothing once any admin exists, and refuses an email already in use. The password is never an argument: hidden on a terminal, one line per value on a pipe. `make admin-promote` asks the email and gives that active user the `admin` role; `make admin-disable` asks the email, disables that user and revokes their sessions.
 
 **Behind a reverse proxy:** set `API_TRUSTED_PROXIES` and keep `API_PROXY_HEADER` on a header the proxy overwrites (`X-Real-IP`), or use `X-Forwarded-For`, read from the right past the trusted proxies.
 
@@ -136,8 +145,10 @@ Do not log refresh tokens, passwords, or email token plaintext (payload in outbo
 **Suspected (no measurements — see PRODUCT.md Unknown cost posture):**
 
 - Argon2id verify on every login (`time=3`, `memory=64MiB`, 4 threads in `pkg/password`)
-- Authz cache miss → view + superuser query
+- Each permission check → view + superuser query, no cache
 - Login attempt inserts + rate-limit counts
+- Login, refresh and `/v1/auth/me` each run user + permissions + preferences queries
+- `search` is a leading-wildcard `ILIKE`, and lists use `OFFSET` plus a count: scans grow with the table
 
 ## ADR index
 
@@ -147,6 +158,10 @@ Do not log refresh tokens, passwords, or email token plaintext (payload in outbo
 | [ADR-002](.specs/architecture/decisions/ADR-002-identity-schema.md) | Schema `usr` |
 | [ADR-003](.specs/architecture/decisions/ADR-003-secrets-at-rest.md) | Argon2id / SHA-256 / SMTP KEK |
 | [ADR-004](.specs/architecture/decisions/ADR-004-rbac.md) | RBAC B+C, CRUD, live authz |
+
+## API docs
+
+Swagger UI at `/swagger/index.html`, outside protected environments only. Handlers carry `swag` annotations and `make docs` regenerates `internal/adapter/inbound/http/rest/docs`. Each handler package mounts its own routes (`Routes`); every operation has one `@Tags` tag, by subject; `x-tagGroups` in `rest/swagger.go` groups the tags, rendered by the plugin in `rest/swagger.js` as collapsible sections, closed by default. `swagger_test.go` fails when a route and the docs disagree.
 
 ## Known gaps vs intent
 

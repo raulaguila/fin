@@ -59,6 +59,12 @@ type Role struct {
 	UpdatedAt   time.Time
 }
 
+// Principal is who an authenticated request acts as.
+type Principal struct {
+	UserID    string
+	SessionID string
+}
+
 // EffectivePermissions is the authz snapshot for a user (live load / cache).
 type EffectivePermissions struct {
 	UserID      string

@@ -2,7 +2,6 @@ package token
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -67,9 +66,6 @@ func (r *Repository) FindActiveByHash(ctx context.Context, purpose string, hash 
 	err := r.db.WithContext(ctx).Table("usr.usr_token").
 		Where("purpose = ? AND token_hash = ?", purpose, hash).
 		Take(&m).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, shared.WrapError(err, "token")
-	}
 	if err != nil {
 		return nil, shared.WrapError(err, "token")
 	}

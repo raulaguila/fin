@@ -21,13 +21,3 @@ type OutboxMessage struct {
 	ProcessedAt *time.Time
 	LastError   *string
 }
-
-// Product is the example app domain entity (app.product).
-type Product struct {
-	ID        string
-	Name      string
-	Price     string // decimal as string to avoid float
-	Enabled   bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}

@@ -14,7 +14,7 @@ func (p *countingPinger) Ping(context.Context) error {
 
 func TestRepeatedChecksReuseTheReport(t *testing.T) {
 	db := &countingPinger{}
-	uc := New(db, nil)
+	uc := New(db)
 	for range 1000 {
 		if _, err := uc.Check(context.Background()); err != nil {
 			t.Fatal(err)

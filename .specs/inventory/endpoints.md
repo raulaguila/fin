@@ -5,7 +5,6 @@ Fonte: `Routes` de cada handler em `internal/adapter/inbound/http/rest/`, montad
 | Método | Rota | Acesso | Limite |
 |--------|------|--------|--------|
 | GET | `/health` | público | nenhum |
-| GET | `/v1/health` | público | global |
 | GET | `/swagger/*` | público, só fora de produção | nenhum |
 | POST | `/v1/auth/register` | público | auth |
 | POST | `/v1/auth/activate` | público | auth |

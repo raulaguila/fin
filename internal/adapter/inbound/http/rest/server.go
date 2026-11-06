@@ -60,9 +60,7 @@ func NewServer(cfg *config.Environment, app *input.Application, log *logger.Logg
 	}))
 	fiberApp.Use(middleware.Timeout(cfg.API.RequestTimeout))
 
-	healthHandler := health.NewHandler(app.Health)
-
-	fiberApp.Get("/health", healthHandler.Get) // before the limiter: probes must always answer
+	fiberApp.Get("/health", health.NewHandler(app.Health).Get) // before the limiter: probes must always answer
 	if !cfg.Protected() {
 		mountSwagger(fiberApp, cfg.Version) // never in production: it maps every route
 	}
@@ -71,7 +69,6 @@ func NewServer(cfg *config.Environment, app *input.Application, log *logger.Logg
 	bearer := middleware.Bearer(app.Auth)
 
 	v1 := fiberApp.Group("/v1")
-	healthHandler.Routes(v1)
 
 	auth := v1.Group("/auth")
 	authhttp.NewHandler(app.Auth, app.Account).Routes(auth, bearer,

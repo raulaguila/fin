@@ -541,31 +541,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/health": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Health"
-                ],
-                "summary": "Service status",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/health.responseDTO"
-                        }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
-                        "schema": {
-                            "$ref": "#/definitions/health.responseDTO"
-                        }
-                    }
-                }
-            }
-        },
         "/v1/permissions/resources": {
             "get": {
                 "security": [

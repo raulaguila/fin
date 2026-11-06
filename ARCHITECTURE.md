@@ -54,11 +54,11 @@ core/domain → stdlib only
 
 ## Contracts
 
-**HTTP (confirmed):** JSON; base path `/v1` for API; health also at `/health`.
+**HTTP (confirmed):** JSON; base path `/v1` for API; health stays at `/health`, outside the rate limit.
 
 | Method | Path |
 |--------|------|
-| GET | `/health`, `/v1/health` |
+| GET | `/health` |
 | POST | `/v1/auth/register`, `/activate`, `/login`, `/refresh`, `/logout` |
 | GET | `/v1/auth/me` (Bearer) |
 | GET | `/v1/auth/sessions` (Bearer) |

@@ -18,7 +18,7 @@ func productionEnv(t *testing.T) *Environment {
 	return &Environment{
 		Environment: "production",
 		API:         APIConfig{CorsOrigins: "https://app.acme.io", GlobalRateLimit: 100, AuthRateLimit: 10, PasswordRateLimit: 3, RequestTimeout: 1},
-		Auth:        AuthConfig{MaxFailedLoginAttempts: 5, AccountLockDuration: 1, LoginAttemptPairMaxFailures: 5},
+		Auth:        AuthConfig{SessionMaxLifetime: 1, MaxFailedLoginAttempts: 5, AccountLockDuration: 1, LoginAttemptPairMaxFailures: 5},
 		Postgres:    PostgresConfig{Password: strings.Repeat("p", minSecretLength), MaxConns: 40},
 		SMTP: SMTPConfig{
 			MasterKey: validKey, Enabled: true, Security: smtpsecurity.ModeStartTLS,
@@ -103,5 +103,17 @@ func TestLocalAllowsManualToken(t *testing.T) {
 	env.API.CorsOrigins = "*"
 	if err := validateEnvironment(env); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestOnlyTheMailerRunsWithoutFixedKeys(t *testing.T) {
+	env := productionEnv(t)
+	t.Setenv("ACCESS_TOKEN", "new")
+	if err := validateEnvironment(env); err == nil || !strings.Contains(err.Error(), "ACCESS_TOKEN") {
+		t.Fatalf("backend: %v", err)
+	}
+	env.Service = ServiceMailer
+	if err := validateEnvironment(env); err != nil {
+		t.Fatalf("mailer: %v", err)
 	}
 }

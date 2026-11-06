@@ -13,7 +13,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/raulaguila/authenticity/config"
-	"github.com/raulaguila/authenticity/internal/composition"
+	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/pkg/logger"
 )
 
@@ -21,7 +21,7 @@ func server(environment string) *fiber.App {
 	cfg := &config.Environment{Environment: environment}
 	cfg.API.GlobalRateLimit, cfg.API.AuthRateLimit, cfg.API.PasswordRateLimit = 1000, 1000, 1000
 	cfg.API.CorsOrigins = "https://app.test"
-	return NewServer(cfg, &composition.Application{}, logger.New(logger.Config{}))
+	return NewServer(cfg, &input.Application{}, logger.New(logger.Config{}))
 }
 
 func get(t *testing.T, app *fiber.App, path string) (int, string) {
@@ -87,7 +87,7 @@ func TestSwaggerMatchesTheRoutes(t *testing.T) {
 		path := param.ReplaceAllString(strings.TrimSuffix(route.Path, "/"), "{$1}")
 		key := route.Method + " " + path
 		if !documented[key] {
-			t.Errorf("%s not documented: add annotations and run make docs", key)
+			t.Errorf("%s not documented: add annotations and run make swagger", key)
 		}
 		delete(documented, key)
 	}

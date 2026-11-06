@@ -87,31 +87,22 @@ func (s *Service) Update(ctx context.Context, cmd input.UpdateProductCommand) (*
 	if err := validate.ID(cmd.ID); err != nil {
 		return nil, err
 	}
-	p, err := s.Repo.FindByID(ctx, cmd.ID)
-	if err != nil {
-		return nil, err
-	}
+	patch := domain.ProductPatch{Enabled: cmd.Enabled}
 	if cmd.Name != nil {
 		name, err := normalizeName(*cmd.Name)
 		if err != nil {
 			return nil, err
 		}
-		p.Name = name
+		patch.Name = &name
 	}
 	if cmd.Price != nil {
 		price, err := normalizePrice(*cmd.Price)
 		if err != nil {
 			return nil, err
 		}
-		p.Price = price
+		patch.Price = &price
 	}
-	if cmd.Enabled != nil {
-		p.Enabled = *cmd.Enabled
-	}
-	if err := s.Repo.Update(ctx, p); err != nil {
-		return nil, err
-	}
-	return p, nil
+	return s.Repo.Update(ctx, cmd.ID, patch)
 }
 
 func (s *Service) Delete(ctx context.Context, id string) error {

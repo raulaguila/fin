@@ -3,7 +3,7 @@
 Modelo no SQL (`usr`) e nos fluxos Go de auth. RBAC: ADR-004.
 
 - Conta nasce `pending`, sem senha, até prova de caixa (activate).
-- Só `active` autentica (`is_login_allowed`).
+- Só `active` autentica.
 - Ativação vencida sem uso → `expired`, ainda sem senha.
 - Lockout temporário → `locked` + `locked_until`; disable operacional → `disabled`.
 - Senha Argon2id; lockout por tentativas falhas.

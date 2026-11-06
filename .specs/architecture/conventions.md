@@ -9,7 +9,7 @@ Regras do SQL, da config e de `pkg`. Aplicar ao implementar HTTP e domínio. RBA
 
 ## Identidade
 
-- Só `is_login_allowed` autoriza login.
+- Só `status = active` autoriza login.
 - HTTP não ecoa `failure_kind` (`invalid_credentials` / `account_locked` + `apperror`).
 - `usr_login_attempt` também para e-mail inexistente.
 - Reuse de refresh revoga (`token_reuse`).

@@ -10,12 +10,15 @@ import (
 	"github.com/raulaguila/authenticity/config"
 	authhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/auth"
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/health"
+	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/mapper"
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
 	notificationhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/notification"
+	permissionhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/permission"
 	preferencehttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/preference"
 	producthttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/product"
+	rolehttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/role"
 	sessionhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/session"
-	"github.com/raulaguila/authenticity/internal/composition"
+	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/pkg/logger"
 )
 
@@ -30,6 +33,7 @@ func serverConfig(api config.APIConfig) fiber.Config {
 		WriteTimeout:       api.WriteTimeout,
 		IdleTimeout:        api.IdleTimeout,
 		BodyLimit:          maxBodyBytes,
+		ErrorHandler:       mapper.ErrorHandler,
 		EnableIPValidation: true, // c.IP() goes into an inet column
 	}
 	if api.TrustedProxies != "" {
@@ -40,17 +44,12 @@ func serverConfig(api config.APIConfig) fiber.Config {
 	return cfg
 }
 
-// ListenConfig returns the startup options of Listen.
-func ListenConfig(api config.APIConfig) fiber.ListenConfig {
-	return fiber.ListenConfig{EnablePrefork: api.EnablePrefork, DisableStartupMessage: false}
-}
-
 func splitList(list string) []string {
 	return strings.Split(strings.ReplaceAll(list, " ", ""), ",")
 }
 
 // NewServer builds the Fiber app with middleware and routes.
-func NewServer(cfg *config.Environment, app *composition.Application, log *logger.Logger) *fiber.App {
+func NewServer(cfg *config.Environment, app *input.Application, log *logger.Logger) *fiber.App {
 	fiberApp := fiber.New(serverConfig(cfg.API))
 
 	fiberApp.Use(middleware.RequestLog(log, cfg.API.EnableLogger))
@@ -83,6 +82,8 @@ func NewServer(cfg *config.Environment, app *composition.Application, log *logge
 	preferencehttp.NewHandler(app.Account).Routes(user.Group("/preferences"))
 	notificationhttp.NewHandler(app.Account).Routes(user.Group("/notifications"))
 
+	permissionhttp.NewHandler(app.Resources).Routes(v1.Group("/permissions", bearer), app.Authorizer)
+	rolehttp.NewHandler(app.Roles).Routes(v1.Group("/roles", bearer), app.Authorizer)
 	producthttp.NewHandler(app.Products).Routes(v1.Group("/products", bearer), app.Authorizer)
 
 	return fiberApp

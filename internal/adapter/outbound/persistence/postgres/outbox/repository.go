@@ -60,27 +60,22 @@ func (r *Repository) Enqueue(ctx context.Context, purpose string, payload []byte
 }
 
 func (r *Repository) ClaimPending(ctx context.Context, limit int, now time.Time, lease time.Duration) ([]domain.OutboxMessage, error) {
-	if limit <= 0 {
-		limit = 10
-	}
 	var rows []row
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return tx.Raw(`
-			WITH cte AS (
-				SELECT id
-				FROM sys.outbox
-				WHERE status IN ('pending', 'processing') AND available_at <= ?
-				ORDER BY available_at
-				FOR UPDATE SKIP LOCKED
-				LIMIT ?
-			)
-			UPDATE sys.outbox o
-			SET status = 'processing', available_at = ?
-			FROM cte
-			WHERE o.id = cte.id
-			RETURNING o.id, o.purpose, o.payload, o.status, o.attempts, o.available_at, o.created_at, o.processed_at, o.last_error
-		`, now, limit, now.Add(lease)).Scan(&rows).Error
-	})
+	err := r.db.WithContext(ctx).Raw(`
+		WITH cte AS (
+			SELECT id
+			FROM sys.outbox
+			WHERE status IN ('pending', 'processing') AND available_at <= ?
+			ORDER BY available_at
+			FOR UPDATE SKIP LOCKED
+			LIMIT ?
+		)
+		UPDATE sys.outbox o
+		SET status = 'processing', available_at = ?
+		FROM cte
+		WHERE o.id = cte.id
+		RETURNING o.id, o.purpose, o.payload, o.status, o.attempts, o.available_at, o.created_at, o.processed_at, o.last_error
+	`, now, limit, now.Add(lease)).Scan(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "outbox")
 	}

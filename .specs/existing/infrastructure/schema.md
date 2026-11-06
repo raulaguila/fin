@@ -1,22 +1,19 @@
 # Schema
 
-Fonte: `deploy/db/migrations`. Schema `usr` = identidade; `sys` = outbox; `app` = products. `public` guarda extensões e `fn_set_updated_at`. Clock de negócio na aplicação; o trigger só preenche `updated_at`. Volume local antigo: `make migrate-reset`.
+Fonte: `deploy/db/migrations`. Schema `usr` = identidade; `sys` = outbox; `app` = products. `public` guarda extensões e `fn_set_updated_at`. Clock de negócio na aplicação; o trigger só preenche `updated_at`. Volume local antigo: `make compose-remove`.
 
 ## Ordem
 
 ```text
-000001_foundation                # citext, pgcrypto, schema usr, fn_set_updated_at
-000002_tables                    # tabelas usr, usr_resource, view, seed usr_user_status
-000003_seed_rbac                 # catalogo resources; papeis user/admin; admin is_superuser + *
-000004_sys_outbox_app_products   # schema sys (outbox) + app (product)
-000005_outbox_lease_cleanup      # lease do mailer, scrub de tokens, sys.fn_cleanup + pg_cron
-000006_cleanup_unactivated_disable # cadastro abandonado na limpeza; revogacao account_disabled
-000007_performance_indexes       # indices de FK, listagem e contagem de tentativas
+000001_foundation  # citext, schemas usr/sys/app, fn_set_updated_at, role authenticity_app
+000002_identity    # tabelas usr, RBAC, view, usr_resource, papeis user/admin
+000003_outbox      # sys.outbox, sys.fn_cleanup, pg_cron
+000004_products    # app.product e recurso products no catalogo
 ```
 
-## Status (`usr_user_status`)
+## Status (`usr_user.status`)
 
-`is_login_allowed` é a fonte da verdade. Só `active` é true.
+`CHECK` na coluna; os códigos são os de `domain.UserStatus*`. Só `active` autentica.
 
 - `pending` — cadastro sem prova de caixa; sem senha
 - `active` — ativado
@@ -26,9 +23,9 @@ Fonte: `deploy/db/migrations`. Schema `usr` = identidade; `sys` = outbox; `app` 
 
 ## Tabelas `usr`
 
-- `usr_user`: e-mail `CITEXT` único; `status` FK; nome 2–80 chars.
+- `usr_user`: e-mail `CITEXT` único; `status` com `CHECK`; nome 2–80 chars.
 - `usr_credential`: 1:1; Argon2id; NULL até activate; `failed_login_attempts` >= 0.
-- `usr_session`: logout (`sid`) + refresh (SHA-256 do `jti`); rotação via `previous_refresh_token_hash`; revogação `user_logout` | `token_reuse` | `password_changed` | `expired` com `revoked_at`. IP/UA snapshot, não device tracking.
+- `usr_session`: logout (`sid`) + refresh (SHA-256 do `jti`); rotação via `previous_refresh_token_hash`; revogação `user_logout` | `token_reuse` | `password_changed` | `expired` | `account_disabled` com `revoked_at`. IP/UA snapshot, não device tracking.
 - `usr_token`: `activation` | `password_reset`; SHA-256; um ativo por user+purpose; 5ª recusa marca `used_at`.
 - `usr_preference`: 1:1 com usuário, `theme` e `language`; sem linha valem os defaults.
 - `usr_notification`: avisos de segurança por usuário; lidas saem após a retenção de `fn_cleanup`, não lidas após o triplo.
@@ -37,7 +34,7 @@ Fonte: `deploy/db/migrations`. Schema `usr` = identidade; `sys` = outbox; `app` 
 ## RBAC (ADR-004)
 
 - Catálogo `usr_resource` (códigos seed: `users`, `roles`, `permissions`, `products`). Sem tabela `usr_permission`.
-- Uma linha `(role_id, resource)` com `actions INT4`. Sem FK de `resource` (permite `*`); API valida contra o catálogo ou `*`.
+- Uma linha `(role_id, resource)` com `actions INT4`. `catalog_code` (`NULLIF(resource, '*')`, coluna gerada) tem FK para o catálogo: grant de recurso desconhecido falha e recurso com grant não sai do catálogo; `*` passa sem linha. `GET /v1/permissions/resources` lista o catálogo.
 - Bits CRUD: `create=1`, `read=2`, `update=4`, `delete=8` (4–30 livres). `CHECK (actions >= 0)`.
 - `resource` é tipo do catálogo ou sentinela `*`. Não é UUID de instância.
 - `usr_role`: nome `^[a-z0-9_-]{2,40}$`; no máximo um `is_default`; `is_superuser` (bypass no Go).

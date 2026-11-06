@@ -1,28 +1,5 @@
--- 000002_tables
--- Tabelas usr + catalogo usr_resource + view. Seed so de usr_user_status.
--- Papeis: 000003. Outbox/products: 000004.
-
--- ---------------------------------------------------------------------------
--- Lookup de status (precisa existir antes de usr_user)
--- ---------------------------------------------------------------------------
-CREATE TABLE usr.usr_user_status (
-    code              TEXT        PRIMARY KEY,
-    description       TEXT        NOT NULL DEFAULT '',
-    is_login_allowed  BOOLEAN     NOT NULL,
-    sort_order        INT         NOT NULL DEFAULT 0,
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT chk_usr_user_status_code_lower CHECK (code = lower(code))
-);
-
-INSERT INTO usr.usr_user_status (code, description, is_login_allowed, sort_order)
-VALUES
-    ('pending',  'Cadastro sem prova de caixa; sem senha',              false, 10),
-    ('active',   'Ativado; unico status que autentica',                 true,  20),
-    ('expired',  'Token de ativacao venceu sem uso; sem senha',         false, 30),
-    ('locked',   'Lockout temporario (locked_until na credencial)',     false, 40),
-    ('disabled', 'Desligado por operador',                              false, 50)
-ON CONFLICT (code) DO NOTHING;
+-- Identity: users, credentials, sessions, email tokens, login attempts, RBAC,
+-- preferences and notifications, with the default roles.
 
 -- ---------------------------------------------------------------------------
 -- User
@@ -35,9 +12,9 @@ CREATE TABLE usr.usr_user (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT chk_usr_user_name_len CHECK (char_length(name) BETWEEN 2 AND 80),
-    CONSTRAINT fk_usr_user_status
-        FOREIGN KEY (status) REFERENCES usr.usr_user_status (code)
-        ON UPDATE CASCADE ON DELETE RESTRICT
+    CONSTRAINT chk_usr_user_status CHECK (
+        status IN ('pending', 'active', 'expired', 'locked', 'disabled')
+    )
 );
 
 CREATE UNIQUE INDEX uni_usr_user_email ON usr.usr_user (email);
@@ -65,7 +42,7 @@ CREATE TABLE usr.usr_credential (
 );
 
 -- ---------------------------------------------------------------------------
--- Session (unidade de logout + refresh vigente). Tokens de e-mail: usr_token.
+-- Session: the unit of logout and the current refresh token
 -- ---------------------------------------------------------------------------
 CREATE TABLE usr.usr_session (
     id                            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -87,7 +64,8 @@ CREATE TABLE usr.usr_session (
             'user_logout',
             'token_reuse',
             'password_changed',
-            'expired'
+            'expired',
+            'account_disabled'
         )
     ),
     CONSTRAINT chk_usr_session_revocation_consistency CHECK (
@@ -105,7 +83,7 @@ CREATE INDEX idx_usr_session_user_id ON usr.usr_session (user_id);
 CREATE INDEX idx_usr_session_expires_active ON usr.usr_session (expires_at) WHERE revoked_at IS NULL;
 
 -- ---------------------------------------------------------------------------
--- Token SMTP (activation | password_reset). Sem session_id. Sem refresh.
+-- Email token (activation | password_reset)
 -- ---------------------------------------------------------------------------
 CREATE TABLE usr.usr_token (
     id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -117,17 +95,17 @@ CREATE TABLE usr.usr_token (
     attempts   INT         NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT fk_usr_token_user FOREIGN KEY (user_id) REFERENCES usr.usr_user (id) ON DELETE CASCADE,
-    CONSTRAINT chk_usr_token_purpose CHECK (purpose IN ('activation', 'password_reset')
-    ),
+    CONSTRAINT chk_usr_token_purpose CHECK (purpose IN ('activation', 'password_reset')),
     CONSTRAINT chk_usr_token_attempts_nonneg CHECK (attempts >= 0)
 );
 
 CREATE UNIQUE INDEX uni_usr_token_hash ON usr.usr_token (token_hash);
 CREATE UNIQUE INDEX uni_usr_token_active_activation ON usr.usr_token (user_id) WHERE purpose = 'activation' AND used_at IS NULL;
 CREATE UNIQUE INDEX uni_usr_token_active_password_reset ON usr.usr_token (user_id) WHERE purpose = 'password_reset' AND used_at IS NULL;
+CREATE INDEX idx_usr_token_user_id ON usr.usr_token (user_id);
 
 -- ---------------------------------------------------------------------------
--- Login attempt (append-only, sem FK de user)
+-- Login attempt (append-only, no user FK)
 -- ---------------------------------------------------------------------------
 CREATE TABLE usr.usr_login_attempt (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -156,22 +134,30 @@ CREATE TABLE usr.usr_login_attempt (
     )
 );
 
-CREATE INDEX idx_usr_login_attempt_email_created ON usr.usr_login_attempt (email, created_at DESC);
-CREATE INDEX idx_usr_login_attempt_ip_created ON usr.usr_login_attempt (ip_address, created_at DESC) WHERE ip_address IS NOT NULL;
+-- The predicate must equal the one in attempt/repository.go, or the planner
+-- ignores these two indexes.
+CREATE INDEX idx_usr_login_attempt_email_counted
+    ON usr.usr_login_attempt (email, created_at)
+    WHERE success = false
+      AND failure_kind NOT IN ('rate_limited_email', 'rate_limited_ip', 'account_locked');
+CREATE INDEX idx_usr_login_attempt_ip_counted
+    ON usr.usr_login_attempt (ip_address, created_at)
+    WHERE success = false
+      AND failure_kind NOT IN ('rate_limited_email', 'rate_limited_ip', 'account_locked');
 CREATE INDEX idx_usr_login_attempt_created ON usr.usr_login_attempt (created_at);
 
 -- ---------------------------------------------------------------------------
--- RBAC B+C: catalogo usr_resource + role + (resource x actions INT4).
--- Sem FK de resource (permite sentinela *); API so aceita catalogo ou *.
+-- RBAC: resource catalog + role + (resource x actions INT4).
+-- Every grant names a catalog row or the sentinel '*', which is not a row.
 --
--- Action bits CRUD (INT4, CHECK >= 0; bit 31 e o sinal, nao usar):
+-- Action bits (INT4, CHECK >= 0; bit 31 is the sign, do not use):
 --   1 << 0  create  = 1
 --   1 << 1  read    = 2
 --   1 << 2  update  = 4
 --   1 << 3  delete  = 8
--- Bits 4-30 livres. Nao reutilizar indice.
--- resource='*' e sentinela; a view nao expande; a aplicacao aplica.
--- is_superuser: bypass no Go (EXISTS role enabled); fora da view.
+-- Bits 4-30 are free. Never reuse an index.
+-- The view does not expand '*'; the application applies it.
+-- is_superuser bypasses authorization in Go and stays out of the view.
 -- ---------------------------------------------------------------------------
 CREATE TABLE usr.usr_resource (
     code         VARCHAR(100) PRIMARY KEY,
@@ -198,9 +184,13 @@ CREATE TABLE usr.usr_role_permission (
     role_id   UUID         NOT NULL,
     resource  VARCHAR(100) NOT NULL,
     actions   INT          NOT NULL,
+    -- NULL for '*', which is how the FK below skips the sentinel.
+    catalog_code VARCHAR(100) GENERATED ALWAYS AS (NULLIF(resource, '*')) STORED,
     CONSTRAINT pk_usr_role_permission PRIMARY KEY (role_id, resource),
     CONSTRAINT fk_usr_role_permission_role
         FOREIGN KEY (role_id) REFERENCES usr.usr_role (id) ON DELETE CASCADE,
+    CONSTRAINT fk_usr_role_permission_resource
+        FOREIGN KEY (catalog_code) REFERENCES usr.usr_resource (code),
     CONSTRAINT chk_usr_role_permission_resource
         CHECK (resource = '*' OR resource ~ '^[a-z0-9_-]{2,100}$'),
     CONSTRAINT chk_usr_role_permission_actions
@@ -221,10 +211,7 @@ CREATE TABLE usr.usr_user_role (
 
 CREATE INDEX idx_usr_user_role_role_id ON usr.usr_user_role (role_id);
 
--- ---------------------------------------------------------------------------
--- View: OR das actions por resource nos papeis enabled (nao expande '*')
--- ---------------------------------------------------------------------------
-CREATE OR REPLACE VIEW usr.vw_user_effective_permissions AS
+CREATE VIEW usr.vw_user_effective_permissions AS
 SELECT
     ur.user_id,
     rp.resource,
@@ -238,12 +225,38 @@ JOIN usr.usr_role_permission rp
 GROUP BY ur.user_id, rp.resource;
 
 -- ---------------------------------------------------------------------------
+-- Preferences and notifications
+-- ---------------------------------------------------------------------------
+CREATE TABLE usr.usr_preference (
+    user_id    UUID NOT NULL PRIMARY KEY,
+    theme      VARCHAR(10) NOT NULL DEFAULT 'system',
+    language   VARCHAR(5) NOT NULL DEFAULT 'pt-BR',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT fk_usr_preference_user
+        FOREIGN KEY (user_id) REFERENCES usr.usr_user (id) ON DELETE CASCADE,
+    CONSTRAINT chk_usr_preference_theme CHECK (theme IN ('system', 'light', 'dark'))
+);
+
+CREATE TABLE usr.usr_notification (
+    id         UUID NOT NULL PRIMARY KEY,
+    user_id    UUID NOT NULL,
+    level      VARCHAR(10) NOT NULL,
+    title      VARCHAR(120) NOT NULL,
+    message    TEXT NOT NULL,
+    read_at    TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT fk_usr_notification_user
+        FOREIGN KEY (user_id) REFERENCES usr.usr_user (id) ON DELETE CASCADE,
+    CONSTRAINT chk_usr_notification_level CHECK (level IN ('info', 'warning', 'critical'))
+);
+
+CREATE INDEX idx_usr_notification_user_created ON usr.usr_notification (user_id, created_at DESC);
+CREATE INDEX idx_usr_notification_unread ON usr.usr_notification (user_id) WHERE read_at IS NULL;
+
+-- ---------------------------------------------------------------------------
 -- updated_at
 -- ---------------------------------------------------------------------------
-CREATE TRIGGER trg_usr_user_status_set_updated_at
-    BEFORE UPDATE ON usr.usr_user_status
-    FOR EACH ROW EXECUTE FUNCTION public.fn_set_updated_at();
-
 CREATE TRIGGER trg_usr_user_set_updated_at
     BEFORE UPDATE ON usr.usr_user
     FOR EACH ROW EXECUTE FUNCTION public.fn_set_updated_at();
@@ -256,78 +269,100 @@ CREATE TRIGGER trg_usr_role_set_updated_at
     BEFORE UPDATE ON usr.usr_role
     FOR EACH ROW EXECUTE FUNCTION public.fn_set_updated_at();
 
--- ---------------------------------------------------------------------------
--- COMMENT ON
--- ---------------------------------------------------------------------------
-COMMENT ON TABLE usr.usr_user_status IS
-  'Lookup do ciclo de vida da conta. is_login_allowed e a fonte da verdade do login.';
-COMMENT ON COLUMN usr.usr_user_status.is_login_allowed IS
-  'True somente em active. Qualquer outro code recusa autenticacao.';
+CREATE TRIGGER trg_usr_preference_set_updated_at
+    BEFORE UPDATE ON usr.usr_preference
+    FOR EACH ROW EXECUTE FUNCTION public.fn_set_updated_at();
 
+-- ---------------------------------------------------------------------------
+-- Seed: resource catalog and default roles. admin only gets '*'.
+-- ---------------------------------------------------------------------------
+INSERT INTO usr.usr_resource (code, description)
+VALUES
+    ('users',       'Accounts and profile'),
+    ('roles',       'RBAC roles'),
+    ('permissions', 'Resources and action masks');
+
+INSERT INTO usr.usr_role (name, enabled, is_default, is_superuser)
+VALUES
+    ('user',  true, true,  false),
+    ('admin', true, false, true);
+
+INSERT INTO usr.usr_role_permission (role_id, resource, actions)
+SELECT id, '*', 2147483647 -- every positive INT4 bit
+FROM usr.usr_role
+WHERE name = 'admin';
+
+-- ---------------------------------------------------------------------------
+-- Comments
+-- ---------------------------------------------------------------------------
 COMMENT ON TABLE usr.usr_user IS
-  'Identidade. pending ate activate; expired se o token de ativacao vencer sem uso.';
+  'Identity. pending until activation; expired if the activation token lapses unused.';
 COMMENT ON COLUMN usr.usr_user.status IS
-  'FK para usr_user_status. Unico active autentica (is_login_allowed).';
+  'pending | active | expired | locked | disabled. Codes match domain.UserStatus*.';
 
 COMMENT ON TABLE usr.usr_credential IS
-  'Credencial 1:1. Hash NULL ate activate. password_algorithm grava argon2id junto do hash.';
+  'Credential 1:1. Hash is NULL until activation.';
 COMMENT ON COLUMN usr.usr_credential.password_hash IS
-  'Argon2id. NULL ate POST /activate (ou bootstrap admin).';
+  'Argon2id. NULL until POST /activate or admin bootstrap.';
 COMMENT ON COLUMN usr.usr_credential.password_algorithm IS
-  'argon2id quando ha hash. NULL quando ainda nao ha senha.';
+  'argon2id when a hash exists. NULL otherwise.';
 COMMENT ON COLUMN usr.usr_credential.failed_login_attempts IS
-  'Incrementa em senha errada; zera no sucesso. CHECK >= 0.';
+  'Grows on a wrong password; back to zero on success.';
 COMMENT ON COLUMN usr.usr_credential.locked_until IS
-  'Fim do lockout. NULL = nao bloqueado. status=locked acompanha este instante.';
+  'End of the lockout. NULL = not locked. status=locked follows this instant.';
 
 COMMENT ON TABLE usr.usr_session IS
-  'Unidade de logout (sid no JWT) e store do refresh vigente (hash do jti).';
+  'Unit of logout (sid in the JWT) and store of the current refresh token (jti hash).';
 COMMENT ON COLUMN usr.usr_session.revocation_reason IS
-  'user_logout | token_reuse | password_changed | expired. Sempre junto de revoked_at.';
+  'user_logout | token_reuse | password_changed | expired | account_disabled. Always set with revoked_at.';
 COMMENT ON COLUMN usr.usr_session.refresh_token_hash IS
-  'SHA-256 do jti atual. UNIQUE. Plaintext nunca e gravado.';
+  'SHA-256 of the current jti. Plaintext is never stored.';
 COMMENT ON COLUMN usr.usr_session.previous_refresh_token_hash IS
-  'jti da geracao anterior. Apresentar este hash com sessao viva = reuse.';
+  'jti of the previous generation. Presenting it on a live session counts as reuse.';
 COMMENT ON COLUMN usr.usr_session.ip_address IS
-  'Snapshot no login. Nao e device tracking.';
+  'Snapshot at login. Not device tracking.';
 COMMENT ON COLUMN usr.usr_session.user_agent IS
-  'Snapshot no login. Nao e device tracking.';
+  'Snapshot at login. Not device tracking.';
 
 COMMENT ON TABLE usr.usr_token IS
-  'Segredo fora da sessao (SMTP): activation e password_reset. Sem refresh.';
-COMMENT ON COLUMN usr.usr_token.purpose IS
-  'activation | password_reset. Sem session_id.';
+  'Secrets sent by email: activation and password_reset.';
 COMMENT ON COLUMN usr.usr_token.token_hash IS
-  'SHA-256 do valor claro enviado por e-mail. Plaintext nunca e gravado.';
+  'SHA-256 of the value sent by email. Plaintext is never stored.';
 COMMENT ON COLUMN usr.usr_token.attempts IS
-  'Recusas apos lookup por hash (expirado/usado). Na 5a, marca used_at.';
+  'Refusals after a hash lookup (expired or used). The 5th sets used_at.';
 
 COMMENT ON TABLE usr.usr_login_attempt IS
-  'Append-only de cada login, inclusive e-mail inexistente. Sem FK para usr_user.';
+  'Append-only record of every login, including unknown emails. No FK to usr_user.';
 COMMENT ON COLUMN usr.usr_login_attempt.failure_kind IS
-  'Interno. O HTTP nao ecoa este valor (invalid_credentials / account_locked).';
+  'Internal. HTTP never echoes this value.';
 
 COMMENT ON TABLE usr.usr_resource IS
-  'Catalogo de nomes de resource (B+C). * nao entra. API lista daqui.';
+  'Catalog of resource names, listed by the API and enforced on grants. * stays out.';
 COMMENT ON COLUMN usr.usr_resource.code IS
-  'Tipo (users, roles, permissions, products). Nao e UUID de instancia.';
+  'Resource type (users, roles, permissions, products). Not an instance UUID.';
 
 COMMENT ON TABLE usr.usr_role IS
-  'Papel. Permissoes vivem em usr_role_permission (resource x actions), nao em TEXT[].';
+  'Role. Permissions live in usr_role_permission.';
 COMMENT ON COLUMN usr.usr_role.is_default IS
-  'No maximo um true (indice parcial). Associado no activate.';
+  'At most one true (partial index). Assigned at activation.';
 COMMENT ON COLUMN usr.usr_role.is_superuser IS
-  'Bypass de autorizacao no Go. Seed admin=true. Nao entra na view de permissions.';
+  'Bypasses authorization in Go. Stays out of the permissions view.';
 
 COMMENT ON TABLE usr.usr_role_permission IS
-  'Uma mascara INT4 por resource no papel. Catalogo em usr_resource; * e sentinela.';
+  'One INT4 mask per resource in the role.';
 COMMENT ON COLUMN usr.usr_role_permission.resource IS
-  'Codigo do catalogo ou * (grant-all). Sem FK (permite *). Nao e UUID de instancia.';
+  'Catalog code or * (grant-all).';
 COMMENT ON COLUMN usr.usr_role_permission.actions IS
-  'Bits CRUD: create=1 read=2 update=4 delete=8. CHECK >= 0.';
+  'Bits: create=1 read=2 update=4 delete=8.';
 
 COMMENT ON TABLE usr.usr_user_role IS
-  'N:N user x role. DELETE de role com users falha (ON DELETE RESTRICT).';
+  'N:N user x role. Deleting a role with users fails (ON DELETE RESTRICT).';
 
 COMMENT ON VIEW usr.vw_user_effective_permissions IS
-  'bit_or(actions) por user+resource nos papeis enabled. Nao expande *. Superuser fora da view.';
+  'bit_or(actions) per user and resource over enabled roles. Does not expand *.';
+
+COMMENT ON TABLE usr.usr_preference IS
+  'Interface choices. Without a row, the application uses the defaults.';
+
+COMMENT ON TABLE usr.usr_notification IS
+  'Security notices. Read ones leave after the retention; unread ones after three times it.';

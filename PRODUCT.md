@@ -58,7 +58,7 @@ Known expensive-by-design paths (qualitative): Argon2id verify on login; authz P
 
 - Hexagonal dependency direction (core ≠ Fiber/GORM)
 - Password Argon2id only; refresh/`usr_token` stored as SHA-256
-- Login gated by `usr_user_status.is_login_allowed` (only `active` today)
+- Login gated by `usr_user.status` (only `active` today)
 - RBAC B+C (ADR-004): `usr_resource` catalog; actions CRUD bits; admin `is_superuser` and/or `resource='*'`; live authz via view
 - Email side effects via `sys.outbox` (backend enqueue; mailer consume)
 
@@ -75,7 +75,7 @@ Known expensive-by-design paths (qualitative): Argon2id verify on login; authz P
 - `.specs/architecture/decisions/ADR-001` … `ADR-004` (hexagonal, identity schema, secrets, RBAC)
 - `.specs/features/identity/*`, `mailer/outbox.md`, `products/requirements.md`
 - `.specs/existing/overview.md`, `existing/infrastructure/schema.md`
-- Code: `cmd/backend`, `internal/core/usecase/auth`, `internal/adapter/inbound/http/rest`, migrations `000001`–`000007`
+- Code: `cmd/backend`, `internal/core/usecase/auth`, `internal/adapter/inbound/http/rest`, migrations `000001`–`000004`
 
 ## Product Principles
 

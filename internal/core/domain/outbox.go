@@ -3,10 +3,8 @@ package domain
 import "time"
 
 const (
-	OutboxStatusPending    = "pending"
-	OutboxStatusProcessing = "processing"
-	OutboxStatusSent       = "sent"
-	OutboxStatusFailed     = "failed"
+	OutboxStatusPending = "pending"
+	OutboxStatusFailed  = "failed"
 )
 
 // OutboxMessage is a durable email intent row (sys.outbox).

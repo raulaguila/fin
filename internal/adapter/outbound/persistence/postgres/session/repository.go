@@ -71,7 +71,6 @@ func (r *Repository) Create(ctx context.Context, s *domain.Session) error {
 		}
 		id = parsed
 	}
-	now := time.Now()
 	err := r.db.WithContext(ctx).Exec(`
 		INSERT INTO usr.usr_session (
 			id, user_id, expires_at, revoked_at, revocation_reason,
@@ -80,13 +79,11 @@ func (r *Repository) Create(ctx context.Context, s *domain.Session) error {
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?::inet, ?, ?, ?)
 	`, id, s.UserID, s.ExpiresAt, s.RevokedAt, s.RevocationReason,
 		s.RefreshTokenHash, nilIfEmpty(s.PreviousRefreshTokenHash),
-		s.IPAddress, s.UserAgent, now, now).Error
+		s.IPAddress, s.UserAgent, s.CreatedAt, s.LastSeenAt).Error
 	if err != nil {
 		return shared.WrapError(err, "session")
 	}
 	s.ID = id.String()
-	s.CreatedAt = now
-	s.LastSeenAt = now
 	return nil
 }
 
@@ -164,12 +161,11 @@ func (r *Repository) KnownClient(ctx context.Context, userID, ip string) (bool, 
 	first, last := clientip.Range(ip)
 	var known bool
 	err := r.db.WithContext(ctx).Raw(`
-		SELECT NOT EXISTS (SELECT 1 FROM usr.usr_session WHERE user_id = ?)
-		    OR EXISTS (
-		        SELECT 1 FROM usr.usr_session
-		        WHERE user_id = ? AND ip_address BETWEEN ?::inet AND ?::inet
-		    )
-	`, userID, userID, first, last).Scan(&known).Error
+		SELECT EXISTS (
+			SELECT 1 FROM usr.usr_session
+			WHERE user_id = ? AND ip_address BETWEEN ?::inet AND ?::inet
+		)
+	`, userID, first, last).Scan(&known).Error
 	if err != nil {
 		return false, shared.WrapError(err, "session")
 	}

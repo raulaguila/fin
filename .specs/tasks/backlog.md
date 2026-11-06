@@ -13,7 +13,7 @@ Do `audits/gaps.md`. Sem datas.
 - [x] Middleware authz + Bearer nas rotas de domínio
 - [x] Mailer consumir `sys.outbox` e enviar SMTP
 - [x] CRUD `products` (exemplo RBAC)
-- [ ] API roles / usr_resource / permissions (mutations)
+- [x] API roles / usr_resource / permissions (mutations)
 - [x] `cmd/admin` criar primeiro admin e desativar usuário
 - [x] Alinhar `BASE` Docker (`source` / `built`)
 - [x] Migrar para Fiber v3

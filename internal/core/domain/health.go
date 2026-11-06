@@ -4,9 +4,8 @@ package domain
 type CheckStatus string
 
 const (
-	CheckOK      CheckStatus = "ok"
-	CheckFail    CheckStatus = "fail"
-	CheckSkipped CheckStatus = "skipped"
+	CheckOK   CheckStatus = "ok"
+	CheckFail CheckStatus = "fail"
 )
 
 // HealthReport aggregates liveness of dependencies.
@@ -15,7 +14,7 @@ type HealthReport struct {
 	Checks map[string]CheckStatus
 }
 
-// Aggregate sets Status from Checks: all ok/skipped → ok; any fail with some ok → degraded; all fail → down.
+// Aggregate sets Status from Checks: all ok → ok; any fail with some ok → degraded; all fail → down.
 func (h *HealthReport) Aggregate() {
 	if h.Checks == nil {
 		h.Status = "down"
@@ -24,7 +23,7 @@ func (h *HealthReport) Aggregate() {
 	ok, fail := 0, 0
 	for _, s := range h.Checks {
 		switch s {
-		case CheckOK, CheckSkipped:
+		case CheckOK:
 			ok++
 		case CheckFail:
 			fail++

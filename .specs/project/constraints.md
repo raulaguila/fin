@@ -22,7 +22,7 @@ Derivado de `config/validate.go`, CHECKs SQL e comentários de tabela.
 
 ## Produto
 
-- Só `usr_user_status.is_login_allowed` autoriza login (hoje: `active`)
+- Só `usr_user.status = active` autoriza login
 - HTTP não ecoa `failure_kind`
 - Authz: `is_superuser` ou `resource='*'`; bits CRUD; catálogo `usr_resource`
 - Sentinela `*` não é linha de `usr_resource`

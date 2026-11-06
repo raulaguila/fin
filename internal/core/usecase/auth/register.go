@@ -97,7 +97,9 @@ func (s *Service) Activate(ctx context.Context, cmd input.ActivateCommand) error
 	if tok, _, err := activationTarget(ctx, s.UOW, hash, now); err != nil {
 		if tok != nil {
 			_ = s.UOW.Users().UpdateStatus(ctx, tok.UserID, domain.UserStatusExpired)
-			_, _ = s.UOW.Tokens().IncrementAttempts(ctx, tok.ID)
+			if _, err := s.UOW.Tokens().IncrementAttempts(ctx, tok.ID); err != nil {
+				s.warn("Token attempt not counted", err)
+			}
 		}
 		return err
 	}

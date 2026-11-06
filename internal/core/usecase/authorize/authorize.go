@@ -10,30 +10,29 @@ import (
 	"github.com/raulaguila/authenticity/pkg/apperror"
 )
 
-// UseCase loads effective permissions and checks CRUD bits.
-type UseCase struct {
+// Service loads effective permissions and checks CRUD bits.
+type Service struct {
 	Reader output.PermissionReader
 }
 
-var _ input.Authorizer = (*UseCase)(nil)
+var (
+	_ input.Authorizer      = (*Service)(nil)
+	_ input.ResourceCatalog = (*Service)(nil)
+)
 
-func New(reader output.PermissionReader) *UseCase {
-	return &UseCase{Reader: reader}
+func New(reader output.PermissionReader) *Service {
+	return &Service{Reader: reader}
 }
 
-func (u *UseCase) LoadEffective(ctx context.Context, userID string) (*domain.EffectivePermissions, error) {
+func (s *Service) LoadEffective(ctx context.Context, userID string) (*domain.EffectivePermissions, error) {
 	if userID == "" {
 		return nil, apperror.New(apperror.CodeInvalidInput, "user id required")
 	}
 
-	if u.Reader == nil {
-		return nil, apperror.New(apperror.CodeInternal, "permission reader not configured")
-	}
-
-	return u.Reader.LoadEffective(ctx, userID)
+	return s.Reader.LoadEffective(ctx, userID)
 }
 
-func (u *UseCase) Authorize(ctx context.Context, userID, resource string, need domain.Action) error {
+func (s *Service) Authorize(ctx context.Context, userID, resource string, need domain.Action) error {
 	if resource == "" {
 		return apperror.New(apperror.CodeInvalidInput, "resource required")
 	}
@@ -41,7 +40,7 @@ func (u *UseCase) Authorize(ctx context.Context, userID, resource string, need d
 		return apperror.New(apperror.CodeInvalidInput, "action required")
 	}
 
-	eff, err := u.LoadEffective(ctx, userID)
+	eff, err := s.LoadEffective(ctx, userID)
 	if err != nil {
 		return err
 	}
@@ -58,6 +57,10 @@ func (u *UseCase) Authorize(ctx context.Context, userID, resource string, need d
 		return nil
 	}
 	return apperror.New(apperror.CodeForbidden, fmt.Sprintf("missing %s permission on %s", needLabel(need), resource))
+}
+
+func (s *Service) ListResources(ctx context.Context) ([]domain.Resource, error) {
+	return s.Reader.ListResources(ctx)
 }
 
 func needLabel(need domain.Action) string {

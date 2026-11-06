@@ -12,6 +12,9 @@ import (
 
 const minSecretLength = 16
 
+// ServiceMailer names the process that issues no token, so it needs no fixed key.
+const ServiceMailer = "mailer"
+
 func validateEnvironment(env *Environment) error {
 	if env == nil {
 		return fmt.Errorf("environment is required")
@@ -68,6 +71,9 @@ func validateAuthConfig(cfg AuthConfig) error {
 	if cfg.LoginAttemptPairMaxFailures <= 0 {
 		return fmt.Errorf("AUTH_LOGIN_ATTEMPT_PAIR_MAX must be greater than 0")
 	}
+	if cfg.SessionMaxLifetime <= 0 {
+		return fmt.Errorf("AUTH_SESSION_MAX_LIFETIME must be greater than 0")
+	}
 	if cfg.AccountLockDuration <= 0 {
 		return fmt.Errorf("AUTH_ACCOUNT_LOCK_DURATION must be greater than 0")
 	}
@@ -105,9 +111,11 @@ func isLocalPostgres(host string) bool {
 
 func validateProtectedSecrets(env *Environment) error {
 	// "new" generates a key per process: tokens fail across processes and restarts.
-	for _, name := range []string{"ACCESS_TOKEN", "REFRESH_TOKEN"} {
-		if value := strings.TrimSpace(os.Getenv(name)); value == "" || value == "new" {
-			return fmt.Errorf("%s must hold a fixed key in %s environment", name, env.Environment)
+	if env.Service != ServiceMailer {
+		for _, name := range []string{"ACCESS_TOKEN", "REFRESH_TOKEN"} {
+			if value := strings.TrimSpace(os.Getenv(name)); value == "" || value == "new" {
+				return fmt.Errorf("%s must hold a fixed key in %s environment", name, env.Environment)
+			}
 		}
 	}
 	if len(env.Postgres.Password) < minSecretLength {
@@ -146,12 +154,7 @@ func validateProtectedSMTP(env *Environment) error {
 
 func isSMTPPlaceholder(value string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(value))
-	switch normalized {
-	case "change-me", "changeme", "smtp.example.com", "example.com", "no-reply@example.com":
-		return true
-	default:
-		return strings.Contains(normalized, "example.com")
-	}
+	return normalized == "change-me" || normalized == "changeme" || strings.Contains(normalized, "example.com")
 }
 
 // isProtectedEnvironment fails closed: any name not known as local, including

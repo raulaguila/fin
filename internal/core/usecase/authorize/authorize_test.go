@@ -16,6 +16,10 @@ func (s stubReader) LoadEffective(ctx context.Context, userID string) (*domain.E
 	return s.eff, nil
 }
 
+func (s stubReader) ListResources(ctx context.Context) ([]domain.Resource, error) {
+	return nil, nil
+}
+
 func TestAuthorizeSuperuser(t *testing.T) {
 	uc := New(stubReader{eff: &domain.EffectivePermissions{
 		UserID:      "u1",

@@ -15,5 +15,47 @@ func Allows(have, need Action) bool {
 	return have&need == need
 }
 
+var actionNames = map[string]Action{
+	"create": ActionCreate,
+	"read":   ActionRead,
+	"update": ActionUpdate,
+	"delete": ActionDelete,
+}
+
+// ActionNames lists the actions in a, in the order of their bits.
+func ActionNames(a Action) []string {
+	out := []string{}
+	for _, name := range []string{"create", "read", "update", "delete"} {
+		if Allows(a, actionNames[name]) {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// ParseActions is the inverse of ActionNames. It reports false on an unknown name.
+func ParseActions(names []string) (Action, bool) {
+	var out Action
+	for _, name := range names {
+		action, ok := actionNames[name]
+		if !ok {
+			return 0, false
+		}
+		out |= action
+	}
+	return out, true
+}
+
 // Resource names are catalog codes (usr_resource) or the sentinel "*".
-const ResourceAll = "*"
+const (
+	ResourceAll         = "*"
+	ResourcePermissions = "permissions"
+	ResourceProducts    = "products"
+	ResourceRoles       = "roles"
+)
+
+// Resource is an entry of the catalog that grants may name.
+type Resource struct {
+	Code        string
+	Description string
+}

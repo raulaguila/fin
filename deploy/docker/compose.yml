@@ -5,23 +5,6 @@ include:
 
 services:
 
-  # migrate:
-
-  #   container_name: authenticity_migrate
-  #   image: migrate/migrate:v4.18.3
-  #   restart: "no"
-  #   volumes:
-  #     - ../db/migrations:/migrations:ro
-  #   command: >
-  #     -path /migrations
-  #     -database postgres://${POSTGRES_USER}:${POSTGRES_PASS}@postgres:${POSTGRES_PORT}/${POSTGRES_BASE}?sslmode=disable
-  #     up
-  #   networks:
-  #     - authenticity_network
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-
   backend:
 
     container_name: authenticity_backend
@@ -38,6 +21,8 @@ services:
     environment:
       - TZ=${TZ}
       - POSTGRES_HOST=postgres
+      - POSTGRES_USER=${POSTGRES_APP_USER:-${POSTGRES_USER}}
+      - POSTGRES_PASS=${POSTGRES_APP_PASS:-${POSTGRES_PASS}}
       - GOMEMLIMIT=400MiB  # GC pressure before the container limit
     deploy:
       resources:
@@ -46,8 +31,6 @@ services:
     networks:
       - authenticity_network
     depends_on:
-      # migrate:
-      #   condition: service_completed_successfully
       postgres:
         condition: service_healthy
 
@@ -64,7 +47,12 @@ services:
     env_file: ../../config/.env
     environment:
       - TZ=${TZ}
+      - SYS_SERVICE=mailer
+      - ACCESS_TOKEN=new  # replaces the real signing keys: this process issues no token
+      - REFRESH_TOKEN=new
       - POSTGRES_HOST=postgres
+      - POSTGRES_USER=${POSTGRES_APP_USER:-${POSTGRES_USER}}
+      - POSTGRES_PASS=${POSTGRES_APP_PASS:-${POSTGRES_PASS}}
       - POSTGRES_MAX_CONNS=5  # sends one email at a time
       - GOMEMLIMIT=100MiB
     deploy:
@@ -76,5 +64,3 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    #   migrate:
-    #     condition: service_completed_successfully

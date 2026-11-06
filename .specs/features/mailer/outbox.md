@@ -4,7 +4,7 @@ Backend registra eventos; `cmd/mailer` consome e envia SMTP.
 
 ## Tabela
 
-`sys.outbox` (migration 000004):
+`sys.outbox` (migration 000003):
 
 - `purpose`: `activation` | `password_reset`
 - `payload`: JSONB (destinatário, refs de token, locale, …) — sem plaintext de senha

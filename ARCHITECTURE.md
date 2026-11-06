@@ -12,10 +12,11 @@
 
 ```text
 cmd → composition / infra / adapter/inbound / config / pkg
+infra → adapter/outbound/persistence/postgres (opens the connection)
 composition → core/usecase + adapter/outbound
 adapter/inbound → port/input (+ pkg/apperror)
 adapter/outbound → port/output + domain
-core/usecase → domain + ports + pkg/{apperror,password,tokenhash,pointer,validate,aescrypt,clientip}
+core/usecase → domain + ports + pkg/{apperror,password,tokenhash,pointer,validate,aescrypt,clientip,logger}
 core/usecase/admin → core/usecase/auth (same identity and password rules, no second copy)
 core/domain → stdlib only
 ```
@@ -29,7 +30,7 @@ core/domain → stdlib only
 
 **Sacred (product + ADR):** JWT must not carry permission claims; authz loads live from the DB on each check. Plaintext passwords / refresh JTIs / email tokens must not be stored.
 
-**Gap (confirmed):** Authorizer is applied on `/v1/products`; own-account routes only need Bearer. Role/permission mutation APIs still missing.
+**Gap (confirmed):** Authorizer is applied on `/v1/products`; own-account routes only need Bearer. Roles are managed at runtime under `/v1/roles`. Protected roles (`is_superuser` or a `*` grant) are read-only there: full access changes only through `cmd/admin`, and the API never grants `*`. Holding `roles:update` lets someone change every other role, including their own.
 
 ## Data
 
@@ -37,13 +38,15 @@ core/domain → stdlib only
 
 | Store | Role | Consistency notes |
 |-------|------|-------------------|
-| PostgreSQL schemas `usr`, `sys`, `app` | Source of truth | Single DB; migrations 000001–000008 |
+| PostgreSQL schemas `usr`, `sys`, `app` | Source of truth | Single DB; migrations 000001–000004 |
 
 **`usr` ownership (backend auth and account use cases):** users, credentials, sessions, email tokens, login attempts, role assignment, preferences, notifications; RBAC reader uses `vw_user_effective_permissions` + `is_superuser`.
 
 **`sys.outbox`:** backend INSERT on register / password-reset; mailer claims `pending` → `processing` (lease in `available_at`; a crashed claim returns) → `sent`/`failed`. Tokens stay AES-GCM sealed with `SMTP_MASTER_KEY` and leave the row when done. `sys.fn_cleanup()` (daily via pg_cron) drops history older than 30 days.
 
 **`app.product`:** owned by backend product use case (CRUD).
+
+**Database roles:** migrations run as the owner (`POSTGRES_USER`). Backend, mailer and `cmd/admin` connect as `authenticity_app` (`POSTGRES_APP_USER`), which reads and writes rows in `usr`, `sys` and `app` and cannot change the schema. Migration 000009 creates it without login; `make db-app-role` sets its password.
 
 **Tenancy:** single identity database; no org/tenant tables. **Inferred** as single-tenant until PRODUCT users say otherwise.
 
@@ -63,15 +66,23 @@ core/domain → stdlib only
 | GET/PUT | `/v1/user/preferences` (Bearer) |
 | GET | `/v1/user/notifications`, `/v1/user/notifications/count` (Bearer) |
 | PUT | `/v1/user/notifications/:id/read` (Bearer) |
+| GET | `/v1/permissions/resources` (`permissions:read`) |
+| GET/POST | `/v1/roles` (`roles:read`, `roles:create`) |
+| DELETE | `/v1/roles/:id` (`roles:delete`) |
+| PUT | `/v1/roles/:id/permissions/:resource` (`roles:update`) |
+| GET | `/v1/roles/:id/members` (`roles:read`) |
+| PUT/DELETE | `/v1/roles/:id/members/:user_id` (`roles:update`) |
 | GET/POST | `/v1/products` |
 | GET | `/v1/products/list` |
 | GET/PATCH/DELETE | `/v1/products/:id` |
 
 **Auth tokens:** RS256; access claims `sub`, `sid`, `jti`, `iat`, `exp`; refresh same with `jti` hashed at rest. Defaults: access 15m, refresh 60m.
 
-**Errors (confirmed):** `pkg/apperror` → JSON `{code,message,field?,details?}` via `rest/mapper`. Login failures are always `INVALID_CREDENTIALS`: pending, expired, disabled, locked and unknown accounts answer identically, in the same time. Register answers `201` for known emails too; internal `failure_kind` not echoed.
+**Errors (confirmed):** `pkg/apperror` → JSON `{code,message,field?,details?}` via `rest/mapper`; errors raised by Fiber itself (404, 405, 413) use the same shape. Login failures are always `INVALID_CREDENTIALS`: pending, expired, disabled, locked and unknown accounts answer identically, in the same time. Register answers `201` for known emails too; internal `failure_kind` not echoed.
 
-**User object:** login, refresh and `/v1/auth/me` return the same `user`: identity, `is_superuser`, `permissions` (resource → actions) and `preferences`, loaded live. They are response data for the interface to adapt; the server still decides each request from the database, and the JWT still carries none. If the profile fails to load, login and refresh answer the tokens without `user`: a refresh has already spent the old token.
+**User object:** login, refresh and `/v1/auth/me` return the same `user`: identity, `is_superuser`, `permissions` (resource → actions) and `preferences`, loaded live. They are response data for the interface to adapt; the server still decides each request from the database, and the JWT still carries none. If the profile fails to load, login and refresh answer the tokens without `user`, since a refresh has already spent the old token, and the request log records `Request degraded` with the cause.
+
+**Session list:** `last_seen_at` is the time of the last login or refresh, not of the last request: it is not written per request.
 
 **Own-account routes:** the user id comes from the verified token, never from the request, and every query filters by it. Another user's session or notification answers `404`.
 
@@ -86,15 +97,15 @@ core/domain → stdlib only
 1. **Register** — tx: user `pending` + empty credential + activation token hash + outbox enqueue; optional plaintext token in response if `AUTH_MANUAL_TOKEN_DELIVERY`.
 2. **Activate** — tx: validate token → Argon2id hash → `active` → default role → mark token used.
 3. **Login** — rate-limit checks on attempts → status/lockout → verify password → atomic credential update → create session + issue JWT pair → record attempt.
-4. **Refresh** — parse refresh → load session by `sid` → reuse detection / compare-and-swap rotate → new pair. A lock does not stop refresh. The token rotated in the last 10 s answers `409`, without revoking: the client reads the winner's token and retries.
-5. **Logout** — parse access → revoke session (`user_logout`).
+4. **Refresh** — parse refresh → load session by `sid` → reuse detection / compare-and-swap rotate → new pair. Each refresh extends the session, never past `AUTH_SESSION_MAX_LIFETIME` (30 days) from login. A lock does not stop refresh. The token rotated in the last 10 s answers `409`, without revoking: the client reads the winner's token and retries.
+5. **Logout** — Bearer resolves the session → revoke it (`user_logout`).
 6. **Password reset** — request enqueues outbox; confirm hashes password, revokes all sessions, marks token used.
 
-**Notifications:** written by the auth use case for password changed (same transaction as the reset), account locked, refresh token reuse and login from a client never seen on the account (best effort: a lost notice does not fail the login). Clients poll. First login notifies nothing. Text is English; there is no per-language template.
+**Notifications:** written by the auth use case for password changed (same transaction as the reset), account locked, refresh token reuse and login from a client never seen on the account (best effort: a lost notice does not fail the login). Clients poll. First login notifies nothing; after it, a client with no session left on the account counts as new. Text is English; there is no per-language template.
 
 **Async (confirmed):** mailer claims outbox with `SKIP LOCKED`, sends SMTP (or terminal `smtp_disabled`), backoff on retryable failure.
 
-**Health:** Postgres ping (`ok` / `down`), reused for 1 s.
+**Health:** Postgres ping (`ok` / `down`), reused for 1 s. One request probes at a time; the others answer the last report, `down` until the first probe ends.
 
 ## Failure domains
 
@@ -109,7 +120,7 @@ core/domain → stdlib only
 | Email flood | `AUTH_EMAIL_TOKEN_COOLDOWN` (60 s) and `AUTH_EMAIL_TOKEN_HOURLY_MAX` (5) per account and purpose; over the cap the live link survives |
 | Refresh reuse | Session revoked `token_reuse` |
 
-**HTTP limits:** `API_RATE_LIMIT_*` per client IP (IPv6 by `/64`) per minute, in process memory: one instance, no prefork. Counters reset on restart; add `limit_req` in the proxy before scaling out. Login and email limits live in Postgres and hold across instances.
+**HTTP limits:** `API_RATE_LIMIT_*` per client IP (IPv6 by `/64`) per minute, in process memory: one instance. Counters reset on restart; add `limit_req` in the proxy before scaling out. Login and email limits live in Postgres and hold across instances.
 
 **Not implemented (confirmed):** separate DLQ table (terminal fails stay on outbox as `failed`).
 
@@ -119,7 +130,9 @@ core/domain → stdlib only
 
 **Confirmed:** zerolog via `pkg/logger`; base fields `version`, `service` (`backend`|`mailer`), `pid`. Boot logs host/port/env/errors.
 
-**Absent (confirmed):** request/correlation IDs; HTTP access log middleware (`API_LOGGER` unused); metrics/traces; auth use-case structured audit beyond `usr_login_attempt` rows.
+**Confirmed:** `RequestLog` records every 5xx with its cause, degraded answers, and every request when `API_LOGGER` is on. The auth use case logs a warning when a best-effort step fails (attempt settlement, notification, token attempt count).
+
+**Absent (confirmed):** request/correlation IDs; metrics/traces; auth use-case structured audit beyond `usr_login_attempt` rows.
 
 Do not log refresh tokens, passwords, or email token plaintext (payload in outbox is sensitive — treat as secret storage until mailed).
 
@@ -127,10 +140,12 @@ Do not log refresh tokens, passwords, or email token plaintext (payload in outbo
 
 **Confirmed:**
 
-- Schema: `golang-migrate` on `deploy/db/migrations`; compose service `migrate` applies it before backend and mailer start (`make migrate-*` for manual use)
-- Runtime: Docker Compose (`deploy/docker/compose.yml` + `services.compose.yml`: postgres, backend, mailer; the `migrate` service is commented out, so apply migrations by hand with `make migrate-up`; app containers run as `nobody`)
+- Schema: `golang-migrate` on `deploy/db/migrations`, applied by hand with `make migrate-up`, then `make db-app-role`; no container runs them
+- Runtime: Docker Compose (`deploy/docker/compose.yml` + `services.compose.yml`: postgres, backend, mailer; app containers run as `nobody`). The mailer gets throwaway JWT keys (`ACCESS_TOKEN=new`, `SYS_SERVICE=mailer`), so a breach there cannot forge tokens
 - Dev: Air (`make dev-backend` / `dev-mailer`); binaries `make build-*`
 - Config: `config/.env` from `config/env.sh` / `make init`
+
+**CI:** vet, tests with `-race` and Postgres, lint, `govulncheck`, and a check that `make swagger` changes nothing.
 
 **Rollback:** SQL `*.down.sql` per migration; no feature-flag system in code. **Inferred:** expand/contract discipline is human/process, not automated.
 
@@ -145,7 +160,7 @@ Do not log refresh tokens, passwords, or email token plaintext (payload in outbo
 **Suspected (no measurements — see PRODUCT.md Unknown cost posture):**
 
 - Argon2id verify on every login (`time=3`, `memory=64MiB`, 4 threads in `pkg/password`)
-- Each permission check → view + superuser query, no cache
+- Each permission check → one query, no cache
 - Login attempt inserts + rate-limit counts
 - Login, refresh and `/v1/auth/me` each run user + permissions + preferences queries
 - `search` is a leading-wildcard `ILIKE`, and lists use `OFFSET` plus a count: scans grow with the table
@@ -161,7 +176,7 @@ Do not log refresh tokens, passwords, or email token plaintext (payload in outbo
 
 ## API docs
 
-Swagger UI at `/swagger/index.html`, outside protected environments only. Handlers carry `swag` annotations and `make docs` regenerates `internal/adapter/inbound/http/rest/docs`. Each handler package mounts its own routes (`Routes`); every operation has one `@Tags` tag, by subject; `x-tagGroups` in `rest/swagger.go` groups the tags, rendered by the plugin in `rest/swagger.js` as collapsible sections, closed by default. `swagger_test.go` fails when a route and the docs disagree.
+Swagger UI at `/swagger/index.html`, outside protected environments only. Handlers carry `swag` annotations and `make swagger` regenerates `internal/adapter/inbound/http/rest/docs`. Each handler package mounts its own routes (`Routes`); every operation has one `@Tags` tag, by subject; `x-tagGroups` in `rest/swagger.go` groups the tags, rendered by the plugin in `rest/swagger.js` as collapsible sections, closed by default. `swagger_test.go` fails when a route and the docs disagree.
 
 ## Known gaps vs intent
 

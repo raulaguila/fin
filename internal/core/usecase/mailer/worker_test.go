@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/pkg/aescrypt"
@@ -18,8 +19,9 @@ type fakeOutbox struct {
 	msgs     []domain.OutboxMessage
 	sent     []string
 	failed   map[string]bool // id -> terminal
-	markErr  error           // set when ctx is already cancelled
-	markLeft time.Duration   // time left on the MarkSent context
+	lastErr  string
+	markErr  error         // set when ctx is already cancelled
+	markLeft time.Duration // time left on the MarkSent context
 }
 
 func (f *fakeOutbox) Enqueue(context.Context, string, []byte) error { return nil }
@@ -39,7 +41,8 @@ func (f *fakeOutbox) MarkSent(ctx context.Context, id string, _ time.Time) error
 	return nil
 }
 
-func (f *fakeOutbox) MarkFailed(_ context.Context, id string, _ int, _ time.Time, _ *time.Time, _ string, terminal bool) error {
+func (f *fakeOutbox) MarkFailed(_ context.Context, id string, _ int, _ time.Time, _ *time.Time, lastErr string, terminal bool) error {
+	f.lastErr = lastErr
 	if f.failed == nil {
 		f.failed = map[string]bool{}
 	}
@@ -115,6 +118,18 @@ func TestRetriesThenGivesUp(t *testing.T) {
 	}
 	if box.failed["retry"] || !box.failed["last"] {
 		t.Fatalf("terminal flags %v", box.failed)
+	}
+}
+
+func TestLongErrorStaysValidForPostgres(t *testing.T) {
+	box := &fakeOutbox{msgs: []domain.OutboxMessage{message(t, "m", sealed(t, "x"), 0)}}
+	long := strings.Repeat("a", maxErrorBytes-1) + "é"
+	w := &Worker{Outbox: box, Mail: &fakeMail{err: errors.New(long)}, Key: testKey, Clock: fixedClock{}}
+	if err := w.tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !utf8.ValidString(box.lastErr) || len(box.lastErr) > maxErrorBytes {
+		t.Fatalf("%d bytes, valid=%v", len(box.lastErr), utf8.ValidString(box.lastErr))
 	}
 }
 

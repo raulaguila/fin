@@ -4,7 +4,6 @@
 - **CRUD actions**: bits `create=1`, `read=2`, `update=4`, `delete=8` em `usr_role_permission.actions`.
 - **KEK / DEK**: chave mestra (`SMTP_MASTER_KEY`) que envolve chaves de dados usadas para senhas SMTP em rest.
 - **`failure_kind`**: motivo interno de login falho em `usr_login_attempt`; não vai na resposta HTTP.
-- **`is_login_allowed`**: coluna do lookup de status; fonte da verdade do login.
 - **`is_superuser`**: flag em `usr_role`; bypass de autorização no Go (fora da view de permissions).
 - **`jti`**: id do refresh JWT; no banco só o SHA-256.
 - **outbox**: `sys.outbox`; backend grava evento de e-mail; mailer consome.

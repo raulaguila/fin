@@ -12,6 +12,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/core/port/output"
 	"github.com/raulaguila/authenticity/pkg/aescrypt"
 	"github.com/raulaguila/authenticity/pkg/logger"
+	"github.com/raulaguila/authenticity/pkg/validate"
 )
 
 const (
@@ -19,6 +20,7 @@ const (
 	defaultPoll    = 2 * time.Second
 	maxAttempts    = 8
 	maxBackoffSecs = 15 * 60
+	maxErrorBytes  = 500
 	// claimLease must outlast a full batch of sends (10 x the 30s SMTP deadline).
 	claimLease  = 10 * time.Minute
 	markTimeout = 5 * time.Second
@@ -55,16 +57,13 @@ func (w *Worker) Run(ctx context.Context) error {
 	if w.Poll <= 0 {
 		w.Poll = defaultPoll
 	}
-	if w.Clock == nil {
-		w.Clock = output.RealClock{}
-	}
 
 	ticker := time.NewTicker(w.Poll)
 	defer ticker.Stop()
 
 	w.Log.Info("Mailer worker started", slog.Int("batch", w.Batch), slog.Duration("poll", w.Poll))
 	for {
-		if err := w.tick(ctx); err != nil && w.Log != nil {
+		if err := w.tick(ctx); err != nil {
 			w.Log.Warn("Mailer tick error", slog.String("error", err.Error()))
 		}
 		select {
@@ -104,23 +103,20 @@ func (w *Worker) process(ctx context.Context, msg *domain.OutboxMessage, now tim
 	if err := w.Mail.Send(to, subject, body); err != nil {
 		attempts := msg.Attempts + 1
 		terminal := attempts >= maxAttempts || err.Error() == "smtp_disabled" || err.Error() == "smtp_misconfigured"
-		w.fail(ctx, msg, now, truncate(err.Error(), 500), terminal)
+		w.fail(ctx, msg, now, validate.Text(err.Error(), maxErrorBytes), terminal)
 		return
 	}
 	mark, cancel := markContext(ctx)
 	defer cancel()
-	if err := w.Outbox.MarkSent(mark, msg.ID, now); err != nil && w.Log != nil {
+	if err := w.Outbox.MarkSent(mark, msg.ID, now); err != nil {
 		w.Log.Warn("MarkSent failed", slog.String("outbox_id", msg.ID), slog.String("error", err.Error()))
-	} else if w.Log != nil {
-		w.Log.Info("Email sent", slog.String("outbox_id", msg.ID), slog.String("purpose", msg.Purpose))
+		return
 	}
+	w.Log.Info("Email sent", slog.String("outbox_id", msg.ID), slog.String("purpose", msg.Purpose))
 }
 
 func (w *Worker) fail(ctx context.Context, msg *domain.OutboxMessage, now time.Time, lastErr string, terminal bool) {
 	attempts := msg.Attempts + 1
-	if attempts < 1 {
-		attempts = 1
-	}
 	backoff := time.Duration(math.Min(math.Pow(2, float64(attempts)), float64(maxBackoffSecs))) * time.Second
 	available := now.Add(backoff)
 	var processed *time.Time
@@ -129,19 +125,17 @@ func (w *Worker) fail(ctx context.Context, msg *domain.OutboxMessage, now time.T
 	}
 	mark, cancel := markContext(ctx)
 	defer cancel()
-	if err := w.Outbox.MarkFailed(mark, msg.ID, attempts, available, processed, lastErr, terminal); err != nil && w.Log != nil {
+	if err := w.Outbox.MarkFailed(mark, msg.ID, attempts, available, processed, lastErr, terminal); err != nil {
 		w.Log.Warn("MarkFailed failed", slog.String("outbox_id", msg.ID), slog.String("error", err.Error()))
 		return
 	}
-	if w.Log != nil {
-		w.Log.Warn("Email send failed",
-			slog.String("outbox_id", msg.ID),
-			slog.String("purpose", msg.Purpose),
-			slog.Int("attempts", attempts),
-			slog.Bool("terminal", terminal),
-			slog.String("error", lastErr),
-		)
-	}
+	w.Log.Warn("Email send failed",
+		slog.String("outbox_id", msg.ID),
+		slog.String("purpose", msg.Purpose),
+		slog.Int("attempts", attempts),
+		slog.Bool("terminal", terminal),
+		slog.String("error", lastErr),
+	)
 }
 
 // markContext starts after the send: a result must be recorded even when the
@@ -180,11 +174,4 @@ func nameSuffix(name string) string {
 		return ""
 	}
 	return " " + name
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n]
 }

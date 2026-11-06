@@ -11,3 +11,8 @@ type Authorizer interface {
 	Authorize(ctx context.Context, userID, resource string, need domain.Action) error
 	LoadEffective(ctx context.Context, userID string) (*domain.EffectivePermissions, error)
 }
+
+// ResourceCatalog lists the resources that grants may name.
+type ResourceCatalog interface {
+	ListResources(ctx context.Context) ([]domain.Resource, error)
+}

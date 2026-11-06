@@ -66,7 +66,7 @@ func TestAuthenticate(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			svc := New(nil, stubUOW{sessions: stubSessions{sess: tc.sess, err: tc.err}}, stubTokens{claims: tc.claims}, nil, Config{})
+			svc := New(nil, stubUOW{sessions: stubSessions{sess: tc.sess, err: tc.err}}, stubTokens{claims: tc.claims}, output.RealClock{}, Config{})
 			got, err := svc.Authenticate(context.Background(), tc.token)
 			if tc.want != "" {
 				if !apperror.IsCode(err, tc.want) {

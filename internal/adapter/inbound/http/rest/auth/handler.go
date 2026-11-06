@@ -10,7 +10,10 @@ import (
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/authenticity/pkg/validate"
 )
+
+const maxUserAgentBytes = 512
 
 type Handler struct {
 	svc     input.AuthService
@@ -89,7 +92,7 @@ type meDTO struct {
 func toUserDTO(p *domain.Profile) userDTO {
 	permissions := make(map[string][]string, len(p.Permissions))
 	for resource, actions := range p.Permissions {
-		permissions[resource] = actionNames(actions)
+		permissions[resource] = domain.ActionNames(actions)
 	}
 	return userDTO{
 		ID:          p.User.ID,
@@ -103,23 +106,6 @@ func toUserDTO(p *domain.Profile) userDTO {
 	}
 }
 
-func actionNames(a domain.Action) []string {
-	out := []string{}
-	if domain.Allows(a, domain.ActionCreate) {
-		out = append(out, "create")
-	}
-	if domain.Allows(a, domain.ActionRead) {
-		out = append(out, "read")
-	}
-	if domain.Allows(a, domain.ActionUpdate) {
-		out = append(out, "update")
-	}
-	if domain.Allows(a, domain.ActionDelete) {
-		out = append(out, "delete")
-	}
-	return out
-}
-
 // sendTokens answers with the tokens even if the profile fails: a refresh has
 // already spent the old token, so dropping the new one would end the session.
 func (h *Handler) sendTokens(c fiber.Ctx, pair *domain.TokenPair) error {
@@ -129,10 +115,13 @@ func (h *Handler) sendTokens(c fiber.Ctx, pair *domain.TokenPair) error {
 		ExpiresIn:    pair.ExpiresIn,
 		TokenType:    pair.TokenType,
 	}
-	if profile, err := h.account.Profile(c.Context(), pair.UserID); err == nil {
-		user := toUserDTO(profile)
-		out.User = &user
+	profile, err := h.account.Profile(c.Context(), pair.UserID)
+	if err != nil {
+		c.Locals(mapper.LocalCause, err)
+		return c.JSON(out)
 	}
+	user := toUserDTO(profile)
+	out.User = &user
 	return c.JSON(out)
 }
 
@@ -201,7 +190,7 @@ func (h *Handler) Login(c fiber.Ctx) error {
 		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "invalid body"))
 	}
 	ip := c.IP()
-	ua := string(c.Request().Header.UserAgent())
+	ua := validate.Text(string(c.Request().Header.UserAgent()), maxUserAgentBytes)
 	pair, err := h.svc.Login(c.Context(), input.LoginCommand{
 		Email:     body.Email,
 		Password:  body.Password,

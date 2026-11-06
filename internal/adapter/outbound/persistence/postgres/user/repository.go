@@ -31,14 +31,14 @@ type row struct {
 	UpdatedAt time.Time `gorm:"column:updated_at"`
 }
 
-func (r row) toDomain() *domain.User {
+func (m row) toDomain() *domain.User {
 	return &domain.User{
-		ID:        r.ID.String(),
-		Name:      r.Name,
-		Email:     r.Email,
-		Status:    r.Status,
-		CreatedAt: r.CreatedAt,
-		UpdatedAt: r.UpdatedAt,
+		ID:        m.ID.String(),
+		Name:      m.Name,
+		Email:     m.Email,
+		Status:    m.Status,
+		CreatedAt: m.CreatedAt,
+		UpdatedAt: m.UpdatedAt,
 	}
 }
 

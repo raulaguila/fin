@@ -36,12 +36,12 @@ func main() {
 	}
 	defer res.Shutdown(log)
 
-	fiberApp := rest.NewServer(cfg, composition.NewApplication(cfg, res), log)
+	fiberApp := rest.NewServer(cfg, composition.NewApplication(cfg, res, log), log)
 
 	addr := fmt.Sprintf(":%d", cfg.API.Port)
 	go func() {
-		log.Info("HTTP server listening", slog.String("addr", addr), slog.Bool("prefork", cfg.API.EnablePrefork))
-		if err := fiberApp.Listen(addr, rest.ListenConfig(cfg.API)); err != nil {
+		log.Info("HTTP server listening", slog.String("addr", addr))
+		if err := fiberApp.Listen(addr); err != nil {
 			log.Error("HTTP server stopped", slog.String("error", err.Error()))
 			os.Exit(1)
 		}

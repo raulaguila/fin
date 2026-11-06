@@ -15,8 +15,9 @@ import (
 	"github.com/raulaguila/authenticity/pkg/logger"
 )
 
-// RequestLog records every 5xx with its cause, and every request when all is
-// true. It logs the path only: query strings and bodies may carry secrets.
+// RequestLog records every 5xx with its cause, every answer sent without a part
+// that failed, and every request when all is true. It logs the path only: query
+// strings and bodies may carry secrets.
 func RequestLog(log *logger.Logger, all bool) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		start := time.Now()
@@ -29,7 +30,9 @@ func RequestLog(log *logger.Logger, all bool) fiber.Handler {
 		}
 
 		status := c.Response().StatusCode()
-		if status < fiber.StatusInternalServerError && !all {
+		failed := status >= fiber.StatusInternalServerError
+		cause, degraded := c.Locals(mapper.LocalCause).(error)
+		if !failed && !degraded && !all {
 			return nil
 		}
 		attrs := []slog.Attr{
@@ -38,11 +41,11 @@ func RequestLog(log *logger.Logger, all bool) fiber.Handler {
 			slog.Int("status", status),
 			slog.Duration("duration", time.Since(start)),
 		}
-		if status < fiber.StatusInternalServerError {
+		if !failed && !degraded {
 			log.Info("Request", attrs...)
 			return nil
 		}
-		if cause, ok := c.Locals(mapper.LocalCause).(error); ok {
+		if degraded {
 			failure = cause
 		}
 		if failure != nil {
@@ -51,7 +54,11 @@ func RequestLog(log *logger.Logger, all bool) fiber.Handler {
 				attrs = append(attrs, slog.String("cause", appErr.Cause.Error()))
 			}
 		}
-		log.Error("Request failed", attrs...)
+		if failed {
+			log.Error("Request failed", attrs...)
+		} else {
+			log.Warn("Request degraded", attrs...)
+		}
 		return nil
 	}
 }
@@ -69,7 +76,7 @@ func Timeout(d time.Duration) fiber.Handler {
 
 // RateLimit allows max requests per client per minute.
 // shortcut: counters live in process memory and reset on restart. Each instance
-// or prefork child counts alone; put limit_req in the proxy before scaling out.
+// counts alone; put limit_req in the proxy before scaling out.
 func RateLimit(max int) fiber.Handler {
 	return limiter.New(limiter.Config{
 		Max:        max,

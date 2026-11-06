@@ -19,3 +19,10 @@ type Product struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
+
+// ProductPatch holds the fields of an update; nil keeps the stored value.
+type ProductPatch struct {
+	Name    *string
+	Price   *string
+	Enabled *bool
+}

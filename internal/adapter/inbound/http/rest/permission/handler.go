@@ -1,0 +1,49 @@
+package permission
+
+import (
+	"github.com/gofiber/fiber/v3"
+
+	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/mapper"
+	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
+	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/authenticity/internal/core/port/input"
+)
+
+type Handler struct {
+	svc input.ResourceCatalog
+}
+
+func NewHandler(svc input.ResourceCatalog) *Handler {
+	return &Handler{svc: svc}
+}
+
+// Routes expects a router already behind Bearer.
+func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
+	r.Get("/resources", middleware.Require(authz, domain.ResourcePermissions, domain.ActionRead), h.ListResources)
+}
+
+type resourceDTO struct {
+	Code        string `json:"code" example:"products"`
+	Description string `json:"description"`
+}
+
+// @Summary List the resources that roles may be granted
+// @Tags Permissions
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} object{items=[]resourceDTO}
+// @Failure 401 {object} mapper.errorBody
+// @Failure 403 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
+// @Router /v1/permissions/resources [get]
+func (h *Handler) ListResources(c fiber.Ctx) error {
+	resources, err := h.svc.ListResources(c.Context())
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	out := make([]resourceDTO, 0, len(resources))
+	for _, r := range resources {
+		out = append(out, resourceDTO{Code: r.Code, Description: r.Description})
+	}
+	return c.JSON(fiber.Map{"items": out})
+}

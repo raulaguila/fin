@@ -36,11 +36,11 @@ func (s *Service) Login(ctx context.Context, cmd input.LoginCommand) (*domain.To
 	defer cancel()
 	switch {
 	case pair != nil:
-		_ = s.UOW.Attempts().Settle(settleCtx, attemptID, true, nil)
+		s.warn("Login attempt not settled", s.UOW.Attempts().Settle(settleCtx, attemptID, true, nil))
 	case failure != "":
-		_ = s.UOW.Attempts().Settle(settleCtx, attemptID, false, &failure)
+		s.warn("Login attempt not settled", s.UOW.Attempts().Settle(settleCtx, attemptID, false, &failure))
 	default:
-		_ = s.UOW.Attempts().Release(settleCtx, attemptID)
+		s.warn("Login attempt not released", s.UOW.Attempts().Release(settleCtx, attemptID))
 	}
 	return pair, err
 }
@@ -125,7 +125,9 @@ func (s *Service) authenticate(ctx context.Context, email string, cmd input.Logi
 		return nil, domain.FailureBadPassword, invalidCredentials()
 	}
 
-	s.noticeNewClient(ctx, user.ID, cmd.IPAddress) // before the session of this login exists
+	if cred.LastLoginAt != nil { // a first login has no client to compare with
+		s.noticeNewClient(ctx, user.ID, cmd.IPAddress) // before the session of this login exists
+	}
 	pair, err := s.issueSession(ctx, user.ID, cmd.IPAddress, cmd.UserAgent, now)
 	return pair, "", err
 }
@@ -186,7 +188,11 @@ func (s *Service) Refresh(ctx context.Context, cmd input.RefreshCommand) (*domai
 		return nil, apperror.New(apperror.CodeInternal, "token issue failed").WithCause(err)
 	}
 
-	rotated, err := s.UOW.Sessions().Rotate(ctx, sess.ID, jtiHash, tokenhash.SHA256Bytes(newJTI), now.Add(s.Tokens.RefreshTTL()), now)
+	expiresAt := now.Add(s.Tokens.RefreshTTL())
+	if limit := sess.CreatedAt.Add(s.Cfg.SessionMaxLifetime); expiresAt.After(limit) {
+		expiresAt = limit
+	}
+	rotated, err := s.UOW.Sessions().Rotate(ctx, sess.ID, jtiHash, tokenhash.SHA256Bytes(newJTI), expiresAt, now)
 	if err != nil {
 		return nil, err
 	}
@@ -293,6 +299,7 @@ func (s *Service) issueSession(ctx context.Context, userID string, ip, ua *strin
 		RefreshTokenHash: tokenhash.SHA256Bytes(jti),
 		IPAddress:        ip,
 		UserAgent:        ua,
+		CreatedAt:        now,
 		LastSeenAt:       now,
 	}
 	if err := s.UOW.Sessions().Create(ctx, sess); err != nil {
@@ -381,7 +388,7 @@ func (s *Service) overLimit(ctx context.Context, attempts output.LoginAttemptRep
 
 // notify is best effort: a lost notice must not cost the login or refresh it reports on.
 func (s *Service) notify(ctx context.Context, userID, level, title, message string) {
-	_ = s.UOW.Notifications().Create(ctx, &domain.Notification{UserID: userID, Level: level, Title: title, Message: message})
+	s.warn("Notification lost", s.UOW.Notifications().Create(ctx, &domain.Notification{UserID: userID, Level: level, Title: title, Message: message}))
 }
 
 // noticeNewClient warns about a login from a client this account never used.
@@ -389,7 +396,12 @@ func (s *Service) noticeNewClient(ctx context.Context, userID string, ip *string
 	if ip == nil || *ip == "" {
 		return
 	}
-	if known, err := s.UOW.Sessions().KnownClient(ctx, userID, *ip); err == nil && !known {
+	known, err := s.UOW.Sessions().KnownClient(ctx, userID, *ip)
+	if err != nil {
+		s.warn("New client check failed", err)
+		return
+	}
+	if !known {
 		s.notify(ctx, userID, domain.NotificationInfo, "New login", "New login from "+*ip+".")
 	}
 }

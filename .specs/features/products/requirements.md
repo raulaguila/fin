@@ -6,4 +6,4 @@ Módulo exemplo no schema `app` para exercitar RBAC (`resource=products`, action
 - CRUD completo via API quando o caller tiver os bits correspondentes (ou superuser/`*`).
 - Sem multi-tenant, estoque ou variantes na v1.
 
-Fonte: `deploy/db/migrations/000004_sys_outbox_app_products.up.sql`, ADR-004.
+Fonte: `deploy/db/migrations/000004_products.up.sql`, ADR-004.

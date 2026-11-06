@@ -87,4 +87,12 @@ type RoleRepository interface {
 	Assign(ctx context.Context, userID, roleID string) error
 	// HasMembers reports whether any user holds the role.
 	HasMembers(ctx context.Context, roleID string) (bool, error)
+	List(ctx context.Context, limit int) ([]domain.Role, error)
+	FindByID(ctx context.Context, id string) (*domain.Role, error)
+	Create(ctx context.Context, name string) (*domain.Role, error)
+	Delete(ctx context.Context, id string) error
+	SetPermission(ctx context.Context, roleID, resource string, actions domain.Action) error
+	RemovePermission(ctx context.Context, roleID, resource string) error
+	Members(ctx context.Context, roleID string, page domain.Page) ([]domain.User, int64, error)
+	Unassign(ctx context.Context, userID, roleID string) error
 }

@@ -69,7 +69,9 @@ func (s *Service) ConfirmPasswordReset(ctx context.Context, cmd input.ConfirmPas
 
 	if tok, err := resetToken(ctx, s.UOW, hash, now); err != nil {
 		if tok != nil {
-			_, _ = s.UOW.Tokens().IncrementAttempts(ctx, tok.ID)
+			if _, err := s.UOW.Tokens().IncrementAttempts(ctx, tok.ID); err != nil {
+				s.warn("Token attempt not counted", err)
+			}
 		}
 		return err
 	}

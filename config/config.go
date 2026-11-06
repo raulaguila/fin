@@ -25,10 +25,9 @@ type LogConfig struct {
 }
 
 type APIConfig struct {
-	Port          int    `env:"API_PORT" default:"9999"`
-	EnableLogger  bool   `env:"API_LOGGER" default:"1"`
-	EnablePrefork bool   `env:"API_PREFORK" default:"0"`
-	CorsOrigins   string `env:"CORS_ORIGINS" default:"*"`
+	Port         int    `env:"API_PORT" default:"9999"`
+	EnableLogger bool   `env:"API_LOGGER" default:"1"`
+	CorsOrigins  string `env:"CORS_ORIGINS" default:"*"`
 
 	// TrustedProxies lists comma-separated proxy IPs or CIDRs whose ProxyHeader is
 	// believed. Empty means direct traffic. ProxyHeader is either one the proxy
@@ -54,6 +53,7 @@ type AuthConfig struct {
 	AccessExpiration             time.Duration   `env:"ACCESS_TOKEN_EXPIRE" default:"15m"`
 	RefreshPrivateKey            *rsa.PrivateKey `env:"REFRESH_TOKEN" default:"new"`
 	RefreshExpiration            time.Duration   `env:"REFRESH_TOKEN_EXPIRE" default:"60m"`
+	SessionMaxLifetime           time.Duration   `env:"AUTH_SESSION_MAX_LIFETIME" default:"720h"`
 	RegistrationTokenTTL         time.Duration   `env:"REGISTRATION_TOKEN_TTL" default:"24h"`
 	PasswordResetTokenTTL        time.Duration   `env:"PASSWORD_RESET_TOKEN_TTL" default:"2h"`
 	MaxFailedLoginAttempts       int             `env:"AUTH_MAX_FAILED_LOGIN_ATTEMPTS" default:"50"`
@@ -104,6 +104,7 @@ type Environment struct {
 	Timezone    *time.Location `env:"TZ" default:"America/Manaus"`
 	Version     string         `env:"SYS_VERSION" default:"1.0.0"`
 	Environment string         `env:"SYS_ENVIRONMENT" default:"production"`
+	Service     string         `env:"SYS_SERVICE" default:"backend"`
 
 	Log      LogConfig
 	API      APIConfig

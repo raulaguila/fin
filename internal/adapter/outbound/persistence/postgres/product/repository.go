@@ -131,22 +131,25 @@ func (r *Repository) Create(ctx context.Context, p *domain.Product) error {
 	return nil
 }
 
-func (r *Repository) Update(ctx context.Context, p *domain.Product) error {
-	var updated []time.Time
+func (r *Repository) Update(ctx context.Context, id string, patch domain.ProductPatch) (*domain.Product, error) {
+	var rows []row
 	err := r.db.WithContext(ctx).Raw(`
 		UPDATE app.product
-		SET name = ?, price = ?::numeric, enabled = ?, updated_at = now()
+		SET name = COALESCE(?::text, name),
+		    price = COALESCE(?::numeric, price),
+		    enabled = COALESCE(?::boolean, enabled),
+		    updated_at = now()
 		WHERE id = ?
-		RETURNING updated_at
-	`, p.Name, p.Price, p.Enabled, p.ID).Scan(&updated).Error
+		RETURNING id, name, price::text AS price, enabled, created_at, updated_at
+	`, patch.Name, patch.Price, patch.Enabled, id).Scan(&rows).Error
 	if err != nil {
-		return shared.WrapError(err, "product")
+		return nil, shared.WrapError(err, "product")
 	}
-	if len(updated) == 0 {
-		return shared.WrapError(gorm.ErrRecordNotFound, "product")
+	if len(rows) == 0 {
+		return nil, shared.WrapError(gorm.ErrRecordNotFound, "product")
 	}
-	p.UpdatedAt = updated[0]
-	return nil
+	p := rows[0].toDomain()
+	return &p, nil
 }
 
 func (r *Repository) Delete(ctx context.Context, id string) error {

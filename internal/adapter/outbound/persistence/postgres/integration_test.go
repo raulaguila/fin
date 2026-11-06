@@ -46,7 +46,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	var err error
-	if testDB, err = postgres.Connect(&postgres.Config{Url: url, MaxConns: 20}); err != nil {
+	if testDB, err = postgres.Connect(&postgres.Config{URL: url, MaxConns: 20}); err != nil {
 		fmt.Println("connect:", err)
 		os.Exit(1)
 	}
@@ -99,6 +99,7 @@ func newEnv(t *testing.T) *env {
 	c := &clock{now: time.Now()}
 	issuer := &tokens.Issuer{AccessKey: keyPair, RefreshKey: keyPair, AccessExpire: time.Minute, RefreshExpire: time.Hour}
 	svc := auth.New(store, store, issuer, c, auth.Config{
+		SessionMaxLifetime:           30 * 24 * time.Hour,
 		RegistrationTokenTTL:         24 * time.Hour,
 		PasswordResetTokenTTL:        2 * time.Hour,
 		MaxFailedLoginAttempts:       3,

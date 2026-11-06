@@ -1,0 +1,109 @@
+package role_test
+
+import (
+	"context"
+	"io"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/gofiber/fiber/v3"
+
+	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
+	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/role"
+	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/authenticity/internal/core/port/input"
+	"github.com/raulaguila/authenticity/pkg/apperror"
+)
+
+// stubAuthz denies everything and records what the route asked for.
+type stubAuthz struct{ resource, action *string }
+
+func (s stubAuthz) Authorize(_ context.Context, _, resource string, need domain.Action) error {
+	*s.resource, *s.action = resource, strings.Join(domain.ActionNames(need), ",")
+	return apperror.New(apperror.CodeForbidden, "forbidden")
+}
+
+func (s stubAuthz) LoadEffective(context.Context, string) (*domain.EffectivePermissions, error) {
+	return nil, nil
+}
+
+func newApp(svc input.RoleService, authz input.Authorizer) *fiber.App {
+	app := fiber.New()
+	group := app.Group("/roles", func(c fiber.Ctx) error {
+		c.Locals(middleware.LocalUserID, "u1")
+		return c.Next()
+	})
+	role.NewHandler(svc).Routes(group, authz)
+	return app
+}
+
+func TestEveryRouteNeedsItsPermission(t *testing.T) {
+	for _, tc := range []struct{ method, path, action string }{
+		{"GET", "/roles", "read"},
+		{"POST", "/roles", "create"},
+		{"DELETE", "/roles/r1", "delete"},
+		{"PUT", "/roles/r1/permissions/products", "update"},
+		{"GET", "/roles/r1/members", "read"},
+		{"PUT", "/roles/r1/members/u2", "update"},
+		{"DELETE", "/roles/r1/members/u2", "update"},
+	} {
+		var resource, action string
+		app := newApp(nil, stubAuthz{&resource, &action}) // a nil service proves nothing runs past the check
+
+		resp, err := app.Test(httptest.NewRequest(tc.method, tc.path, nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != fiber.StatusForbidden {
+			t.Errorf("%s %s: %d", tc.method, tc.path, resp.StatusCode)
+		}
+		if resource != domain.ResourceRoles || action != tc.action {
+			t.Errorf("%s %s asked for %s:%s", tc.method, tc.path, resource, action)
+		}
+	}
+}
+
+type allowAll struct{}
+
+func (allowAll) Authorize(context.Context, string, string, domain.Action) error { return nil }
+
+func (allowAll) LoadEffective(context.Context, string) (*domain.EffectivePermissions, error) {
+	return nil, nil
+}
+
+type stubRoles struct {
+	input.RoleService
+	got domain.Action
+}
+
+func (s *stubRoles) SetPermission(_ context.Context, _, _ string, actions domain.Action) (*domain.Role, error) {
+	s.got = actions
+	return &domain.Role{Permissions: map[string]domain.Action{"products": actions}}, nil
+}
+
+func TestSetPermissionReadsTheActions(t *testing.T) {
+	for _, tc := range []struct {
+		body   string
+		status int
+		want   domain.Action
+	}{
+		{`{"actions":["read","update"]}`, fiber.StatusOK, domain.ActionRead | domain.ActionUpdate},
+		{`{"actions":[]}`, fiber.StatusOK, 0},
+		{`{"actions":["fly"]}`, fiber.StatusBadRequest, 0},
+		{`{}`, fiber.StatusBadRequest, 0},
+	} {
+		svc := &stubRoles{}
+		req := httptest.NewRequest("PUT", "/roles/r1/permissions/products", strings.NewReader(tc.body))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := newApp(svc, allowAll{}).Test(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != tc.status || svc.got != tc.want {
+			t.Errorf("%s: %d %s, actions %d", tc.body, resp.StatusCode, body, svc.got)
+		}
+	}
+}

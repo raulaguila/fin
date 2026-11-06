@@ -8,11 +8,11 @@ import (
 )
 
 type Handler struct {
-	uc input.HealthChecker
+	svc input.HealthChecker
 }
 
-func NewHandler(uc input.HealthChecker) *Handler {
-	return &Handler{uc: uc}
+func NewHandler(svc input.HealthChecker) *Handler {
+	return &Handler{svc: svc}
 }
 
 // Routes mounts the versioned health route; /health stays outside, before the limiter.
@@ -31,11 +31,11 @@ type responseDTO struct {
 // @Tags Health
 // @Produce json
 // @Success 200 {object} responseDTO
-// @Failure 503 {object} mapper.errorBody
+// @Failure 503 {object} responseDTO
 // @Router /health [get]
 // @Router /v1/health [get]
 func (h *Handler) Get(c fiber.Ctx) error {
-	report, err := h.uc.Check(c.Context())
+	report, err := h.svc.Check(c.Context())
 	if err != nil {
 		return mapper.WriteError(c, err)
 	}

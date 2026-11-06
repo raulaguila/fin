@@ -109,3 +109,20 @@ func TestRequestLogKeepsCauseFromClientAndLog(t *testing.T) {
 		t.Fatalf("2xx logged with all=false: %s", out.String())
 	}
 }
+
+func TestRequestLogReportsDegradedAnswers(t *testing.T) {
+	var out bytes.Buffer
+	log := logger.New(logger.Config{Format: "json", Level: "info", Out: &out})
+	app := fiber.New()
+	app.Use(middleware.RequestLog(log, false))
+	app.Get("/", func(c fiber.Ctx) error {
+		c.Locals(mapper.LocalCause, errors.New("profile lost"))
+		return c.SendStatus(fiber.StatusOK)
+	})
+	if _, err := app.Test(httptest.NewRequest("GET", "/", nil)); err != nil {
+		t.Fatal(err)
+	}
+	if line := out.String(); !strings.Contains(line, "Request degraded") || !strings.Contains(line, "profile lost") {
+		t.Fatalf("log: %s", line)
+	}
+}

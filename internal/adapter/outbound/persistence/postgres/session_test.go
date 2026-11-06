@@ -155,3 +155,31 @@ func TestSessionsStayWithTheirOwner(t *testing.T) {
 		t.Fatalf("after others: %+v %v", sessions, err)
 	}
 }
+
+func TestRefreshCannotOutliveTheMaxLifetime(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	pair, err := e.login(e.activeUser(t), strongPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 50 minutes between refreshes stays inside the one hour refresh TTL.
+	refresh := func() error {
+		e.clock.now = e.clock.now.Add(50 * time.Minute)
+		next, err := e.svc.Refresh(ctx, input.RefreshCommand{RefreshToken: pair.RefreshToken})
+		if err == nil {
+			pair = next
+		}
+		return err
+	}
+	for range 2 {
+		if err := refresh(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.svc.Cfg.SessionMaxLifetime = 2 * time.Hour
+	if err := refresh(); err != nil { // 2h30 would pass the limit: this one is cut to it
+		t.Fatal(err)
+	}
+	wantCode(t, refresh(), apperror.CodeTokenExpired)
+}

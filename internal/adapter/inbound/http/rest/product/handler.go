@@ -24,13 +24,13 @@ func NewHandler(svc input.ProductService) *Handler {
 
 // Routes expects a router already behind Bearer.
 func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
-	read := middleware.Require(authz, "products", domain.ActionRead)
+	read := middleware.Require(authz, domain.ResourceProducts, domain.ActionRead)
 	r.Get("/", read, h.List)
 	r.Get("/list", read, h.Options) // before /:id, which would swallow it
 	r.Get("/:id", read, h.Get)
-	r.Post("/", middleware.Require(authz, "products", domain.ActionCreate), h.Create)
-	r.Patch("/:id", middleware.Require(authz, "products", domain.ActionUpdate), h.Update)
-	r.Delete("/:id", middleware.Require(authz, "products", domain.ActionDelete), h.Delete)
+	r.Post("/", middleware.Require(authz, domain.ResourceProducts, domain.ActionCreate), h.Create)
+	r.Patch("/:id", middleware.Require(authz, domain.ResourceProducts, domain.ActionUpdate), h.Update)
+	r.Delete("/:id", middleware.Require(authz, domain.ResourceProducts, domain.ActionDelete), h.Delete)
 }
 
 type productDTO struct {

@@ -11,13 +11,13 @@ import (
 
 // Config holds database configuration
 type Config struct {
-	Url      string
+	URL      string
 	MaxConns int
 }
 
 // Connect establishes a connection to the PostgreSQL database
 func Connect(cfg *Config) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(cfg.Url), &gorm.Config{
+	db, err := gorm.Open(postgres.Open(cfg.URL), &gorm.Config{
 		Logger:      logger.Default.LogMode(logger.Silent),
 		NowFunc:     time.Now,
 		PrepareStmt: true,

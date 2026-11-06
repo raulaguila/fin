@@ -16,11 +16,6 @@ const (
 	CodeUnauthorized       Code = "UNAUTHORIZED"
 	CodeForbidden          Code = "FORBIDDEN"
 	CodeInvalidCredentials Code = "INVALID_CREDENTIALS"
-	CodeDisabledUser       Code = "DISABLED_USER"
-	CodeAccountPending     Code = "ACCOUNT_PENDING"
-	CodeAccountExpired     Code = "ACCOUNT_EXPIRED"
-	CodeAccountSuspended   Code = "ACCOUNT_SUSPENDED"
-	CodeAccountDisabled    Code = "ACCOUNT_DISABLED"
 	CodeTokenExpired       Code = "TOKEN_EXPIRED"
 
 	// Resource errors
@@ -35,10 +30,9 @@ const (
 	CodeTooManyRequests  Code = "TOO_MANY_REQUESTS"
 
 	// System errors
-	CodeInternal        Code = "INTERNAL_ERROR"
-	CodeDatabaseError   Code = "DATABASE_ERROR"
-	CodeExternalService Code = "EXTERNAL_SERVICE_ERROR"
-	CodeTimedOut        Code = "TIMED_OUT_ERROR"
+	CodeInternal      Code = "INTERNAL_ERROR"
+	CodeDatabaseError Code = "DATABASE_ERROR"
+	CodeTimedOut      Code = "TIMED_OUT_ERROR"
 )
 
 // Error represents an application error with rich context

@@ -40,7 +40,7 @@ func handlerError(err error) error {
 	return err
 }
 
-// wrapRepoError translates infrastructure-level errors (gorm, pgerror) into
+// WrapError translates infrastructure-level errors (gorm, pgerror) into
 // domain-level apperror types. If the error is not a recognized infrastructure
 // error, it is wrapped as an internal database error.
 func WrapError(err error, resource string) error {

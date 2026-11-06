@@ -135,3 +135,18 @@ func TestNotificationsStayWithTheirOwner(t *testing.T) {
 		t.Fatalf("stranger unread %d, %v", unread, err)
 	}
 }
+
+func TestNewClientNoticeSurvivesSessionCleanup(t *testing.T) {
+	e := newEnv(t)
+	addr := e.activeUser(t)
+	id := e.userID(t, addr)
+
+	e.loginAt(t, addr, "203.0.113.1")
+	if err := testDB.Exec("DELETE FROM usr.usr_session WHERE user_id = ?", id).Error; err != nil {
+		t.Fatal(err)
+	}
+	e.loginAt(t, addr, "198.51.100.7")
+	if got := e.titles(t, id); len(got) != 1 || got[0] != "New login" {
+		t.Fatalf("no sessions left on the account: %v", got)
+	}
+}

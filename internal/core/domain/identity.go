@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-// UserStatus codes match usr.usr_user_status.
+// UserStatus codes match chk_usr_user_status.
 const (
 	UserStatusPending  = "pending"
 	UserStatusActive   = "active"
@@ -10,6 +10,24 @@ const (
 	UserStatusLocked   = "locked"
 	UserStatusDisabled = "disabled"
 )
+
+// Role groups permissions for its members.
+type Role struct {
+	ID          string
+	Name        string
+	Enabled     bool
+	IsDefault   bool
+	IsSuperuser bool
+	Permissions map[string]Action
+	CreatedAt   time.Time
+}
+
+// Protected reports whether the role is out of reach of the HTTP API: it holds
+// full access, so only the operator commands of cmd/admin touch its members.
+func (r Role) Protected() bool {
+	_, all := r.Permissions[ResourceAll]
+	return r.IsSuperuser || all
+}
 
 // User is the identity aggregate root (no transport tags).
 type User struct {
@@ -48,24 +66,13 @@ type Session struct {
 	LastSeenAt               time.Time
 }
 
-// Role is an RBAC role.
-type Role struct {
-	ID          string
-	Name        string
-	Enabled     bool
-	IsDefault   bool
-	IsSuperuser bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
 // Principal is who an authenticated request acts as.
 type Principal struct {
 	UserID    string
 	SessionID string
 }
 
-// EffectivePermissions is the authz snapshot for a user (live load / cache).
+// EffectivePermissions is the authz snapshot of a user, loaded live on each check.
 type EffectivePermissions struct {
 	UserID      string
 	IsSuperuser bool

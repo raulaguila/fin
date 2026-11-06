@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/core/port/output"
 	"github.com/raulaguila/authenticity/pkg/aescrypt"
 	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/authenticity/pkg/logger"
 	"github.com/raulaguila/authenticity/pkg/tokenhash"
 )
 
@@ -18,6 +20,7 @@ const maxEmailBytes = 254 // RFC 5321
 
 // Config holds auth policy from environment (no config package import).
 type Config struct {
+	SessionMaxLifetime           time.Duration // a session ends this long after login, however often it refreshes
 	RegistrationTokenTTL         time.Duration
 	PasswordResetTokenTTL        time.Duration
 	MaxFailedLoginAttempts       int
@@ -40,6 +43,7 @@ type Service struct {
 	Tokens output.TokenIssuer
 	Clock  output.Clock
 	Cfg    Config
+	Log    *logger.Logger // optional: a nil logger drops the message
 }
 
 var _ input.AuthService = (*Service)(nil)
@@ -51,10 +55,14 @@ func New(
 	clock output.Clock,
 	cfg Config,
 ) *Service {
-	if clock == nil {
-		clock = output.RealClock{}
-	}
 	return &Service{Tx: tx, UOW: uow, Tokens: tokens, Clock: clock, Cfg: cfg}
+}
+
+// warn reports a side step that failed without failing the request.
+func (s *Service) warn(msg string, err error) {
+	if err != nil {
+		s.Log.Warn(msg, slog.String("error", err.Error()))
+	}
 }
 
 // emailThrottled limits emails per account: the per-IP limit does not stop many

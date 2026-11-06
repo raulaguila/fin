@@ -360,7 +360,16 @@ migrate-version: ## Show current migration version
 # =========================
 # 5. Docker Compose
 # =========================
-.PHONY: admin-bootstrap admin-promote admin-disable compose-up compose-build compose-services compose-down compose-clean compose-remove compose-exec compose-log compose-top compose-stats
+.PHONY: db-app-role admin-bootstrap admin-promote admin-disable compose-up compose-build compose-services compose-down compose-clean compose-remove compose-exec compose-log compose-top compose-stats
+
+db-app-role: ## Give the application role its login, with the password in config/.env
+	$(call require_env_file)
+	@set -a && . ./config/.env && set +a; \
+	test -n "$${POSTGRES_APP_PASS}" || { echo "$(RED)POSTGRES_APP_PASS missing in config/.env.$(RESET)"; exit 1; }; \
+	printf "ALTER ROLE authenticity_app LOGIN PASSWORD '%s';\n" "$${POSTGRES_APP_PASS}" | \
+	docker exec -i authenticity_postgres psql -q -v ON_ERROR_STOP=1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_BASE}" -p "$${POSTGRES_PORT}"
+	@echo "$(GREEN)✅ Application role ready.$(RESET)"
+	@echo
 
 admin-bootstrap: ## Create the first admin, asking name, email and password
 	@$(COMPOSE_COMMAND) exec backend ./admin bootstrap

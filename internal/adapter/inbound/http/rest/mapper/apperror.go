@@ -8,8 +8,8 @@ import (
 	"github.com/raulaguila/authenticity/pkg/apperror"
 )
 
-// LocalCause holds the error behind a 5xx answer, for the request log. Clients
-// never see it.
+// LocalCause holds the error behind a 5xx or degraded answer, for the request
+// log. Clients never see it.
 const LocalCause = "http.error_cause"
 
 type errorBody struct {
@@ -38,13 +38,28 @@ func WriteError(c fiber.Ctx, err error) error {
 	})
 }
 
+// ErrorHandler gives errors raised by Fiber itself, such as an unknown route or
+// an oversized body, the same JSON shape as every other error.
+func ErrorHandler(c fiber.Ctx, err error) error {
+	var fiberErr *fiber.Error
+	if !errors.As(err, &fiberErr) {
+		return WriteError(c, err)
+	}
+	code := apperror.CodeInvalidInput
+	switch {
+	case fiberErr.Code == fiber.StatusNotFound:
+		code = apperror.CodeNotFound
+	case fiberErr.Code >= fiber.StatusInternalServerError:
+		code = apperror.CodeInternal
+	}
+	return c.Status(fiberErr.Code).JSON(errorBody{Code: string(code), Message: fiberErr.Message})
+}
+
 func statusFor(code apperror.Code) int {
 	switch code {
 	case apperror.CodeUnauthorized, apperror.CodeInvalidCredentials, apperror.CodeTokenExpired:
 		return fiber.StatusUnauthorized
-	case apperror.CodeForbidden, apperror.CodeDisabledUser,
-		apperror.CodeAccountPending, apperror.CodeAccountExpired,
-		apperror.CodeAccountSuspended, apperror.CodeAccountDisabled:
+	case apperror.CodeForbidden:
 		return fiber.StatusForbidden
 	case apperror.CodeNotFound:
 		return fiber.StatusNotFound

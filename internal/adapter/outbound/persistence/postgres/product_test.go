@@ -82,3 +82,26 @@ func TestProductUpdateReturnsNewTimestamp(t *testing.T) {
 		t.Fatalf("updated_at stale: %v vs %v", updated.UpdatedAt, p.CreatedAt)
 	}
 }
+
+func TestProductUpdateKeepsFieldsItDoesNotCarry(t *testing.T) {
+	ctx := context.Background()
+	svc := product.New(productrepo.NewRepository(testDB))
+	p, err := svc.Create(ctx, input.CreateProductCommand{Name: "Patch", Price: "5"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	name, price := "Patched", "7.5"
+	if _, err := svc.Update(ctx, input.UpdateProductCommand{ID: p.ID, Name: &name}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.Update(ctx, input.UpdateProductCommand{ID: p.ID, Price: &price})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "Patched" || got.Price != "7.50" || !got.Enabled {
+		t.Fatalf("%+v", got)
+	}
+	missing := "11111111-1111-4111-8111-111111111111"
+	_, err = svc.Update(ctx, input.UpdateProductCommand{ID: missing, Name: &name})
+	wantCode(t, err, apperror.CodeNotFound)
+}

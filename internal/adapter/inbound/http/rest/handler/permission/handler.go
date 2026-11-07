@@ -19,7 +19,7 @@ func New(svc input.ResourceCatalog) *Handler {
 
 // Routes expects a router already behind Bearer.
 func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
-	r.Get("/resources", middleware.Require(authz, domain.ResourcePermissions, domain.ActionRead), h.ListResources)
+	r.Get("/resources", middleware.Require(authz, domain.ResourceRoles, domain.ActionRead), h.ListResources)
 }
 
 type resourceDTO struct {

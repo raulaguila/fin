@@ -4,12 +4,13 @@ import "time"
 
 // ProductFilter selects one page of products.
 type ProductFilter struct {
-	Page   Page
-	Cursor bool // created_at DESC, id DESC; omits the expensive total count
-	After  *ProductCursor
-	Search string
-	Sort   string
-	Order  string
+	Page    Page
+	Cursor  bool // created_at DESC, id DESC; omits the expensive total count
+	After   *ProductCursor
+	Search  string
+	Enabled *bool // nil lists both
+	Sort    string
+	Order   string
 }
 
 // Product is the example app domain entity (app.product).

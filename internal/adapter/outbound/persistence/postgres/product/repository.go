@@ -54,6 +54,9 @@ func (r *Repository) List(ctx context.Context, filter domain.ProductFilter) ([]d
 		if filter.Search != "" {
 			q = q.Where("name ILIKE ?", shared.Contains(filter.Search))
 		}
+		if filter.Enabled != nil {
+			q = q.Where("enabled = ?", *filter.Enabled)
+		}
 		return q
 	}
 	total := int64(-1) // cursor pages deliberately do not calculate a total
@@ -155,6 +158,21 @@ func (r *Repository) Update(ctx context.Context, id string, patch domain.Product
 	}
 	p := rows[0].toDomain()
 	return &p, nil
+}
+
+// DeleteMany is one statement: the count check and the delete see the same snapshot.
+func (r *Repository) DeleteMany(ctx context.Context, ids []string) error {
+	res := r.db.WithContext(ctx).Exec(`
+		DELETE FROM app.product WHERE id IN ?
+		AND (SELECT count(*) FROM app.product WHERE id IN ?) = ?
+	`, ids, ids, len(ids))
+	if res.Error != nil {
+		return shared.WrapError(res.Error, "product")
+	}
+	if res.RowsAffected == 0 {
+		return shared.WrapError(gorm.ErrRecordNotFound, "product")
+	}
+	return nil
 }
 
 func (r *Repository) Delete(ctx context.Context, id string) error {

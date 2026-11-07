@@ -1,6 +1,6 @@
 # Authenticity
 
-Identity service in Go: registration, login, sessions, role-based permissions and account data, with a products CRUD as an example of a protected resource. `cmd/backend` serves HTTP, `cmd/mailer` sends email from the outbox, and `cmd/admin` is the operator CLI. See [ARCHITECTURE.md](ARCHITECTURE.md) for how it fits together, [PRODUCT.md](PRODUCT.md) for its constraints and [TEMPLATE.md](TEMPLATE.md) to start a new project from it or add a module.
+Identity service in Go: registration, login, sessions, role-based permissions and account data, with a products CRUD as an example of a protected resource. `cmd/backend` serves HTTP, `cmd/mailer` sends email from the outbox, `cmd/admin` is the operator CLI and `web/` is the Next.js frontend. See [ARCHITECTURE.md](ARCHITECTURE.md) for how it fits together, [PRODUCT.md](PRODUCT.md) for its constraints and [TEMPLATE.md](TEMPLATE.md) to start a new project from it or add a module.
 
 ## Run with Docker
 
@@ -12,6 +12,8 @@ make admin-bootstrap # asks name, email and password of the first admin
 ```
 
 The API answers on `API_PORT` (9978 in the generated file). Swagger UI is at `/swagger/index.html` outside protected environments.
+
+The network has a fixed range (`DOCKER_SUBNET`, default `172.30.99.0/24`) and the backend trusts `X-Real-IP` only from `WEB_IP` (default `172.30.99.10`), the address of the web container. Moving an existing stack to the fixed range needs `make compose-down` first, since Docker cannot change the range of a live network.
 
 `make migrate-down` reverses one migration.
 
@@ -36,6 +38,10 @@ Other targets: `make help`. After changing a handler annotation run `make swagge
 ## Configuration
 
 `config/env.sh` writes every option to `config/.env`, each with a comment. Any `SYS_ENVIRONMENT` other than development, dev, local or test gets the production rules, enforced at boot.
+
+## Web frontend
+
+`web/` is a separate Next.js app with its own config, Docker files and Makefile. See [web/README.md](web/README.md).
 
 ## Diagnostics and pagination
 

@@ -17,4 +17,6 @@ type ProductRepository interface {
 	// Update writes only the fields set in patch, so two edits of different fields both land.
 	Update(ctx context.Context, id string, patch domain.ProductPatch) (*domain.Product, error)
 	Delete(ctx context.Context, id string) error
+	// DeleteMany deletes every listed product or, when one is missing, none.
+	DeleteMany(ctx context.Context, ids []string) error
 }

@@ -52,3 +52,17 @@ func Disable(ctx context.Context, uow output.UnitOfWork, id string, now time.Tim
 	}
 	return uow.Sessions().RevokeAllForUser(ctx, id, now, domain.RevokeAccountDisabled)
 }
+
+// AssignDefaultRoles gives a new account every enabled default role.
+func AssignDefaultRoles(ctx context.Context, uow output.IdentityStore, userID string) error {
+	ids, err := uow.Roles().DefaultRoleIDs(ctx)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if err := uow.Roles().Assign(ctx, userID, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}

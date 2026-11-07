@@ -8,6 +8,7 @@ type Profile struct {
 	IsSuperuser bool
 	Permissions map[string]Action
 	Preferences Preferences
+	Roles       []string // names of the enabled roles
 }
 
 // Theme values match usr.usr_preference.

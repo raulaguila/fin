@@ -76,7 +76,7 @@ func TestListHidesProtectedRoles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	roles, err := svc.List(ctx)
+	roles, _, err := svc.List(ctx, domain.RoleFilter{Page: domain.NewPage(1, 100)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestRolePermissionsApplyAtOnce(t *testing.T) {
 	}
 	wantCode(t, authz.Authorize(ctx, userID, domain.ResourceProducts, domain.ActionDelete), apperror.CodeForbidden)
 
-	members, total, err := svc.Members(ctx, created.ID, domain.NewPage(1, 20))
+	members, total, err := svc.Members(ctx, created.ID, domain.UserFilter{Page: domain.NewPage(1, 20)})
 	if err != nil || total != 1 || len(members) != 1 || members[0].ID != userID {
 		t.Fatalf("members %+v %d %v", members, total, err)
 	}

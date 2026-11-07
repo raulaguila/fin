@@ -14,4 +14,7 @@ type UserService interface {
 	// Disable blocks a user and ends their sessions. actorID is who asks.
 	Disable(ctx context.Context, actorID, id string) error
 	Enable(ctx context.Context, id string) error
+	// DisableMany and EnableMany change every listed user or none.
+	DisableMany(ctx context.Context, actorID string, ids []string) error
+	EnableMany(ctx context.Context, ids []string) error
 }

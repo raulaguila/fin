@@ -1,0 +1,305 @@
+"use client";
+
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTheme } from "next-themes";
+import { Loader2, Monitor } from "lucide-react";
+import { toast } from "sonner";
+import { FormError, PageBody, PageHeader, initials, useFormatDate } from "@/components/bits";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { PasswordInput } from "@/components/password-input";
+import { QueryErrorState } from "@/components/query-error-state";
+import { ListSkeleton } from "@/components/skeletons";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { account } from "@/lib/api/endpoints";
+import type { Language, Theme } from "@/lib/api/types";
+import { ME_KEY, useMe } from "@/lib/context/me";
+import { errorMessage } from "@/lib/errors";
+import { LOCALES } from "@/lib/i18n/messages";
+import type { MessageKey } from "@/lib/i18n/messages";
+import { useI18n } from "@/lib/i18n/provider";
+import { passwordScore } from "@/lib/password";
+import { cn } from "@/lib/utils";
+
+function ProfileHeader() {
+  const { t, locale } = useI18n();
+  const { user } = useMe();
+  if (!user) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-4">
+      <Avatar className="size-14"><AvatarFallback className="text-lg">{initials(user.name)}</AvatarFallback></Avatar>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-lg font-semibold">{user.name}</div>
+        <div className="truncate text-sm text-muted-foreground">{user.email}</div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+          {user.roles.map((r) => <Badge key={r} variant="secondary">{r}</Badge>)}
+          <span>{t("profile.member_since")} {new Date(user.created_at).toLocaleDateString(locale, { dateStyle: "medium" })}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const STRENGTH: MessageKey[] = ["password.weak", "password.weak", "password.fair", "password.good", "password.strong"];
+const STRENGTH_CLS = ["bg-red-500", "bg-red-500", "bg-amber-500", "bg-lime-500", "bg-emerald-500"];
+
+function StrengthMeter({ password }: { password: string }) {
+  const { t } = useI18n();
+  if (!password) return null;
+  const score = passwordScore(password);
+  return (
+    <div className="flex items-center gap-2" aria-live="polite">
+      <div className="flex flex-1 gap-1" aria-hidden>
+        {[1, 2, 3, 4].map((i) => <div key={i} className={cn("h-1 flex-1 rounded-full bg-muted", i <= Math.max(score, 1) && STRENGTH_CLS[score])} />)}
+      </div>
+      <span className="w-16 text-right text-xs text-muted-foreground">
+        <span className="sr-only">{t("password.strength")}: </span>{t(STRENGTH[score])}
+      </span>
+    </div>
+  );
+}
+
+function NameCard() {
+  const { t } = useI18n();
+  const { user } = useMe();
+  const client = useQueryClient();
+  const [name, setName] = useState(user?.name ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const save = useMutation({
+    mutationFn: () => account.rename(name),
+    onSuccess: (data) => {
+      client.setQueryData(ME_KEY, data);
+      setError(null);
+      toast.success(t("profile.name_saved"));
+    },
+    onError: (err) => setError(errorMessage(err, "profile.save_failed", t)),
+  });
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("profile.account")}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form className="max-w-md space-y-4" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
+          <FormError message={error} />
+          <div className="space-y-2">
+            <Label htmlFor="name">{t("auth.name")}</Label>
+            <Input id="name" required minLength={2} maxLength={80} value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <Button type="submit" disabled={save.isPending || name.trim() === user?.name}>
+            {save.isPending && <Loader2 className="size-4 animate-spin" />}
+            {t("common.save")}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PasswordCard() {
+  const { t } = useI18n();
+  const client = useQueryClient();
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const change = useMutation({
+    mutationFn: () => account.changePassword(current, next),
+    onSuccess: () => {
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      setError(null);
+      void client.invalidateQueries({ queryKey: SESSIONS_KEY });
+      toast.success(t("profile.password_changed"));
+    },
+    onError: (err) => setError(errorMessage(err, "profile.save_failed", t)),
+  });
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (next !== confirm) return setError(t("auth.password_mismatch"));
+    change.mutate();
+  };
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("profile.password")}</CardTitle>
+        <CardDescription>{t("profile.password_hint")}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="max-w-md space-y-4" onSubmit={submit}>
+          <FormError message={error} />
+          <div className="space-y-2">
+            <Label htmlFor="current">{t("profile.current_password")}</Label>
+            <PasswordInput id="current" autoComplete="current-password" required value={current} onChange={(e) => setCurrent(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="new">{t("auth.new_password")}</Label>
+            <PasswordInput id="new" autoComplete="new-password" required minLength={8} maxLength={128} value={next} onChange={(e) => setNext(e.target.value)} />
+            <StrengthMeter password={next} />
+            <p className="text-xs text-muted-foreground">{t("auth.password_rule")}</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirm">{t("auth.confirm_password")}</Label>
+            <PasswordInput id="confirm" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+          </div>
+          <Button type="submit" disabled={change.isPending || !current || !next || !confirm}>
+            {change.isPending && <Loader2 className="size-4 animate-spin" />}
+            {t("profile.change_password")}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PreferencesCard() {
+  const { t, setLocale } = useI18n();
+  const { setTheme } = useTheme();
+  const { user, savePreferences } = useMe();
+  const save = (p: Parameters<typeof savePreferences>[0]) =>
+    void savePreferences(p).then((ok) => (ok ? toast.success(t("common.saved")) : toast.error(t("profile.save_failed"))));
+  const themes: Record<Theme, string> = { system: t("profile.theme_system"), light: t("profile.theme_light"), dark: t("profile.theme_dark") };
+  const languages = Object.fromEntries(LOCALES.map((l) => [l.value, l.label])) as Record<Language, string>;
+  if (!user) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("profile.preferences")}</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label>{t("common.theme")}</Label>
+          <Select
+            value={user.preferences.theme}
+            items={themes}
+            onValueChange={(v) => {
+              setTheme(v as Theme);
+              save({ theme: v as Theme });
+            }}
+          >
+            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {Object.entries(themes).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>{t("common.language")}</Label>
+          <Select
+            value={user.preferences.language}
+            items={languages}
+            onValueChange={(v) => {
+              setLocale(v as Language);
+              save({ language: v as Language });
+            }}
+          >
+            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {LOCALES.map((l) => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+const SESSIONS_KEY = ["sessions"] as const;
+
+function SessionsCard() {
+  const { t } = useI18n();
+  const format = useFormatDate();
+  const client = useQueryClient();
+  const sessions = useQuery({ queryKey: SESSIONS_KEY, queryFn: account.sessions });
+  const [confirmOthers, setConfirmOthers] = useState(false);
+  const refresh = () => client.invalidateQueries({ queryKey: SESSIONS_KEY });
+  const revoke = useMutation({
+    mutationFn: account.revokeSession,
+    onSuccess: () => void refresh(),
+    onError: (err) => toast.error(errorMessage(err, "profile.save_failed", t)),
+  });
+  const others = sessions.data?.items.filter((s) => !s.current).length ?? 0;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
+        <div>
+          <CardTitle>{t("profile.sessions")}</CardTitle>
+          <CardDescription className="mt-1.5">{t("profile.sessions_hint")}</CardDescription>
+        </div>
+        {others > 0 && <Button variant="outline" size="sm" onClick={() => setConfirmOthers(true)}>{t("profile.revoke_others")}</Button>}
+      </CardHeader>
+      <CardContent>
+        {sessions.isPending ? (
+          <ListSkeleton rows={2} />
+        ) : sessions.isError ? (
+          <QueryErrorState onRetry={() => void sessions.refetch()} />
+        ) : (
+          <ul className="divide-y rounded-lg border">
+            {sessions.data.items.map((s) => (
+              <li key={s.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                <Monitor className="size-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium" title={s.user_agent ?? undefined}>{s.user_agent || t("profile.unknown_device")}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {s.ip_address ?? "-"} · {t("profile.last_seen")} {format(s.last_seen_at)}
+                  </div>
+                </div>
+                {s.current ? (
+                  <Badge variant="secondary">{t("profile.this_device")}</Badge>
+                ) : (
+                  <Button variant="ghost" size="sm" disabled={revoke.isPending} onClick={() => revoke.mutate(s.id)}>{t("profile.revoke")}</Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+      <ConfirmDialog
+        open={confirmOthers}
+        onOpenChange={setConfirmOthers}
+        title={t("profile.revoke_others")}
+        description={t("profile.revoke_others_desc")}
+        destructive
+        onConfirm={async () => {
+          await account.revokeOtherSessions();
+          await refresh();
+        }}
+      />
+    </Card>
+  );
+}
+
+export default function ProfilePage() {
+  const { t } = useI18n();
+  const { user } = useMe();
+  return (
+    <>
+      <PageHeader title={t("nav.profile")} description={t("profile.subtitle")} />
+      <PageBody>
+        {user ? (
+          <>
+            <ProfileHeader />
+            <div className="grid items-start gap-6 lg:grid-cols-2">
+              <div className="space-y-6">
+                <NameCard />
+                <PreferencesCard />
+              </div>
+              <PasswordCard />
+            </div>
+            <SessionsCard />
+          </>
+        ) : (
+          <ListSkeleton rows={4} />
+        )}
+      </PageBody>
+    </>
+  );
+}

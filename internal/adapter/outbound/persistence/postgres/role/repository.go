@@ -21,18 +21,16 @@ func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{db: db}
 }
 
-func (r *Repository) FindDefaultRoleID(ctx context.Context) (string, error) {
-	var id string
+// DefaultRoleIDs lists every enabled default role; none is a valid answer.
+func (r *Repository) DefaultRoleIDs(ctx context.Context) ([]string, error) {
+	var ids []string
 	err := r.db.WithContext(ctx).Raw(`
-		SELECT id::text FROM usr.usr_role WHERE is_default = true AND enabled = true LIMIT 1
-	`).Scan(&id).Error
+		SELECT id::text FROM usr.usr_role WHERE is_default AND enabled ORDER BY name
+	`).Scan(&ids).Error
 	if err != nil {
-		return "", shared.WrapError(err, "role")
+		return nil, shared.WrapError(err, "role")
 	}
-	if id == "" {
-		return "", shared.WrapError(gorm.ErrRecordNotFound, "role")
-	}
-	return id, nil
+	return ids, nil
 }
 
 func (r *Repository) FindIDByName(ctx context.Context, name string) (string, error) {
@@ -67,13 +65,16 @@ type roleRow struct {
 	CreatedAt   time.Time      `gorm:"column:created_at"`
 	Resource    *string        `gorm:"column:resource"`
 	Actions     *domain.Action `gorm:"column:actions"`
+	MemberCount int64          `gorm:"column:member_count"`
 }
 
 // load reads the roles of source with their permissions in one round trip.
 func (r *Repository) load(ctx context.Context, source string, args ...any) ([]domain.Role, error) {
 	var rows []roleRow
 	err := r.db.WithContext(ctx).Raw(`
-		SELECT r.id::text AS id, r.name, r.enabled, r.is_default, r.is_superuser, r.created_at, p.resource, p.actions
+		SELECT r.id::text AS id, r.name, r.enabled, r.is_default, r.is_superuser, r.created_at, p.resource, p.actions,
+			(SELECT count(*) FROM usr.usr_user u JOIN usr.usr_user_role m ON m.user_id = u.id
+			 WHERE m.role_id = r.id AND `+shared.Unprotected+`) AS member_count
 		FROM `+source+` r
 		LEFT JOIN usr.usr_role_permission p ON p.role_id = r.id
 		ORDER BY r.name, p.resource
@@ -87,6 +88,7 @@ func (r *Repository) load(ctx context.Context, source string, args ...any) ([]do
 			roles = append(roles, domain.Role{
 				ID: row.ID, Name: row.Name, Enabled: row.Enabled, IsDefault: row.IsDefault,
 				IsSuperuser: row.IsSuperuser, CreatedAt: row.CreatedAt, Permissions: map[string]domain.Action{},
+				MemberCount: row.MemberCount,
 			})
 		}
 		if row.Resource != nil && row.Actions != nil {
@@ -98,6 +100,29 @@ func (r *Repository) load(ctx context.Context, source string, args ...any) ([]do
 
 func (r *Repository) List(ctx context.Context, limit int) ([]domain.Role, error) {
 	return r.load(ctx, `(SELECT * FROM usr.usr_role ORDER BY name LIMIT ?)`, limit)
+}
+
+// unprotectedRole matches roles the API may change (alias r0); mirrors domain.Role.Protected.
+const unprotectedRole = `NOT r0.is_superuser AND NOT EXISTS (
+	SELECT 1 FROM usr.usr_role_permission p0 WHERE p0.role_id = r0.id AND p0.resource = '*')`
+
+// shortcut: OFFSET and leading-wildcard ILIKE, fine for hundreds of roles.
+func (r *Repository) Page(ctx context.Context, filter domain.RoleFilter) ([]domain.Role, int64, error) {
+	where, args := unprotectedRole, []any{}
+	if filter.Search != "" {
+		where += " AND r0.name ILIKE ?"
+		args = append(args, shared.Contains(filter.Search))
+	}
+	var total int64
+	if err := r.db.WithContext(ctx).Raw(`SELECT count(*) FROM usr.usr_role r0 WHERE `+where, args...).Scan(&total).Error; err != nil {
+		return nil, 0, shared.WrapError(err, "role")
+	}
+	args = append(args, filter.Page.Limit, filter.Page.Offset())
+	roles, err := r.load(ctx, `(SELECT r0.* FROM usr.usr_role r0 WHERE `+where+` ORDER BY r0.name LIMIT ? OFFSET ?)`, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	return roles, total, nil
 }
 
 func (r *Repository) ForUser(ctx context.Context, userID string) ([]domain.Role, error) {
@@ -145,9 +170,9 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 func (r *Repository) Update(ctx context.Context, id string, patch domain.RolePatch) error {
 	res := r.db.WithContext(ctx).Exec(`
 		UPDATE usr.usr_role
-		SET name = COALESCE(?, name), enabled = COALESCE(?::boolean, enabled)
+		SET name = COALESCE(?, name), enabled = COALESCE(?::boolean, enabled), is_default = COALESCE(?::boolean, is_default)
 		WHERE id = ?
-	`, patch.Name, patch.Enabled, id)
+	`, patch.Name, patch.Enabled, patch.IsDefault, id)
 	if res.Error != nil {
 		return shared.WrapError(res.Error, "role")
 	}
@@ -177,25 +202,24 @@ func (r *Repository) ClearPermissions(ctx context.Context, roleID string) error 
 	return nil
 }
 
-func (r *Repository) Members(ctx context.Context, roleID string, page domain.Page) ([]domain.User, int64, error) {
+func (r *Repository) Members(ctx context.Context, roleID string, filter domain.UserFilter) ([]domain.User, int64, error) {
+	where, args := `m.role_id = ? AND `+shared.Unprotected, []any{roleID}
+	if filter.Search != "" {
+		pattern := shared.Contains(filter.Search)
+		where += " AND (u.name ILIKE ? OR u.email::text ILIKE ?)"
+		args = append(args, pattern, pattern)
+	}
+	from := ` FROM usr.usr_user u JOIN usr.usr_user_role m ON m.user_id = u.id WHERE ` + where
 	var total int64
-	err := r.db.WithContext(ctx).Raw(`
-		SELECT count(*)
-		FROM usr.usr_user u
-		JOIN usr.usr_user_role m ON m.user_id = u.id
-		WHERE m.role_id = ? AND `+shared.Unprotected, roleID).Scan(&total).Error
-	if err != nil {
+	if err := r.db.WithContext(ctx).Raw(`SELECT count(*)`+from, args...).Scan(&total).Error; err != nil {
 		return nil, 0, shared.WrapError(err, "user_role")
 	}
 	var users []domain.User
-	err = r.db.WithContext(ctx).Raw(`
-		SELECT u.id::text AS id, u.name, u.email::text AS email, u.status, u.created_at, u.updated_at
-		FROM usr.usr_user u
-		JOIN usr.usr_user_role m ON m.user_id = u.id
-		WHERE m.role_id = ? AND `+shared.Unprotected+`
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT u.id::text AS id, u.name, u.email::text AS email, u.status, u.created_at, u.updated_at`+from+`
 		ORDER BY u.name, u.id
 		LIMIT ? OFFSET ?
-	`, roleID, page.Limit, page.Offset()).Scan(&users).Error
+	`, append(args, filter.Page.Limit, filter.Page.Offset())...).Scan(&users).Error
 	if err != nil {
 		return nil, 0, shared.WrapError(err, "user_role")
 	}

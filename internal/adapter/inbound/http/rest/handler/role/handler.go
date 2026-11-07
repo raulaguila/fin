@@ -24,14 +24,22 @@ func New(svc input.RoleService) *Handler {
 func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
 	read := middleware.Require(authz, domain.ResourceRoles, domain.ActionRead)
 	update := middleware.Require(authz, domain.ResourceRoles, domain.ActionUpdate)
+	remove := middleware.Require(authz, domain.ResourceRoles, domain.ActionDelete)
 	r.Get("/", read, h.List)
+	r.Get("/:id", read, h.Get)
 	r.Post("/", middleware.Require(authz, domain.ResourceRoles, domain.ActionCreate), h.Create)
-	r.Delete("/:id", middleware.Require(authz, domain.ResourceRoles, domain.ActionDelete), h.Delete)
+	r.Post("/batch-delete", remove, h.DeleteMany)
+	r.Delete("/:id", remove, h.Delete)
 	r.Patch("/:id", update, h.Update)
 	r.Put("/:id/permissions", update, h.SetPermissions)
 	r.Get("/:id/members", read, h.Members)
 	r.Put("/:id/members/:user_id", update, h.AddMember)
 	r.Delete("/:id/members/:user_id", update, h.RemoveMember)
+}
+
+// UserRoutes mounts the role routes that live under /users, behind Bearer.
+func (h *Handler) UserRoutes(r fiber.Router, authz input.Authorizer) {
+	r.Put("/:id/roles", middleware.Require(authz, domain.ResourceRoles, domain.ActionUpdate), h.SetUserRoles)
 }
 
 type roleDTO struct {
@@ -41,6 +49,7 @@ type roleDTO struct {
 	IsDefault   bool                `json:"is_default"`
 	Permissions map[string][]string `json:"permissions"`
 	CreatedAt   time.Time           `json:"created_at"`
+	MemberCount int64               `json:"member_count"`
 }
 
 type createDTO struct {
@@ -50,10 +59,20 @@ type createDTO struct {
 type updateDTO struct {
 	Name    *string `json:"name" example:"support"`
 	Enabled *bool   `json:"enabled"`
+	// Marks a role every new account gets; several may be default.
+	IsDefault *bool `json:"is_default"`
+}
+
+type idsDTO struct {
+	IDs []string `json:"ids"`
 }
 
 type permissionsDTO struct {
 	Permissions map[string][]string `json:"permissions"`
+}
+
+type userRolesDTO struct {
+	RoleIDs []string `json:"role_ids"`
 }
 
 type memberDTO struct {
@@ -70,21 +89,29 @@ func toDTO(r domain.Role) roleDTO {
 	}
 	return roleDTO{
 		ID: r.ID, Name: r.Name, Enabled: r.Enabled, IsDefault: r.IsDefault,
-		Permissions: permissions, CreatedAt: r.CreatedAt,
+		Permissions: permissions, CreatedAt: r.CreatedAt, MemberCount: r.MemberCount,
 	}
 }
 
 // @Summary List the roles the API can change, with their permissions
 // @Tags Roles
 // @Produce json
+// @Param page query int false "Page" default(1)
+// @Param limit query int false "Items per page, up to 100" default(20)
+// @Param search query string false "Part of the name"
 // @Security BearerAuth
-// @Success 200 {object} object{items=[]roleDTO}
+// @Success 200 {object} object{items=[]roleDTO,pagination=mapper.PaginationDTO}
+// @Failure 400 {object} mapper.errorBody
 // @Failure 401 {object} mapper.errorBody
 // @Failure 403 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
 // @Router /v1/roles [get]
 func (h *Handler) List(c fiber.Ctx) error {
-	roles, err := h.svc.List(c.Context())
+	filter := domain.RoleFilter{
+		Page:   domain.NewPage(fiber.Query[int](c, "page"), fiber.Query[int](c, "limit")),
+		Search: c.Query("search"),
+	}
+	roles, total, err := h.svc.List(c.Context(), filter)
 	if err != nil {
 		return mapper.WriteError(c, err)
 	}
@@ -92,7 +119,52 @@ func (h *Handler) List(c fiber.Ctx) error {
 	for _, r := range roles {
 		out = append(out, toDTO(r))
 	}
-	return c.JSON(fiber.Map{"items": out})
+	return c.JSON(fiber.Map{"items": out, "pagination": mapper.Pagination(filter.Page, total)})
+}
+
+// @Summary Get a role the API can change
+// @Tags Roles
+// @Produce json
+// @Param id path string true "Role ID"
+// @Security BearerAuth
+// @Success 200 {object} roleDTO
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Failure 403 {object} mapper.errorBody
+// @Failure 404 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
+// @Router /v1/roles/{id} [get]
+func (h *Handler) Get(c fiber.Ctx) error {
+	role, err := h.svc.Get(c.Context(), c.Params("id"))
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.JSON(toDTO(*role))
+}
+
+// @Summary Delete several roles at once; all or none
+// @Tags Roles
+// @Accept json
+// @Produce json
+// @Param body body idsDTO true "Role IDs, 1 to 100"
+// @Security BearerAuth
+// @Success 204
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Failure 403 {object} mapper.errorBody
+// @Failure 404 {object} mapper.errorBody
+// @Failure 409 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
+// @Router /v1/roles/batch-delete [post]
+func (h *Handler) DeleteMany(c fiber.Ctx) error {
+	var body idsDTO
+	if err := c.Bind().Body(&body); err != nil {
+		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "invalid body"))
+	}
+	if err := h.svc.DeleteMany(c.Context(), body.IDs); err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // @Summary Create a role
@@ -140,7 +212,7 @@ func (h *Handler) Delete(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// @Summary Update the name or the enabled flag of a role
+// @Summary Update the name, the enabled flag or the default mark of a role
 // @Tags Roles
 // @Produce json
 // @Accept json
@@ -160,7 +232,7 @@ func (h *Handler) Update(c fiber.Ctx) error {
 	if err := c.Bind().Body(&body); err != nil {
 		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "invalid body"))
 	}
-	role, err := h.svc.Update(c.Context(), c.Params("id"), domain.RolePatch{Name: body.Name, Enabled: body.Enabled})
+	role, err := h.svc.Update(c.Context(), c.Params("id"), domain.RolePatch{Name: body.Name, Enabled: body.Enabled, IsDefault: body.IsDefault})
 	if err != nil {
 		return mapper.WriteError(c, err)
 	}
@@ -210,6 +282,7 @@ func (h *Handler) SetPermissions(c fiber.Ctx) error {
 // @Param id path string true "Role ID"
 // @Param page query int false "Page" default(1)
 // @Param limit query int false "Items per page, up to 100" default(20)
+// @Param search query string false "Part of the name or email"
 // @Security BearerAuth
 // @Success 200 {object} object{items=[]memberDTO,pagination=mapper.PaginationDTO}
 // @Failure 400 {object} mapper.errorBody
@@ -220,7 +293,7 @@ func (h *Handler) SetPermissions(c fiber.Ctx) error {
 // @Router /v1/roles/{id}/members [get]
 func (h *Handler) Members(c fiber.Ctx) error {
 	page := domain.NewPage(fiber.Query[int](c, "page"), fiber.Query[int](c, "limit"))
-	users, total, err := h.svc.Members(c.Context(), c.Params("id"), page)
+	users, total, err := h.svc.Members(c.Context(), c.Params("id"), domain.UserFilter{Page: page, Search: c.Query("search")})
 	if err != nil {
 		return mapper.WriteError(c, err)
 	}
@@ -266,6 +339,35 @@ func (h *Handler) AddMember(c fiber.Ctx) error {
 // @Router /v1/roles/{id}/members/{user_id} [delete]
 func (h *Handler) RemoveMember(c fiber.Ctx) error {
 	if err := h.svc.RemoveMember(c.Context(), c.Params("id"), c.Params("user_id")); err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// @Summary Replace every role of a user
+// @Description Roles not listed are removed. Protected roles and users cannot be managed here.
+// @Tags Roles
+// @Accept json
+// @Produce json
+// @Param id path string true "User ID"
+// @Param body body userRolesDTO true "Role IDs"
+// @Security BearerAuth
+// @Success 204
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Failure 403 {object} mapper.errorBody
+// @Failure 404 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
+// @Router /v1/users/{id}/roles [put]
+func (h *Handler) SetUserRoles(c fiber.Ctx) error {
+	var body userRolesDTO
+	if err := c.Bind().Body(&body); err != nil {
+		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "invalid body"))
+	}
+	if body.RoleIDs == nil { // a missing field must not strip every role
+		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "role_ids is required").WithField("role_ids"))
+	}
+	if err := h.svc.SetUserRoles(c.Context(), c.Params("id"), body.RoleIDs); err != nil {
 		return mapper.WriteError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)

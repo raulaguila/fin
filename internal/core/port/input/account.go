@@ -10,6 +10,7 @@ import (
 // method acts on userID only, which callers take from the verified token.
 type AccountService interface {
 	Profile(ctx context.Context, userID string) (*domain.Profile, error)
+	Rename(ctx context.Context, userID, name string) (*domain.Profile, error)
 
 	Sessions(ctx context.Context, userID string) ([]domain.Session, error)
 	RevokeSession(ctx context.Context, userID, sessionID string) error

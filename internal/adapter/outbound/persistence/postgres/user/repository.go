@@ -140,6 +140,14 @@ func (r *Repository) LockStatus(ctx context.Context, id string) (string, error) 
 	return status, nil
 }
 
+func (r *Repository) UpdateName(ctx context.Context, id, name string) error {
+	res := r.db.WithContext(ctx).Exec(`UPDATE usr.usr_user SET name = ? WHERE id = ?`, name, id)
+	if res.Error == nil && res.RowsAffected == 0 {
+		return shared.WrapError(gorm.ErrRecordNotFound, "user")
+	}
+	return shared.WrapError(res.Error, "user")
+}
+
 func (r *Repository) UpdateStatus(ctx context.Context, id, status string) error {
 	err := r.db.WithContext(ctx).Exec(`
 		UPDATE usr.usr_user SET status = ?, updated_at = now() WHERE id = ? AND status <> ?

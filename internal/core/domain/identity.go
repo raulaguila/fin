@@ -19,12 +19,21 @@ type Role struct {
 	IsSuperuser bool
 	Permissions map[string]Action
 	CreatedAt   time.Time
+	MemberCount int64 // members the API may see; filled on reads
 }
 
 // RolePatch holds the role fields to change; nil keeps the current value.
 type RolePatch struct {
 	Name    *string
 	Enabled *bool
+	// IsDefault marks a role every new account gets.
+	IsDefault *bool
+}
+
+// RoleFilter selects one page of the roles the API may change.
+type RoleFilter struct {
+	Page   Page
+	Search string
 }
 
 // Protected reports whether the role is out of reach of the HTTP API: it holds

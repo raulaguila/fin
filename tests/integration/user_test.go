@@ -246,7 +246,7 @@ func TestSentinelGrantProtectsItsMembers(t *testing.T) {
 	if err := e.store.Roles().Assign(ctx, e.userID(t, addr), plain.ID); err != nil {
 		t.Fatal(err)
 	}
-	members, total, err := roles.Members(ctx, plain.ID, domain.NewPage(1, 10))
+	members, total, err := roles.Members(ctx, plain.ID, domain.UserFilter{Page: domain.NewPage(1, 10)})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -50,37 +50,71 @@ func (s *Service) Create(ctx context.Context, name string) (*domain.Role, error)
 	if !nameFormat.MatchString(name) {
 		return nil, errInvalidName()
 	}
-	return s.UOW.Roles().Create(ctx, name)
+	var created *domain.Role
+	err := s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
+		var err error
+		if created, err = uow.Roles().Create(ctx, name); err != nil {
+			return err
+		}
+		return policy.Audit(ctx, uow, "role.create", created.ID, map[string]any{"name": name})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return created, nil
 }
 
 func (s *Service) Delete(ctx context.Context, id string) error {
-	role, err := s.editable(ctx, s.UOW, id)
-	if err != nil {
-		return err
-	}
-	if role.IsDefault {
-		return apperror.New(apperror.CodeConflict, "the default role cannot be deleted") // activation needs it
-	}
-	return s.UOW.Roles().Delete(ctx, id)
+	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
+		role, err := s.editable(ctx, uow, id)
+		if err != nil {
+			return err
+		}
+		if role.IsDefault {
+			return apperror.New(apperror.CodeConflict, "the default role cannot be deleted") // activation needs it
+		}
+		if err := uow.Roles().Delete(ctx, role.ID); err != nil {
+			return err
+		}
+		return policy.Audit(ctx, uow, "role.delete", role.ID, map[string]any{"name": role.Name})
+	})
 }
 
 // Update renames or switches a role on and off. The default role stays
 // enabled: activation looks only for an enabled one.
 func (s *Service) Update(ctx context.Context, id string, patch domain.RolePatch) (*domain.Role, error) {
-	role, err := s.editable(ctx, s.UOW, id)
-	if err != nil {
-		return nil, err
-	}
 	if patch.Name != nil && !nameFormat.MatchString(*patch.Name) {
 		return nil, errInvalidName()
 	}
-	if role.IsDefault && patch.Enabled != nil && !*patch.Enabled {
-		return nil, apperror.New(apperror.CodeConflict, "the default role cannot be disabled")
-	}
-	if err := s.UOW.Roles().Update(ctx, id, patch); err != nil {
+	var updated *domain.Role
+	err := s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
+		role, err := s.editable(ctx, uow, id)
+		if err != nil {
+			return err
+		}
+		if role.IsDefault && patch.Enabled != nil && !*patch.Enabled {
+			return apperror.New(apperror.CodeConflict, "the default role cannot be disabled")
+		}
+		if err := uow.Roles().Update(ctx, role.ID, patch); err != nil {
+			return err
+		}
+		changes := map[string]any{}
+		if patch.Name != nil {
+			changes["name"] = *patch.Name
+		}
+		if patch.Enabled != nil {
+			changes["enabled"] = *patch.Enabled
+		}
+		if err := policy.Audit(ctx, uow, "role.update", role.ID, changes); err != nil {
+			return err
+		}
+		updated, err = uow.Roles().FindByID(ctx, role.ID)
+		return err
+	})
+	if err != nil {
 		return nil, err
 	}
-	return s.UOW.Roles().FindByID(ctx, id)
+	return updated, nil
 }
 
 // SetPermissions replaces every permission of a role in one transaction, so a
@@ -120,6 +154,9 @@ func (s *Service) SetPermissions(ctx context.Context, roleID string, permissions
 				return err
 			}
 		}
+		if err := policy.Audit(ctx, uow, "role.permissions", roleID, map[string]any{"permissions": permissions}); err != nil {
+			return err
+		}
 		updated, err = uow.Roles().FindByID(ctx, roleID)
 		return err
 	})
@@ -137,25 +174,28 @@ func (s *Service) Members(ctx context.Context, roleID string, page domain.Page) 
 }
 
 func (s *Service) AddMember(ctx context.Context, roleID, userID string) error {
-	if _, err := s.editable(ctx, s.UOW, roleID); err != nil {
-		return err
-	}
-	target, err := policy.Reachable(ctx, s.UOW, userID)
-	if err != nil {
-		return err
-	}
-	return s.UOW.Roles().Assign(ctx, target.ID, roleID)
+	return s.changeMember(ctx, roleID, userID, "role.member_add", output.RoleRepository.Assign)
 }
 
 func (s *Service) RemoveMember(ctx context.Context, roleID, userID string) error {
-	if _, err := s.editable(ctx, s.UOW, roleID); err != nil {
-		return err
-	}
-	target, err := policy.Reachable(ctx, s.UOW, userID)
-	if err != nil {
-		return err
-	}
-	return s.UOW.Roles().Unassign(ctx, target.ID, roleID)
+	return s.changeMember(ctx, roleID, userID, "role.member_remove", output.RoleRepository.Unassign)
+}
+
+func (s *Service) changeMember(ctx context.Context, roleID, userID, action string, change func(output.RoleRepository, context.Context, string, string) error) error {
+	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
+		role, err := s.editable(ctx, uow, roleID)
+		if err != nil {
+			return err
+		}
+		target, err := policy.Reachable(ctx, uow, userID)
+		if err != nil {
+			return err
+		}
+		if err := change(uow.Roles(), ctx, target.ID, role.ID); err != nil {
+			return err
+		}
+		return policy.Audit(ctx, uow, action, role.ID, map[string]any{"user_id": target.ID})
+	})
 }
 
 // editable loads a role the API may change. No transaction: nothing here can

@@ -110,8 +110,11 @@ define check_tool
 	fi
 endef
 
-.PHONY: all help check-system install-tools
+.PHONY: all help check-system install-tools rename
 all: help
+
+rename: ## Rename the project: make rename MODULE=github.com/acme/app NAME=app
+	@scripts/rename.sh "$(MODULE)" "$(NAME)"
 
 help: ## Display available commands and their descriptions
 	@echo "$(CYAN)Usage:$(RESET)"

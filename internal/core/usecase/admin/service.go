@@ -78,7 +78,10 @@ func (s *Service) Bootstrap(ctx context.Context, cmd input.BootstrapCommand) (bo
 			return err
 		}
 		created = true
-		return uow.Roles().Assign(ctx, user.ID, adminID)
+		if err := uow.Roles().Assign(ctx, user.ID, adminID); err != nil {
+			return err
+		}
+		return policy.Audit(ctx, uow, "admin.bootstrap", user.ID, nil)
 	})
 	return created && err == nil, err
 }
@@ -97,7 +100,10 @@ func (s *Service) Promote(ctx context.Context, email string) error {
 		if err != nil {
 			return err
 		}
-		return uow.Roles().Assign(ctx, user.ID, roleID)
+		if err := uow.Roles().Assign(ctx, user.ID, roleID); err != nil {
+			return err
+		}
+		return policy.Audit(ctx, uow, "admin.promote", user.ID, nil)
 	})
 }
 
@@ -109,7 +115,10 @@ func (s *Service) Disable(ctx context.Context, email string) error {
 		if err != nil {
 			return err
 		}
-		return policy.Disable(ctx, uow, user.ID, s.Clock.Now())
+		if err := policy.Disable(ctx, uow, user.ID, s.Clock.Now()); err != nil {
+			return err
+		}
+		return policy.Audit(ctx, uow, "user.disable", user.ID, nil)
 	})
 }
 
@@ -121,7 +130,10 @@ func (s *Service) Enable(ctx context.Context, email string) error {
 		if err != nil {
 			return err
 		}
-		return uow.Users().Enable(ctx, user.ID)
+		if err := uow.Users().Enable(ctx, user.ID); err != nil {
+			return err
+		}
+		return policy.Audit(ctx, uow, "user.enable", user.ID, nil)
 	})
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/authenticity/pkg/reqctx"
 )
 
 const (
@@ -31,6 +32,7 @@ func Bearer(authn input.Authenticator) fiber.Handler {
 		}
 		c.Locals(LocalUserID, principal.UserID)
 		c.Locals(LocalSessionID, principal.SessionID)
+		c.SetContext(reqctx.WithActor(c.Context(), principal.UserID))
 		return c.Next()
 	}
 }

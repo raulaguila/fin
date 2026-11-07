@@ -2,9 +2,11 @@ package rest
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
@@ -75,7 +77,7 @@ func TestBodyLimitAnswersBeforeHandlers(t *testing.T) {
 
 func TestRateLimitGroupsIPv6ByPrefix(t *testing.T) {
 	app := fiber.New(serverConfig(config.APIConfig{TrustedProxies: "0.0.0.0", ProxyHeader: "X-Real-IP"}))
-	app.Use(middleware.RateLimit(1))
+	app.Use(middleware.RateLimit("t", 1, memoryHits()))
 	app.Get("/", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 
 	get := func(ip string) int {
@@ -105,7 +107,7 @@ func TestRateLimitGroupsIPv6ByPrefix(t *testing.T) {
 
 func TestRateLimitCountsEachClientBehindProxy(t *testing.T) {
 	app := fiber.New(serverConfig(config.APIConfig{TrustedProxies: "0.0.0.0", ProxyHeader: "X-Real-IP"}))
-	app.Use(middleware.RateLimit(1))
+	app.Use(middleware.RateLimit("t", 1, memoryHits()))
 	app.Get("/", func(c fiber.Ctx) error { return c.SendString(c.IP()) })
 
 	get := func(ip string) int {
@@ -125,5 +127,17 @@ func TestRateLimitCountsEachClientBehindProxy(t *testing.T) {
 	}
 	if got := get("2.2.2.2"); got != fiber.StatusOK {
 		t.Fatalf("other client shares the limit: %d", got)
+	}
+}
+
+// memoryHits counts like the Postgres limiter, without the minute window.
+func memoryHits() middleware.Hits {
+	var mu sync.Mutex
+	counts := map[string]int64{}
+	return func(_ context.Context, key string) (int64, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		counts[key]++
+		return counts[key], nil
 	}
 }

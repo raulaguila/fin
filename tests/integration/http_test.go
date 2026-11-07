@@ -24,7 +24,7 @@ func (e *env) httpApp() *fiber.App {
 	log := logger.New(logger.Config{Format: "json", Out: io.Discard})
 	app := composition.NewApplication(cfg, &infra.Resources{PostgresDB: testDB}, log)
 	app.Auth = e.svc
-	return rest.New(cfg, app, log)
+	return rest.New(cfg, app, composition.NewRateLimit(&infra.Resources{PostgresDB: testDB}), log)
 }
 
 func TestHTTPAccountOwnershipAndProductValidation(t *testing.T) {

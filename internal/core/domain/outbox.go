@@ -11,6 +11,7 @@ const (
 type OutboxMessage struct {
 	ID          string
 	ClaimID     string // changes whenever a worker leases the message
+	RequestID   string // of the request that queued it, empty outside HTTP
 	Purpose     string
 	Payload     []byte
 	Status      string

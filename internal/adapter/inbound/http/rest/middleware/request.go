@@ -3,19 +3,39 @@ package middleware
 import (
 	"context"
 	"errors"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/raulaguila/authenticity/pkg/telemetry"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/limiter"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/mapper"
 	"github.com/raulaguila/authenticity/pkg/apperror"
 	"github.com/raulaguila/authenticity/pkg/clientip"
 	"github.com/raulaguila/authenticity/pkg/logger"
+	"github.com/raulaguila/authenticity/pkg/reqctx"
 )
+
+var requestIDFormat = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+
+// RequestID gives every request a correlation id, returned in X-Request-ID and
+// carried by the context to logs, the outbox and the audit log. An incoming id
+// is kept only from a trusted proxy: any client could reuse another's id.
+func RequestID() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		id := c.Get(fiber.HeaderXRequestID)
+		if !c.IsProxyTrusted() || !requestIDFormat.MatchString(id) {
+			id = uuid.NewString()
+		}
+		c.Set(fiber.HeaderXRequestID, id)
+		c.SetContext(reqctx.WithRequestID(c.Context(), id))
+		return c.Next()
+	}
+}
 
 // RequestLog always records server errors and degraded responses. all also
 // enables ordinary request logs. Only paths are logged, never query strings.
@@ -57,6 +77,7 @@ func RequestLog(log *logger.Logger, all bool) fiber.Handler {
 			Str("ip", c.IP()).
 			Dur("latency", time.Since(start)).
 			Str("path", c.Path()).
+			Str("request_id", reqctx.RequestID(c.Context())).
 			Err(cause)
 		if appErr, ok := errors.AsType[*apperror.Error](cause); ok && appErr.Cause != nil {
 			event.Str("cause", appErr.Cause.Error())
@@ -77,19 +98,24 @@ func Timeout(d time.Duration) fiber.Handler {
 	}
 }
 
-// RateLimit allows max requests per client per minute.
-// shortcut: counters live in process memory and reset on restart. Each instance
-// counts alone; put limit_req in the proxy before scaling out.
-func RateLimit(m int) fiber.Handler {
-	return limiter.New(limiter.Config{
-		Max:        m,
-		Expiration: time.Minute,
-		KeyGenerator: func(c fiber.Ctx) string {
-			first, _ := clientip.Range(c.IP())
-			return first
-		},
-		LimitReached: func(c fiber.Ctx) error {
+// Hits counts one request for key in the current minute and returns the total
+// of that minute, across every instance.
+type Hits func(ctx context.Context, key string) (int64, error)
+
+// RateLimit allows maxHits requests per client per minute. name keeps the
+// limiters of one client apart. A counter failure fails the request: the
+// database it needs is down anyway.
+func RateLimit(name string, maxHits int, hits Hits) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		first, _ := clientip.Range(c.IP())
+		n, err := hits(c.Context(), name+":"+first)
+		if err != nil {
+			return err
+		}
+		if n > int64(maxHits) {
+			c.Set(fiber.HeaderRetryAfter, strconv.Itoa(60-time.Now().Second()))
 			return mapper.WriteError(c, apperror.New(apperror.CodeTooManyRequests, "too many requests"))
-		},
-	})
+		}
+		return c.Next()
+	}
 }

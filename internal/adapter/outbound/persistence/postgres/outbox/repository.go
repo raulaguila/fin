@@ -10,6 +10,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/shared"
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
+	"github.com/raulaguila/authenticity/pkg/reqctx"
 )
 
 type Repository struct {
@@ -24,6 +25,7 @@ func NewRepository(db *gorm.DB) *Repository {
 
 type row struct {
 	ClaimID     uuid.UUID  `gorm:"column:claim_id"`
+	RequestID   string     `gorm:"column:request_id"`
 	ID          uuid.UUID  `gorm:"column:id"`
 	Purpose     string     `gorm:"column:purpose"`
 	Payload     []byte     `gorm:"column:payload"`
@@ -39,6 +41,7 @@ func (m row) toDomain() domain.OutboxMessage {
 	return domain.OutboxMessage{
 		ID:          m.ID.String(),
 		ClaimID:     m.ClaimID.String(),
+		RequestID:   m.RequestID,
 		Purpose:     m.Purpose,
 		Payload:     m.Payload,
 		Status:      m.Status,
@@ -52,9 +55,9 @@ func (m row) toDomain() domain.OutboxMessage {
 
 func (r *Repository) Enqueue(ctx context.Context, purpose string, payload []byte) error {
 	err := r.db.WithContext(ctx).Exec(`
-		INSERT INTO sys.outbox (id, purpose, payload, status, attempts, available_at, created_at)
-		VALUES (?, ?, ?::jsonb, 'pending', 0, now(), now())
-	`, uuid.New(), purpose, string(payload)).Error
+		INSERT INTO sys.outbox (id, purpose, payload, request_id)
+		VALUES (?, ?, ?::jsonb, NULLIF(?, ''))
+	`, uuid.New(), purpose, string(payload), reqctx.RequestID(ctx)).Error
 	if err != nil {
 		return shared.WrapError(err, "outbox")
 	}
@@ -76,7 +79,7 @@ func (r *Repository) ClaimPending(ctx context.Context, limit int, now time.Time,
 		SET status = 'processing', available_at = ?, claim_id = ?
 		FROM cte
 		WHERE o.id = cte.id
-		RETURNING o.id, o.claim_id, o.purpose, o.payload, o.status, o.attempts, o.available_at, o.created_at, o.processed_at, o.last_error
+		RETURNING o.id, o.claim_id, COALESCE(o.request_id, '') AS request_id, o.purpose, o.payload, o.status, o.attempts, o.available_at, o.created_at, o.processed_at, o.last_error
 	`, now, limit, now.Add(lease), uuid.New()).Scan(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "outbox")

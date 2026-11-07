@@ -23,6 +23,7 @@ type UnitOfWork interface {
 	Outbox() OutboxRepository
 	Preferences() PreferenceRepository
 	Notifications() NotificationRepository
+	Audit() AuditRepository
 }
 
 // AccountStore exposes only the repositories this application service reads or updates.

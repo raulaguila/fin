@@ -21,7 +21,7 @@ func server(environment string) *fiber.App {
 	cfg := &config.Environment{Environment: environment}
 	cfg.API.GlobalRateLimit, cfg.API.AuthRateLimit, cfg.API.PasswordRateLimit = 1000, 1000, 1000
 	cfg.API.CorsOrigins = "https://app.test"
-	return New(cfg, &input.Application{}, logger.New(logger.Config{}))
+	return New(cfg, &input.Application{}, memoryHits(), logger.New(logger.Config{}))
 }
 
 func get(t *testing.T, app *fiber.App, path string) (int, string) {

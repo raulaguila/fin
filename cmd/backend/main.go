@@ -43,7 +43,7 @@ func main() {
 	}
 	defer stopDiagnostics()
 
-	fiberApp := rest.New(cfg, composition.NewApplication(cfg, res, log), log)
+	fiberApp := rest.New(cfg, composition.NewApplication(cfg, res, log), composition.NewRateLimit(res), log)
 
 	addr := fmt.Sprintf(":%d", cfg.API.Port)
 	go func() {

@@ -162,6 +162,23 @@ CREATE TABLE usr.usr_notification (
 
 CREATE INDEX idx_usr_notification_user_created ON usr.usr_notification (user_id, created_at DESC);
 
+-- Administrative changes, written in the transaction of the change. No FK: the
+-- record outlives the user. A NULL actor is the operator CLI. The app may only
+-- append; nothing in the schema cleans it up.
+CREATE TABLE usr.usr_audit_log (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    actor_id   UUID        NULL,
+    request_id TEXT        NULL,
+    action     TEXT        NOT NULL,
+    target_id  UUID        NULL,
+    details    JSONB       NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX idx_usr_audit_log_created ON usr.usr_audit_log (created_at);
+CREATE INDEX idx_usr_audit_log_target ON usr.usr_audit_log (target_id, created_at);
+REVOKE UPDATE, DELETE ON usr.usr_audit_log FROM authenticity_app;
+
 CREATE TRIGGER trg_usr_user_set_updated_at BEFORE UPDATE ON usr.usr_user
     FOR EACH ROW EXECUTE FUNCTION public.fn_set_updated_at();
 CREATE TRIGGER trg_usr_credential_set_updated_at BEFORE UPDATE ON usr.usr_credential

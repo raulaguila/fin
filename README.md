@@ -1,6 +1,6 @@
 # Authenticity
 
-Identity service in Go: registration, login, sessions, role-based permissions and account data, with a products CRUD as an example of a protected resource. `cmd/backend` serves HTTP, `cmd/mailer` sends email from the outbox, and `cmd/admin` is the operator CLI. See [ARCHITECTURE.md](ARCHITECTURE.md) for how it fits together and [PRODUCT.md](PRODUCT.md) for its constraints.
+Identity service in Go: registration, login, sessions, role-based permissions and account data, with a products CRUD as an example of a protected resource. `cmd/backend` serves HTTP, `cmd/mailer` sends email from the outbox, and `cmd/admin` is the operator CLI. See [ARCHITECTURE.md](ARCHITECTURE.md) for how it fits together, [PRODUCT.md](PRODUCT.md) for its constraints and [TEMPLATE.md](TEMPLATE.md) to start a new project from it or add a module.
 
 ## Run with Docker
 

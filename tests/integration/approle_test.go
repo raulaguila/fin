@@ -16,6 +16,8 @@ func TestAppRoleReadsAndWritesDataButNotSchema(t *testing.T) {
 			"SELECT count(*) FROM sys.outbox",
 			"DELETE FROM usr.usr_session WHERE false",
 			"UPDATE app.product SET name = name WHERE false",
+			"INSERT INTO usr.usr_audit_log (action) VALUES ('test.app_role')",
+			"INSERT INTO sys.rate_limit (key, window_start) VALUES ('test', now())",
 		} {
 			if err := tx.Exec(sql).Error; err != nil {
 				t.Errorf("%s: %v", sql, err)

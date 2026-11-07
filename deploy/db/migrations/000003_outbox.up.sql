@@ -1,4 +1,4 @@
--- Email outbox and the daily cleanup.
+-- Email outbox, shared rate limit counters and the cleanup jobs.
 
 -- The backend inserts pending rows; the mailer claims them with SKIP LOCKED.
 -- available_at is the next eligible instant: backoff after a failure, or the end
@@ -12,6 +12,7 @@ CREATE TABLE sys.outbox (
     attempts     INT         NOT NULL DEFAULT 0,
     available_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     claim_id     UUID        NULL,
+    request_id   TEXT        NULL,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     processed_at TIMESTAMPTZ NULL,
     last_error   TEXT        NULL,
@@ -26,6 +27,14 @@ GRANT SELECT ON sys.outbox TO authenticity_mailer;
 GRANT UPDATE (status, available_at, claim_id, processed_at, last_error, payload, attempts)
     ON sys.outbox TO authenticity_mailer;
 
+-- One row per client and minute; UNLOGGED, since losing counts on a crash is fine.
+CREATE UNLOGGED TABLE sys.rate_limit (
+    key          TEXT        NOT NULL,
+    window_start TIMESTAMPTZ NOT NULL,
+    hits         INT         NOT NULL DEFAULT 1,
+    PRIMARY KEY (key, window_start)
+);
+
 -- Scheduled through pg_cron; without it, call it externally.
 CREATE FUNCTION sys.fn_cleanup(retention INTERVAL DEFAULT INTERVAL '30 days')
 RETURNS void
@@ -36,6 +45,7 @@ AS $$
   DELETE FROM usr.usr_token WHERE expires_at < now() - retention;
   DELETE FROM usr.usr_notification WHERE read_at < now() - retention OR created_at < now() - retention * 3;
   DELETE FROM sys.outbox WHERE status IN ('sent', 'failed') AND processed_at < now() - retention;
+  DELETE FROM sys.rate_limit WHERE window_start < now() - INTERVAL '1 minute';
   -- Credential and tokens cascade. A live token means a resumed signup: it stays.
   DELETE FROM usr.usr_user u
    WHERE u.status = 'pending'
@@ -50,6 +60,8 @@ BEGIN
      AND current_setting('cron.database_name', true) = current_database() THEN
     CREATE EXTENSION IF NOT EXISTS pg_cron;
     PERFORM cron.schedule('authenticity_cleanup', '17 3 * * *', 'SELECT sys.fn_cleanup()');
+    PERFORM cron.schedule('authenticity_rate_limit', '*/5 * * * *',
+      $q$DELETE FROM sys.rate_limit WHERE window_start < now() - INTERVAL '1 minute'$q$);
   END IF;
 END;
 $$;

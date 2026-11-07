@@ -2,11 +2,13 @@ package middleware_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,11 +19,47 @@ import (
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
 	"github.com/raulaguila/authenticity/pkg/apperror"
 	"github.com/raulaguila/authenticity/pkg/logger"
+	"github.com/raulaguila/authenticity/pkg/reqctx"
 )
+
+// memoryHits counts like the Postgres limiter, without the minute window.
+func memoryHits() middleware.Hits {
+	var mu sync.Mutex
+	counts := map[string]int64{}
+	return func(_ context.Context, key string) (int64, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		counts[key]++
+		return counts[key], nil
+	}
+}
+
+func TestRequestIDReachesTheResponseAndTheLog(t *testing.T) {
+	var out bytes.Buffer
+	log := logger.New(logger.Config{Format: "json", Level: "info", Out: &out})
+	app := fiber.New()
+	app.Use(middleware.RequestID(), middleware.RequestLog(log, true))
+	app.Get("/", func(c fiber.Ctx) error { return c.SendString(reqctx.RequestID(c.Context())) })
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set(fiber.HeaderXRequestID, "chosen-by-client") // no trusted proxy: ignored
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	id := resp.Header.Get(fiber.HeaderXRequestID)
+	if id == "" || id == "chosen-by-client" || string(body) != id {
+		t.Fatalf("header %q body %q", id, body)
+	}
+	if !strings.Contains(out.String(), `"request_id":"`+id+`"`) {
+		t.Fatalf("log %s", out.String())
+	}
+}
 
 func TestRateLimitAnswers429AsJSON(t *testing.T) {
 	app := fiber.New()
-	app.Use(middleware.RateLimit(2))
+	app.Use(middleware.RateLimit("t", 2, memoryHits()))
 	app.Get("/", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 
 	var last int

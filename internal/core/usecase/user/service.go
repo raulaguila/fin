@@ -58,14 +58,22 @@ func (s *Service) Disable(ctx context.Context, actorID, id string) error {
 		if target.ID == actorID {
 			return apperror.New(apperror.CodeForbidden, "your own account cannot be disabled")
 		}
-		return policy.Disable(ctx, uow, target.ID, s.Clock.Now())
+		if err := policy.Disable(ctx, uow, target.ID, s.Clock.Now()); err != nil {
+			return err
+		}
+		return policy.Audit(ctx, uow, "user.disable", target.ID, nil)
 	})
 }
 
 func (s *Service) Enable(ctx context.Context, id string) error {
-	target, err := policy.Reachable(ctx, s.UOW, id)
-	if err != nil {
-		return err
-	}
-	return s.UOW.Users().Enable(ctx, target.ID)
+	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
+		target, err := policy.Reachable(ctx, uow, id)
+		if err != nil {
+			return err
+		}
+		if err := uow.Users().Enable(ctx, target.ID); err != nil {
+			return err
+		}
+		return policy.Audit(ctx, uow, "user.enable", target.ID, nil)
+	})
 }

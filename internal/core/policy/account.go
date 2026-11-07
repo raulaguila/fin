@@ -8,8 +8,21 @@ import (
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
 	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/authenticity/pkg/reqctx"
 	"github.com/raulaguila/authenticity/pkg/validate"
 )
+
+// Audit records an administrative change in the caller's transaction, with the
+// actor and request id the context carries.
+func Audit(ctx context.Context, uow output.UnitOfWork, action, targetID string, details map[string]any) error {
+	return uow.Audit().Record(ctx, domain.AuditEntry{
+		ActorID:   reqctx.Actor(ctx),
+		RequestID: reqctx.RequestID(ctx),
+		Action:    action,
+		TargetID:  targetID,
+		Details:   details,
+	})
+}
 
 // Reachable loads a user the API may see or change. Nothing in the API can give
 // a user a protected role, so the answer cannot go stale before a write.

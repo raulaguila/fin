@@ -124,7 +124,7 @@ core/domain → stdlib only
 | Email flood | `AUTH_EMAIL_TOKEN_COOLDOWN` (60 s) and `AUTH_EMAIL_TOKEN_HOURLY_MAX` (5) per account and purpose; over the cap the live link survives |
 | Refresh reuse | Session revoked `token_reuse` |
 
-**HTTP limits:** `API_RATE_LIMIT_*` per client IP (IPv6 by `/64`) per minute, in process memory: one instance. Counters reset on restart; add `limit_req` in the proxy before scaling out. Login and email limits live in Postgres and hold across instances.
+**HTTP limits:** `API_RATE_LIMIT_*` per client IP (IPv6 by `/64`) per minute, counted in the UNLOGGED table `sys.rate_limit` with one atomic upsert per request, so every instance shares the limit. pg_cron drops past minutes every 5 minutes. A counter failure answers 500. Login and email limits also live in Postgres.
 
 **Not implemented (confirmed):** separate DLQ table (terminal fails stay on outbox as `failed`).
 
@@ -134,11 +134,15 @@ core/domain → stdlib only
 
 **Confirmed:** zerolog via `pkg/logger`; base fields `version`, `service` (`backend`|`mailer`), `pid`. Boot logs host/port/env/errors.
 
-**Confirmed:** `RequestLog` uses Fiber's zerolog integration for ordinary requests and returned errors, with a wrapper for internal causes stored in `mapper.LocalCause`. It records 5xx responses at error level and degraded answers at warning level even when `API_LOGGER=0`; enabling `API_LOGGER` also records ordinary requests. Each request produces at most one request-log entry. Fields include status, method, client IP, latency, PID and path; query strings, headers and bodies are omitted. Internal application-error causes stay in the log and are not added to HTTP responses. The auth use case logs a warning when a best-effort step fails (attempt settlement, notification, token attempt count).
+**Confirmed:** `RequestLog` uses Fiber's zerolog integration for ordinary requests and returned errors, with a wrapper for internal causes stored in `mapper.LocalCause`. It records 5xx responses at error level and degraded answers at warning level even when `API_LOGGER=0`; enabling `API_LOGGER` also records ordinary requests. Each request produces at most one request-log entry. Fields include status, method, client IP, latency, PID, path and `request_id`; query strings, headers and bodies are omitted. Internal application-error causes stay in the log and are not added to HTTP responses. The auth use case logs a warning when a best-effort step fails (attempt settlement, notification).
+
+**Correlation id:** `RequestID` gives each request an id, returned in `X-Request-ID`. An incoming id is kept only from a trusted proxy. `pkg/reqctx` carries it, with the authenticated user, through the context: into the request log, `sys.outbox.request_id` (logged by the mailer) and the audit log.
+
+**Audit log:** `usr.usr_audit_log` records role, permission, membership and user status changes from the API and `cmd/admin`, through `policy.Audit` in the transaction of the change. A NULL actor means the CLI. The app role may only insert. There is no read endpoint and no cleanup.
 
 **Diagnostics:** `DIAGNOSTICS_ADDRESS` defaults to `127.0.0.1:9091` inside each container. `/metrics` returns JSON with bounded HTTP latency buckets, server errors, hashing queue/active counts and wait time, `database/sql` pool statistics, outbox count/oldest age and runtime heap/GC counters. `/health` checks PostgreSQL and, for the mailer, a successful worker heartbeat within one minute. No public API route exposes these diagnostics. Compose uses healthchecks and stop grace periods of 40s (backend) and 60s (mailer).
 
-**Absent:** distributed tracing and a durable administrative audit trail beyond login history. These require a separate operational/product decision, not a new dependency for the current corrections.
+**Absent:** distributed tracing. Add OpenTelemetry when a second service joins the request path.
 
 Do not log refresh tokens, passwords, or email token plaintext (payload in outbox is sensitive — treat as secret storage until mailed).
 
@@ -188,8 +192,8 @@ An icon-only theme toggle sits at the right of the API title, on the same line. 
 
 ## Known gaps vs intent
 
-1. **Observability thin** — no correlation id or traces, and no structured administrative audit beyond login attempts.
-2. **Scale and SLOs unmeasured** — no measured throughput, latency or availability targets; the HTTP rate limiter is local to each process.
+1. **Observability thin** — correlation id and audit log, but no traces and no API to read the audit log.
+2. **Scale and SLOs unmeasured** — no measured throughput, latency or availability targets; the shared rate limiter costs one database write per request.
 
 ## Boundaries and verification
 

@@ -110,7 +110,7 @@ func (w *Worker) process(ctx context.Context, msg *domain.OutboxMessage) {
 		output.Log(w.Log).Warn("MarkSent failed", slog.String("outbox_id", msg.ID), slog.String("error", err.Error()))
 		return
 	}
-	output.Log(w.Log).Info("Email sent", slog.String("outbox_id", msg.ID), slog.String("purpose", msg.Purpose))
+	output.Log(w.Log).Info("Email sent", slog.String("outbox_id", msg.ID), slog.String("purpose", msg.Purpose), slog.String("request_id", msg.RequestID))
 }
 
 func (w *Worker) fail(ctx context.Context, msg *domain.OutboxMessage, lastErr string, terminal bool) {
@@ -131,6 +131,7 @@ func (w *Worker) fail(ctx context.Context, msg *domain.OutboxMessage, lastErr st
 	output.Log(w.Log).Warn("Email send failed",
 		slog.String("outbox_id", msg.ID),
 		slog.String("purpose", msg.Purpose),
+		slog.String("request_id", msg.RequestID),
 		slog.Int("attempts", attempts),
 		slog.Bool("terminal", terminal),
 		slog.String("error", lastErr),

@@ -2,10 +2,12 @@ package composition
 
 import (
 	"github.com/raulaguila/authenticity/config"
+	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/emailpayload"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/outbox"
 	productrepo "github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/product"
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/ratelimit"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/rbac"
 	smtpmail "github.com/raulaguila/authenticity/internal/adapter/outbound/smtp"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/tokens"
@@ -27,6 +29,11 @@ import (
 // NewAdmin wires the operator use cases of cmd/admin.
 func NewAdmin(res *infra.Resources) input.AdminService {
 	return admin.New(postgres.NewStore(res.PostgresDB), output.RealClock{})
+}
+
+// NewRateLimit counts HTTP requests in Postgres, shared by every backend instance.
+func NewRateLimit(res *infra.Resources) middleware.Hits {
+	return ratelimit.NewRepository(res.PostgresDB).Hit
 }
 
 // NewMailer wires the worker of cmd/mailer.

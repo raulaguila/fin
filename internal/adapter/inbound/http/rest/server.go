@@ -50,17 +50,18 @@ func splitList(list string) []string {
 }
 
 // New builds the Fiber app with middleware and routes.
-func New(cfg *config.Environment, app *input.Application, log *logger.Logger) *fiber.App {
+func New(cfg *config.Environment, app *input.Application, hits middleware.Hits, log *logger.Logger) *fiber.App {
 	fiberApp := fiber.New(serverConfig(cfg.API))
 
 	fiberApp.Use(
+		middleware.RequestID(),
 		middleware.RequestLog(log, cfg.API.EnableLogger),
 		recover.New(recover.Config{EnableStackTrace: true}),
 		cors.New(cors.Config{
 			AllowOrigins:  splitList(cfg.API.CorsOrigins),
 			AllowMethods:  []string{fiber.MethodGet, fiber.MethodPost, fiber.MethodPut, fiber.MethodPatch, fiber.MethodDelete, fiber.MethodOptions},
 			AllowHeaders:  []string{fiber.HeaderAuthorization, fiber.HeaderContentType, fiber.HeaderAccept, fiber.HeaderAcceptLanguage, fiber.HeaderOrigin},
-			ExposeHeaders: []string{fiber.HeaderContentType, fiber.HeaderContentLength},
+			ExposeHeaders: []string{fiber.HeaderContentType, fiber.HeaderContentLength, fiber.HeaderXRequestID, fiber.HeaderRetryAfter},
 			MaxAge:        3600,
 		}),
 		middleware.Timeout(cfg.API.RequestTimeout),
@@ -71,13 +72,13 @@ func New(cfg *config.Environment, app *input.Application, log *logger.Logger) *f
 		mountSwagger(fiberApp, cfg.Version) // never in production: it maps every route
 	}
 
-	fiberApp.Use(middleware.RateLimit(cfg.API.GlobalRateLimit))
+	fiberApp.Use(middleware.RateLimit("global", cfg.API.GlobalRateLimit, hits))
 	bearer := middleware.Bearer(app.Auth)
 
 	v1 := fiberApp.Group("/v1")
 
 	auth := v1.Group("/auth")
-	authhttp.New(app.Auth, app.Account).Routes(auth, bearer, middleware.RateLimit(cfg.API.AuthRateLimit), middleware.RateLimit(cfg.API.PasswordRateLimit))
+	authhttp.New(app.Auth, app.Account).Routes(auth, bearer, middleware.RateLimit("auth", cfg.API.AuthRateLimit, hits), middleware.RateLimit("password", cfg.API.PasswordRateLimit, hits))
 	sessionhttp.New(app.Account).Routes(auth.Group("/sessions", bearer))
 
 	user := v1.Group("/user", bearer)

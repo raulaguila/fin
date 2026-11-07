@@ -6,9 +6,11 @@ import (
 	"time"
 )
 
-var count, serverErrors, durationNS atomic.Int64
-var latencyBuckets [8]atomic.Int64
-var bounds = [...]int64{5, 10, 50, 100, 500, 1000, 5000}
+var (
+	count, serverErrors, durationNS atomic.Int64
+	latencyBuckets                  [8]atomic.Int64
+	bounds                          = [...]int64{5, 10, 50, 100, 500, 1000, 5000}
+)
 
 func ObserveRequest(d time.Duration, status int) {
 	count.Add(1)
@@ -25,6 +27,7 @@ func ObserveRequest(d time.Duration, status int) {
 	}
 	latencyBuckets[bucket].Add(1)
 }
+
 func HTTPStats() any {
 	buckets := make([]int64, len(latencyBuckets))
 	for i := range buckets {

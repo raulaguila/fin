@@ -22,4 +22,5 @@ Do `audits/gaps.md`. Sem datas.
 - [x] Swagger em `/swagger` com tags em grupos
 - [x] Teto de e-mails por hora, por conta
 - [ ] Usuário Postgres sem superusuário para a aplicação
-- [ ] Observability (correlation id / metrics)
+- [x] Observability (correlation id / metrics)
+- [x] Auditoria administrativa

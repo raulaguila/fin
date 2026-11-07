@@ -10,10 +10,8 @@ import (
 )
 
 type wireEmail struct {
-	UserID string `json:"user_id"`
-	Email  string `json:"email"`
-	Name   string `json:"name"`
-	Token  string `json:"token"`
+	Email string `json:"email"`
+	Token string `json:"token"`
 }
 
 type Codec struct{ key []byte }
@@ -30,6 +28,7 @@ func (c *Codec) Encode(p output.EmailToken) ([]byte, error) {
 	p.Token = sealed
 	return json.Marshal(wireEmail(p))
 }
+
 func (c *Codec) Decode(raw []byte) (output.EmailToken, error) {
 	var p wireEmail
 	if err := json.Unmarshal(raw, &p); err != nil {

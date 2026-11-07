@@ -180,8 +180,10 @@ func (r *Repository) ClearPermissions(ctx context.Context, roleID string) error 
 func (r *Repository) Members(ctx context.Context, roleID string, page domain.Page) ([]domain.User, int64, error) {
 	var total int64
 	err := r.db.WithContext(ctx).Raw(`
-		SELECT count(*) FROM usr.usr_user_role WHERE role_id = ?
-	`, roleID).Scan(&total).Error
+		SELECT count(*)
+		FROM usr.usr_user u
+		JOIN usr.usr_user_role m ON m.user_id = u.id
+		WHERE m.role_id = ? AND `+shared.Unprotected, roleID).Scan(&total).Error
 	if err != nil {
 		return nil, 0, shared.WrapError(err, "user_role")
 	}
@@ -189,8 +191,8 @@ func (r *Repository) Members(ctx context.Context, roleID string, page domain.Pag
 	err = r.db.WithContext(ctx).Raw(`
 		SELECT u.id::text AS id, u.name, u.email::text AS email, u.status, u.created_at, u.updated_at
 		FROM usr.usr_user u
-		JOIN usr.usr_user_role ur ON ur.user_id = u.id
-		WHERE ur.role_id = ?
+		JOIN usr.usr_user_role m ON m.user_id = u.id
+		WHERE m.role_id = ? AND `+shared.Unprotected+`
 		ORDER BY u.name, u.id
 		LIMIT ? OFFSET ?
 	`, roleID, page.Limit, page.Offset()).Scan(&users).Error

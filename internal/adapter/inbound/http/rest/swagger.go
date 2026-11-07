@@ -57,6 +57,7 @@ func mountSwagger(app *fiber.App, version string) {
 	app.Get("/swagger/*", swaggo.New(swaggo.Config{
 		Title:                  "Authenticity API",
 		DocExpansion:           "none", // groups start closed, so the page stays readable as it grows
+		ValidatorUrl:           "none", // the public validator cannot reach a private host, so it only shows an error
 		Filter:                 swaggo.FilterConfig{Enabled: true},
 		PersistAuthorization:   true,
 		DisplayRequestDuration: true,

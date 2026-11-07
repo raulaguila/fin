@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/raulaguila/authenticity/config"
 	"github.com/raulaguila/authenticity/pkg/smtpsecurity"
 )
@@ -105,6 +107,9 @@ func buildMessage(from, to, replyTo, subject, body string) []byte {
 		b.WriteString("Reply-To: " + replyTo + "\r\n")
 	}
 	b.WriteString("Subject: " + subject + "\r\n")
+	b.WriteString("Date: " + time.Now().Format(time.RFC1123Z) + "\r\n")
+	domain := strings.TrimRight(from[strings.LastIndex(from, "@")+1:], ">")
+	b.WriteString("Message-ID: <" + uuid.NewString() + "@" + domain + ">\r\n")
 	b.WriteString("MIME-Version: 1.0\r\n")
 	b.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
 	b.WriteString("\r\n")

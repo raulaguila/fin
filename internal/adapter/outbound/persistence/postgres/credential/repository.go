@@ -24,7 +24,6 @@ func NewRepository(db *gorm.DB) *Repository {
 type row struct {
 	UserID              string     `gorm:"column:user_id"`
 	PasswordHash        *string    `gorm:"column:password_hash"`
-	PasswordAlgorithm   *string    `gorm:"column:password_algorithm"`
 	FailedLoginAttempts int        `gorm:"column:failed_login_attempts"`
 	LockedUntil         *time.Time `gorm:"column:locked_until"`
 	LastLoginAt         *time.Time `gorm:"column:last_login_at"`
@@ -36,7 +35,6 @@ func (m row) toDomain() *domain.Credential {
 	return &domain.Credential{
 		UserID:              m.UserID,
 		PasswordHash:        m.PasswordHash,
-		PasswordAlgorithm:   m.PasswordAlgorithm,
 		FailedLoginAttempts: m.FailedLoginAttempts,
 		LockedUntil:         m.LockedUntil,
 		LastLoginAt:         m.LastLoginAt,
@@ -61,12 +59,12 @@ func (r *Repository) Create(ctx context.Context, userID string) error {
 	return shared.WrapError(err, "credential")
 }
 
-func (r *Repository) SetPassword(ctx context.Context, userID, hash, algorithm string) error {
+func (r *Repository) SetPassword(ctx context.Context, userID, hash string) error {
 	res := r.db.WithContext(ctx).Exec(`
 		UPDATE usr.usr_credential
-		SET password_hash = ?, password_algorithm = ?, failed_login_attempts = 0, locked_until = NULL
+		SET password_hash = ?, failed_login_attempts = 0, locked_until = NULL
 		WHERE user_id = ?
-	`, hash, algorithm, userID)
+	`, hash, userID)
 	if res.Error != nil {
 		return shared.WrapError(res.Error, "credential")
 	}

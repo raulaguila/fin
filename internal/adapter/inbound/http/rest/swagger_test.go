@@ -101,7 +101,7 @@ func TestSwaggerStaysOutOfProduction(t *testing.T) {
 		t.Fatalf("production: %d", status)
 	}
 	status, body := get(t, server("development"), "/swagger/index.html")
-	if status != fiber.StatusOK || !strings.Contains(body, "invert(") || !strings.Contains(body, "TagGroups") {
+	if status != fiber.StatusOK || !strings.Contains(body, "invert(") || !strings.Contains(body, "TagGroups") || !strings.Contains(body, `"validatorUrl":"none"`) {
 		t.Fatalf("development: %d", status)
 	}
 }

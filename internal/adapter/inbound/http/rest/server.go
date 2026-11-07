@@ -53,19 +53,15 @@ func splitList(list string) []string {
 func New(cfg *config.Environment, app *input.Application, log *logger.Logger) *fiber.App {
 	fiberApp := fiber.New(serverConfig(cfg.API))
 
-	if l := middleware.RequestLog(log, cfg.API.EnableLogger); l != nil {
-		fiberApp.Use(l)
-	}
-
 	fiberApp.Use(
+		middleware.RequestLog(log, cfg.API.EnableLogger),
 		recover.New(recover.Config{EnableStackTrace: true}),
 		cors.New(cors.Config{
-			AllowOrigins:        splitList(cfg.API.CorsOrigins),
-			AllowMethods:        []string{fiber.MethodGet, fiber.MethodPost, fiber.MethodPut, fiber.MethodPatch, fiber.MethodDelete, fiber.MethodOptions},
-			AllowHeaders:        []string{fiber.HeaderAuthorization, fiber.HeaderContentType, fiber.HeaderAccept, fiber.HeaderAcceptLanguage, fiber.HeaderXRequestID, fiber.HeaderOrigin},
-			ExposeHeaders:       []string{fiber.HeaderContentType, fiber.HeaderContentLength, fiber.HeaderXRequestID},
-			AllowPrivateNetwork: true,
-			MaxAge:              3600,
+			AllowOrigins:  splitList(cfg.API.CorsOrigins),
+			AllowMethods:  []string{fiber.MethodGet, fiber.MethodPost, fiber.MethodPut, fiber.MethodPatch, fiber.MethodDelete, fiber.MethodOptions},
+			AllowHeaders:  []string{fiber.HeaderAuthorization, fiber.HeaderContentType, fiber.HeaderAccept, fiber.HeaderAcceptLanguage, fiber.HeaderOrigin},
+			ExposeHeaders: []string{fiber.HeaderContentType, fiber.HeaderContentLength},
+			MaxAge:        3600,
 		}),
 		middleware.Timeout(cfg.API.RequestTimeout),
 	)

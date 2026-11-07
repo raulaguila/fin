@@ -86,8 +86,8 @@ define run_migrate
 		echo "$(RED)Postgres not reachable on port $${POSTGRES_PORT}. Is compose up?$(RESET)"; \
 		exit 1; \
 	fi; \
-	MIGRATE_URL="postgres://$${POSTGRES_USER}:$${POSTGRES_PASS}@localhost:$${POSTGRES_PORT}/$${POSTGRES_BASE}?sslmode=disable"; \
-	$(MIGRATE_BIN) -path $(MIGRATIONS_DIR) -database "$${MIGRATE_URL}" $(1)
+	MIGRATE_URL="postgres://$${POSTGRES_USER}@localhost:$${POSTGRES_PORT}/$${POSTGRES_BASE}?sslmode=disable"; \
+	PGPASSWORD="$${POSTGRES_PASS}" $(MIGRATE_BIN) -path $(MIGRATIONS_DIR) -database "$${MIGRATE_URL}" $(1)
 endef
 
 # $(1) name  $(2) binary  $(3) version args (empty = do not run)
@@ -334,8 +334,8 @@ migrate-up: ## Run migrations and configure backend and mailer logins
 	@echo "$(BLUE)🔄 Running migrations... $(RESET)"
 	$(call run_migrate,up)
 	@set -a && . ./config/.env && set +a; \
-	printf '%s\n' "SELECT format('ALTER ROLE authenticity_app LOGIN PASSWORD %L', :'app_password') \gexec" "SELECT format('ALTER ROLE authenticity_mailer LOGIN PASSWORD %L', :'mailer_password') \gexec" | \
-	$(DOCKER) exec -i authenticity_postgres psql -X -q --single-transaction -v ON_ERROR_STOP=1 -v app_password="$${POSTGRES_APP_PASS}" -v mailer_password="$${POSTGRES_MAILER_PASS}" -U "$${POSTGRES_USER}" -d "$${POSTGRES_BASE}" -p "$${POSTGRES_PORT}"
+	printf '%s\n' '\getenv app_password POSTGRES_APP_PASS' '\getenv mailer_password POSTGRES_MAILER_PASS' "SELECT format('ALTER ROLE authenticity_app LOGIN PASSWORD %L', :'app_password') \gexec" "SELECT format('ALTER ROLE authenticity_mailer LOGIN PASSWORD %L', :'mailer_password') \gexec" | \
+	$(DOCKER) exec -i -e POSTGRES_APP_PASS -e POSTGRES_MAILER_PASS authenticity_postgres psql -X -q --single-transaction -v ON_ERROR_STOP=1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_BASE}" -p "$${POSTGRES_PORT}"
 	@echo "$(GREEN)✅ Migrations and database logins configured!$(RESET)"
 	@echo
 

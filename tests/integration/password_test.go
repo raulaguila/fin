@@ -30,7 +30,7 @@ func TestLoginCannotRestoreOldPassword(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.store.Credentials().SetPassword(ctx, u.ID, newHash, domain.PasswordAlgorithmArgon2id); err != nil {
+	if err := e.store.Credentials().SetPassword(ctx, u.ID, newHash); err != nil {
 		t.Fatal(err)
 	}
 

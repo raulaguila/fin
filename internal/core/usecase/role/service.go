@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/authenticity/internal/core/policy"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
 	"github.com/raulaguila/authenticity/pkg/apperror"
@@ -20,14 +21,14 @@ const listCap = 1000
 var nameFormat = regexp.MustCompile(`^[a-z0-9_-]{2,40}$`)
 
 type Service struct {
-	UOW   output.RoleStore
+	UOW   output.IdentityStore
 	Tx    output.TxManager
 	Perms output.PermissionReader
 }
 
 var _ input.RoleService = (*Service)(nil)
 
-func New(uow output.RoleStore, tx output.TxManager, perms output.PermissionReader) *Service {
+func New(uow output.IdentityStore, tx output.TxManager, perms output.PermissionReader) *Service {
 	return &Service{UOW: uow, Tx: tx, Perms: perms}
 }
 
@@ -129,10 +130,7 @@ func (s *Service) SetPermissions(ctx context.Context, roleID string, permissions
 }
 
 func (s *Service) Members(ctx context.Context, roleID string, page domain.Page) ([]domain.User, int64, error) {
-	if err := validate.ID(roleID); err != nil {
-		return nil, 0, err
-	}
-	if _, err := s.UOW.Roles().FindByID(ctx, roleID); err != nil {
+	if _, err := s.editable(ctx, s.UOW, roleID); err != nil {
 		return nil, 0, err
 	}
 	return s.UOW.Roles().Members(ctx, roleID, page)
@@ -142,28 +140,27 @@ func (s *Service) AddMember(ctx context.Context, roleID, userID string) error {
 	if _, err := s.editable(ctx, s.UOW, roleID); err != nil {
 		return err
 	}
-	if err := validate.ID(userID); err != nil {
+	target, err := policy.Reachable(ctx, s.UOW, userID)
+	if err != nil {
 		return err
 	}
-	if _, err := s.UOW.Users().FindByID(ctx, userID); err != nil {
-		return err
-	}
-	return s.UOW.Roles().Assign(ctx, userID, roleID)
+	return s.UOW.Roles().Assign(ctx, target.ID, roleID)
 }
 
 func (s *Service) RemoveMember(ctx context.Context, roleID, userID string) error {
 	if _, err := s.editable(ctx, s.UOW, roleID); err != nil {
 		return err
 	}
-	if err := validate.ID(userID); err != nil {
+	target, err := policy.Reachable(ctx, s.UOW, userID)
+	if err != nil {
 		return err
 	}
-	return s.UOW.Roles().Unassign(ctx, userID, roleID)
+	return s.UOW.Roles().Unassign(ctx, target.ID, roleID)
 }
 
 // editable loads a role the API may change. No transaction: nothing here can
 // make a role protected, so the answer cannot go stale before the write.
-func (s *Service) editable(ctx context.Context, uow output.RoleStore, id string) (*domain.Role, error) {
+func (s *Service) editable(ctx context.Context, uow output.IdentityStore, id string) (*domain.Role, error) {
 	if err := validate.ID(id); err != nil {
 		return nil, err
 	}
@@ -172,7 +169,7 @@ func (s *Service) editable(ctx context.Context, uow output.RoleStore, id string)
 		return nil, err
 	}
 	if role.Protected() {
-		return nil, apperror.New(apperror.CodeForbidden, "a superuser role cannot be changed")
+		return nil, apperror.New(apperror.CodeForbidden, "a superuser role cannot be managed here")
 	}
 	return role, nil
 }

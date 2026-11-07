@@ -69,7 +69,7 @@ func (f *fakeMail) Send(_, _, body string) error {
 
 func message(t *testing.T, id, sealed string, attempts int) domain.OutboxMessage {
 	t.Helper()
-	payload, err := json.Marshal(map[string]string{"email": "a@acme.io", "name": "Ana", "token": sealed})
+	payload, err := json.Marshal(map[string]string{"email": "a@acme.io", "token": sealed})
 	if err != nil {
 		t.Fatal(err)
 	}

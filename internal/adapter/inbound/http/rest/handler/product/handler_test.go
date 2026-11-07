@@ -46,7 +46,7 @@ func TestPaginationPreservesNumberedResponseAndOmitsCursorTotals(t *testing.T) {
 			t.Fatalf("limit: %v", p)
 		}
 		if cursor {
-			if p["next_cursor"] != "" {
+			if _, ok := p["next_cursor"]; ok {
 				t.Fatalf("last cursor page: %v", p)
 			}
 			if _, ok := p["total_items"]; ok {

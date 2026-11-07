@@ -9,7 +9,7 @@ import (
 
 func TestCodecSealsAndAuthenticatesToken(t *testing.T) {
 	codec := New(bytes.Repeat([]byte{1}, 32))
-	p := output.EmailToken{UserID: "u", Email: "a@acme.io", Name: "Ana", Token: "private-token"}
+	p := output.EmailToken{Email: "a@acme.io", Token: "private-token"}
 	raw, err := codec.Encode(p)
 	if err != nil {
 		t.Fatal(err)

@@ -92,7 +92,7 @@ func (s *Service) issueEmailToken(ctx context.Context, uow output.UnitOfWork, u 
 	if err := uow.Tokens().Create(ctx, tok); err != nil {
 		return err
 	}
-	payload, err := s.Codec.Encode(output.EmailToken{UserID: u.ID, Email: u.Email, Name: u.Name, Token: plain})
+	payload, err := s.Codec.Encode(output.EmailToken{Email: u.Email, Token: plain})
 	if err != nil {
 		return apperror.New(apperror.CodeInternal, "email token encoding failed").WithCause(err)
 	}

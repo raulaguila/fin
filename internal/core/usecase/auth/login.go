@@ -87,11 +87,7 @@ func (s *Service) authenticate(ctx context.Context, email string, cmd input.Logi
 	if cred.LastLoginAt != nil { // a first login has no client to compare with
 		s.noticeNewClient(ctx, user.ID, cmd.IPAddress) // before the session of this login exists
 	}
-	pair, err := s.issueSession(ctx, user.ID, *cred.PasswordHash, cmd.IPAddress, cmd.UserAgent, now)
-	if apperror.IsCode(err, apperror.CodeInvalidCredentials) {
-		return nil, domain.FailureAccountDisabled, err
-	}
-	return pair, "", err
+	return s.issueSession(ctx, user.ID, *cred.PasswordHash, cmd.IPAddress, cmd.UserAgent, now)
 }
 
 // settleLock reports whether user is under a running lock. A lapsed lock turns

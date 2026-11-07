@@ -7,9 +7,11 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/rbac"
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/internal/core/usecase/admin"
+	"github.com/raulaguila/authenticity/internal/core/usecase/role"
 	"github.com/raulaguila/authenticity/internal/core/usecase/user"
 	"github.com/raulaguila/authenticity/pkg/apperror"
 )
@@ -229,4 +231,27 @@ func TestSentinelGrantProtectsItsMembers(t *testing.T) {
 	if found := listed(t, svc, domain.UserFilter{Search: addr}); len(found) != 0 {
 		t.Fatalf("listed %v", found)
 	}
+
+	// Role membership cannot reach them either.
+	roles := role.New(e.store, e.store, rbac.NewRepository(testDB))
+	plain, err := roles.Create(ctx, "t"+uuid.NewString()[:8])
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = testDB.Exec(`DELETE FROM usr.usr_user_role WHERE role_id = ?`, plain.ID).Error
+		_ = testDB.Exec(`DELETE FROM usr.usr_role WHERE id = ?`, plain.ID).Error
+	})
+	wantCode(t, roles.AddMember(ctx, plain.ID, e.userID(t, addr)), apperror.CodeForbidden)
+	if err := e.store.Roles().Assign(ctx, e.userID(t, addr), plain.ID); err != nil {
+		t.Fatal(err)
+	}
+	members, total, err := roles.Members(ctx, plain.ID, domain.NewPage(1, 10))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 0 || len(members) != 0 {
+		t.Fatalf("members %d %v", total, members)
+	}
+	wantCode(t, roles.RemoveMember(ctx, plain.ID, e.userID(t, addr)), apperror.CodeForbidden)
 }

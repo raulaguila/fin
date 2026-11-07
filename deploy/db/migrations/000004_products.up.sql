@@ -1,4 +1,4 @@
--- Example CRUD module that exercises RBAC.
+-- Example CRUD that exercises the products RBAC resource.
 
 CREATE TABLE app.product (
     id         UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -11,16 +11,11 @@ CREATE TABLE app.product (
     CONSTRAINT chk_app_product_price_nonneg CHECK (price >= 0)
 );
 
-CREATE INDEX idx_app_product_enabled ON app.product (enabled);
-CREATE INDEX idx_app_product_created ON app.product (created_at DESC);
 CREATE INDEX idx_app_product_name ON app.product (name);
+CREATE INDEX idx_app_product_name_trgm ON app.product USING gin (name gin_trgm_ops);
+CREATE INDEX idx_app_product_cursor ON app.product (created_at DESC, id DESC);
 
-CREATE TRIGGER trg_app_product_set_updated_at
-    BEFORE UPDATE ON app.product
+CREATE TRIGGER trg_app_product_set_updated_at BEFORE UPDATE ON app.product
     FOR EACH ROW EXECUTE FUNCTION public.fn_set_updated_at();
 
-COMMENT ON TABLE app.product IS
-  'Example CRUD (name, price, enabled) that exercises the products RBAC resource.';
-
-INSERT INTO usr.usr_resource (code, description)
-VALUES ('products', 'Example CRUD module');
+INSERT INTO usr.usr_resource (code, description) VALUES ('products', 'Example CRUD module');

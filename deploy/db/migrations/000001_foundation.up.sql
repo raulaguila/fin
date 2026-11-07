@@ -1,17 +1,11 @@
--- Extension, schemas, updated_at trigger and the role the processes connect with.
+-- Extensions, schemas, the updated_at trigger and the roles the processes use.
 
 CREATE EXTENSION IF NOT EXISTS citext;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-CREATE SCHEMA usr;
-CREATE SCHEMA sys;
-CREATE SCHEMA app;
-
-COMMENT ON SCHEMA usr IS
-  'Identity: users, credentials, sessions, tokens, login attempts, roles, permissions.';
-COMMENT ON SCHEMA sys IS
-  'System infrastructure: email outbox and scheduled cleanup.';
-COMMENT ON SCHEMA app IS
-  'Application domain: products (example CRUD for RBAC).';
+CREATE SCHEMA usr;  -- identity
+CREATE SCHEMA sys;  -- email outbox and cleanup
+CREATE SCHEMA app;  -- example CRUD
 
 CREATE FUNCTION public.fn_set_updated_at()
 RETURNS trigger
@@ -23,19 +17,21 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION public.fn_set_updated_at() IS
-  'BEFORE UPDATE: fills updated_at. The business clock stays in the application.';
-
--- Only migrations keep the owner. `make migrate-up` gives this role its login
--- and the password from config/.env.
+-- Only migrations keep the owner. `make migrate-up` gives these roles their
+-- logins and the passwords from config/.env.
 DO $$
+DECLARE
+  role_name TEXT;
 BEGIN
-    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticity_app') THEN
-        CREATE ROLE authenticity_app NOLOGIN;
+  FOREACH role_name IN ARRAY ARRAY['authenticity_app', 'authenticity_mailer'] LOOP
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = role_name) THEN
+      EXECUTE format('CREATE ROLE %I NOLOGIN', role_name);
     END IF;
-END
+  END LOOP;
+END;
 $$;
 
 GRANT USAGE ON SCHEMA usr, sys, app TO authenticity_app;
+GRANT USAGE ON SCHEMA sys TO authenticity_mailer;
 ALTER DEFAULT PRIVILEGES IN SCHEMA usr, sys, app
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticity_app;

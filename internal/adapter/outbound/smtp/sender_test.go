@@ -3,6 +3,7 @@ package smtpmail
 import (
 	"bufio"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -79,5 +80,15 @@ func TestPlainModeDelivers(t *testing.T) {
 	}
 	if !<-gotData {
 		t.Fatal("no message received")
+	}
+}
+
+func TestMessageCarriesDateAndID(t *testing.T) {
+	msg := string(buildMessage("Authenticity <no-reply@acme.io>", "a@acme.io", "", "Hi", "body"))
+	if !strings.Contains(msg, "\r\nDate: ") {
+		t.Fatalf("no Date in %q", msg)
+	}
+	if !regexp.MustCompile(`\r\nMessage-ID: <[0-9a-f-]{36}@acme\.io>\r\n`).MatchString(msg) {
+		t.Fatalf("no Message-ID in %q", msg)
 	}
 }

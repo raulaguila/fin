@@ -67,7 +67,8 @@ func idKey(ctx context.Context, plain string, salt []byte, t, m uint32, p uint8,
 
 // A valid, public PHC value only used to spend the normal verification cost.
 // No lazy first-request hash or context.Background work is needed.
-const timingHash = "$argon2id$v=19$m=65536,t=3,p=4$MDEyMzQ1Njc4OWFiY2RlZg$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+var timingHash = fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$MDEyMzQ1Njc4OWFiY2RlZg$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+	argon2.Version, memoryKiB, timeCost, threads)
 
 // Waste spends the time of a real verify, so accounts without a usable
 // password answer as slowly as accounts with one.

@@ -11,6 +11,9 @@ import (
 type UserRepository interface {
 	FindByID(ctx context.Context, id string) (*domain.User, error)
 	FindByEmail(ctx context.Context, email string) (*domain.User, error)
+	// LockStatus reads the status and holds off any change to it until the
+	// transaction ends. Inside a transaction only.
+	LockStatus(ctx context.Context, id string) (string, error)
 	Create(ctx context.Context, user *domain.User) error
 	// UpdateStatus leaves a disabled account as it is: a login or activation already
 	// running when the account was disabled must not undo that.
@@ -28,7 +31,7 @@ type CredentialRepository interface {
 	// Create inserts the empty credential of a new user.
 	Create(ctx context.Context, userID string) error
 	// SetPassword stores a new hash and clears the lockout.
-	SetPassword(ctx context.Context, userID, hash, algorithm string) error
+	SetPassword(ctx context.Context, userID, hash string) error
 	// RecordFailure atomically counts a bad password, restarting the count after
 	// a lapsed lock, and locks until lockUntil once maxAttempts is reached.
 	RecordFailure(ctx context.Context, userID string, maxAttempts int, lockUntil, now time.Time) (lockedUntil *time.Time, err error)
@@ -63,7 +66,6 @@ type TokenRepository interface {
 	Create(ctx context.Context, token *domain.EmailToken) error
 	FindActiveByHash(ctx context.Context, purpose string, hash []byte) (*domain.EmailToken, error)
 	MarkUsed(ctx context.Context, id string, usedAt time.Time) error
-	IncrementAttempts(ctx context.Context, id string) (attempts int, err error)
 	InvalidateActive(ctx context.Context, userID, purpose string) error
 	// IssuedSince reports whether a live token of this purpose was created at or after since.
 	IssuedSince(ctx context.Context, userID, purpose string, since time.Time) (bool, error)

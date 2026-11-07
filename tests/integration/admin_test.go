@@ -153,6 +153,18 @@ func (e *env) disableDuringLogin(t *testing.T, addr string) (restore func()) {
 	return func() { e.svc.UOW = store }
 }
 
+// lastFailure returns the failure kind stored for the latest login of addr.
+func (e *env) lastFailure(t *testing.T, addr string) string {
+	t.Helper()
+	var kind string
+	err := testDB.Table("usr.usr_login_attempt").Select("failure_kind").
+		Where("email = ?", addr).Order("created_at DESC, id DESC").Limit(1).Scan(&kind).Error
+	if err != nil {
+		t.Fatal(err)
+	}
+	return kind
+}
+
 func TestLoginInFlightLosesToDisable(t *testing.T) {
 	e := newEnv(t)
 	addr := e.activeUser(t)
@@ -165,6 +177,9 @@ func TestLoginInFlightLosesToDisable(t *testing.T) {
 	err = testDB.Table("usr.usr_session").Where("user_id = ? AND revoked_at IS NULL", e.userID(t, addr)).Count(&live).Error
 	if err != nil || live != 0 {
 		t.Fatalf("live sessions: %d %v", live, err)
+	}
+	if got := e.lastFailure(t, addr); got != domain.FailureAccountDisabled {
+		t.Fatalf("failure kind %q", got)
 	}
 }
 

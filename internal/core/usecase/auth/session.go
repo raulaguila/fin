@@ -11,16 +11,17 @@ import (
 	"github.com/raulaguila/authenticity/pkg/tokenhash"
 )
 
-func (s *Service) issueSession(ctx context.Context, userID, verifiedHash string, ip, ua *string, now time.Time) (*domain.TokenPair, error) {
+// issueSession returns the failure kind to store when it refuses the login.
+func (s *Service) issueSession(ctx context.Context, userID, verifiedHash string, ip, ua *string, now time.Time) (*domain.TokenPair, string, error) {
 	// Pre-generate session id so JWT sid matches the row on insert.
 	sessionID := uuid.NewString()
 	refresh, jti, err := s.Tokens.IssueRefresh(userID, sessionID, now)
 	if err != nil {
-		return nil, apperror.New(apperror.CodeInternal, "token issue failed").WithCause(err)
+		return nil, "", apperror.New(apperror.CodeInternal, "token issue failed").WithCause(err)
 	}
 	access, err := s.Tokens.IssueAccess(userID, sessionID, now)
 	if err != nil {
-		return nil, apperror.New(apperror.CodeInternal, "token issue failed").WithCause(err)
+		return nil, "", apperror.New(apperror.CodeInternal, "token issue failed").WithCause(err)
 	}
 
 	expiresAt := now.Add(min(s.Tokens.RefreshTTL(), s.Cfg.SessionMaxLifetime))
@@ -34,31 +35,32 @@ func (s *Service) issueSession(ctx context.Context, userID, verifiedHash string,
 		CreatedAt:        now,
 		LastSeenAt:       now,
 	}
-	// RecordSuccess locks the credential row until session insertion commits.
-	// Reset updates that same row before revoking sessions, so it either wins
-	// first (the hash check fails) or revokes this new session after we commit.
-	if err := s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
+	// RecordSuccess locks the credential row until the session commits. Reset
+	// updates that row before revoking sessions, so it wins first (the hash check
+	// fails) or revokes this session afterwards. LockStatus does the same with
+	// Disable, which updates the status before revoking sessions.
+	var refused string
+	err = s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
 		applied, err := uow.Credentials().RecordSuccess(ctx, userID, verifiedHash, now)
 		if err != nil {
 			return err
 		}
 		if !applied {
+			refused = domain.FailureBadPassword
+			return invalidCredentials()
+		}
+		status, err := uow.Users().LockStatus(ctx, userID)
+		if err != nil {
+			return err
+		}
+		if status == domain.UserStatusDisabled {
+			refused = domain.FailureAccountDisabled
 			return invalidCredentials()
 		}
 		return uow.Sessions().Create(ctx, sess)
-	}); err != nil {
-		return nil, err
-	}
-
-	// Disable may have run during the slow verify and missed this session. Read
-	// after the insert, so whichever of the two comes last sees the other.
-	user, err := s.UOW.Users().FindByID(ctx, userID)
+	})
 	if err != nil {
-		return nil, err
-	}
-	if user.Status == domain.UserStatusDisabled {
-		s.warn("Session not revoked", s.UOW.Sessions().Revoke(ctx, sessionID, now, domain.RevokeAccountDisabled))
-		return nil, invalidCredentials()
+		return nil, refused, err
 	}
 
 	return &domain.TokenPair{
@@ -67,5 +69,5 @@ func (s *Service) issueSession(ctx context.Context, userID, verifiedHash string,
 		RefreshToken: refresh,
 		ExpiresIn:    int64(s.Tokens.AccessTTL().Seconds()),
 		TokenType:    "Bearer",
-	}, nil
+	}, "", nil
 }

@@ -5,7 +5,6 @@ go 1.26.10
 require (
 	github.com/godeh/dotenvgo v0.6.0
 	github.com/gofiber/contrib/v3/swaggo v1.0.16
-	github.com/gofiber/contrib/v3/zerolog v1.1.10
 	github.com/gofiber/fiber/v3 v3.6.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0

@@ -32,6 +32,15 @@ func TestVerifyRejectsUnsafePHC(t *testing.T) {
 		}
 	}
 }
+
+func TestWasteRunsARealVerify(t *testing.T) {
+	before := password.Stats()["operations"]
+	password.Waste(context.Background(), "password")
+	if password.Stats()["operations"] != before+1 {
+		t.Fatal("Verify refused the timing hash, so Waste spent no time")
+	}
+}
+
 func TestCancelledHashAndWaste(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

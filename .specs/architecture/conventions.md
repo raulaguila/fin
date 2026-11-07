@@ -5,7 +5,6 @@ Regras do SQL, da config e de `pkg`. Aplicar ao implementar HTTP e domínio. RBA
 ## Segredos
 
 - Plaintext nunca gravado: senha Argon2id; refresh `jti` e tokens SMTP SHA-256 (`BYTEA`).
-- `password_algorithm` só `argon2id` ou NULL (junto com hash NULL).
 
 ## Identidade
 

@@ -76,12 +76,7 @@ func (s *Service) Activate(ctx context.Context, cmd input.ActivateCommand) error
 	hash := tokenhash.SHA256Bytes(cmd.Token)
 	now := s.Clock.Now()
 
-	if tok, _, err := activationTarget(ctx, s.UOW, hash, now); err != nil {
-		if tok != nil {
-			if _, err := s.UOW.Tokens().IncrementAttempts(ctx, tok.ID); err != nil {
-				s.warn("Token attempt not counted", err)
-			}
-		}
+	if _, _, err := activationTarget(ctx, s.UOW, hash, now); err != nil {
 		return err
 	}
 
@@ -96,7 +91,7 @@ func (s *Service) Activate(ctx context.Context, cmd input.ActivateCommand) error
 		if err != nil {
 			return err
 		}
-		if err := uow.Credentials().SetPassword(ctx, user.ID, ph, domain.PasswordAlgorithmArgon2id); err != nil {
+		if err := uow.Credentials().SetPassword(ctx, user.ID, ph); err != nil {
 			return err
 		}
 		if err := uow.Users().UpdateStatus(ctx, user.ID, domain.UserStatusActive); err != nil {
@@ -114,8 +109,7 @@ func (s *Service) Activate(ctx context.Context, cmd input.ActivateCommand) error
 	return err
 }
 
-// activationTarget checks an activation token. An expired token comes back with
-// the error, for the caller to record outside any rolled-back transaction.
+// activationTarget checks an activation token.
 func activationTarget(ctx context.Context, uow output.UnitOfWork, hash []byte, now time.Time) (*domain.EmailToken, *domain.User, error) {
 	tok, err := uow.Tokens().FindActiveByHash(ctx, domain.TokenPurposeActivation, hash)
 	if err != nil {
@@ -128,7 +122,7 @@ func activationTarget(ctx context.Context, uow output.UnitOfWork, hash []byte, n
 		return nil, nil, apperror.New(apperror.CodeTokenExpired, "activation token already used")
 	}
 	if !tok.ExpiresAt.After(now) {
-		return tok, nil, apperror.New(apperror.CodeTokenExpired, "activation token expired")
+		return nil, nil, apperror.New(apperror.CodeTokenExpired, "activation token expired")
 	}
 	user, err := uow.Users().FindByID(ctx, tok.UserID)
 	if err != nil {

@@ -3,6 +3,8 @@ html { background: #fff; }
 html[data-swagger-theme="dark"] { filter: invert(92%) hue-rotate(180deg); }
 html[data-swagger-theme="dark"] img,
 html[data-swagger-theme="dark"] pre { filter: invert(100%) hue-rotate(180deg); }
+/* The filter inverts the whole page, so a white backdrop is what ends up dark. */
+html[data-swagger-theme="dark"] .swagger-ui .dialog-ux .backdrop-ux { background: rgba(255, 255, 255, .75); }
 .swagger-ui .info .title {
   position: relative; min-height: 44px; padding-right: 56px;
 }
@@ -10,10 +12,15 @@ html[data-swagger-theme="dark"] pre { filter: invert(100%) hue-rotate(180deg); }
   position: absolute; top: 0; right: 0; display: inline-flex; align-items: center; justify-content: center;
   box-sizing: border-box; width: 44px; height: 44px; padding: 0;
   border: 1px solid #89909c; border-radius: 4px; background: #fff; color: #3b4151;
-  font: 600 14px sans-serif; cursor: pointer;
+  cursor: pointer;
 }
-.swagger-theme-toggle::before { content: "☀"; font-size: 20px; }
-.swagger-theme-toggle[aria-pressed="true"]::before { content: "☾"; }
+.swagger-theme-toggle::before {
+  content: ""; width: 22px; height: 22px; background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.swagger-theme-toggle[aria-pressed="true"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a6.8 6.8 0 0 0 11 11z'/%3E%3C/svg%3E");
+}
 .swagger-theme-toggle:hover { background: #f0f1f3; }
 .swagger-theme-toggle:focus-visible { outline: 2px solid #3b4151; outline-offset: 3px; }
 .swagger-ui .topbar { display: none; }

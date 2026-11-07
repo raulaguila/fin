@@ -17,7 +17,6 @@ composition → core/usecase + adapter/outbound
 adapter/inbound → port/input (+ pkg/apperror)
 adapter/outbound → port/output + domain
 core/usecase → domain + policy + ports + pkg/{apperror,password,tokenhash,validate,clientip}
-core/usecase/admin → core/usecase/auth (same identity and password rules, no second copy)
 core/domain → stdlib only
 ```
 
@@ -26,7 +25,7 @@ core/domain → stdlib only
 | `internal/core` | — | Domain + ports + use cases; no Fiber/GORM/config |
 | `adapter/inbound/http/rest` | — | DTOs, route map, `apperror`→HTTP |
 | `adapter/outbound/persistence/postgres` | `usr.*`, `sys.outbox`, `app.product` | GORM/`Exec`; `Store` = TxManager + UnitOfWork |
-| `cmd/mailer` | outbox claim → SMTP | Poll 2s, batch 10; terminal fail after 8 attempts or smtp_disabled |
+| `cmd/mailer` | outbox claim → SMTP | Poll 2s, batch 10; terminal fail after 14 attempts or smtp_disabled |
 
 **Sacred (product + ADR):** JWT must not carry permission claims; authz loads live from the DB on each check. Plaintext passwords / refresh JTIs / email tokens must not be stored.
 
@@ -185,11 +184,11 @@ Do not log refresh tokens, passwords, or email token plaintext (payload in outbo
 
 Swagger UI at `/swagger/index.html`, outside protected environments only. Handlers under `rest/handler` carry `swag` annotations and `make swagger` regenerates `internal/adapter/inbound/http/rest/docs/docs.go`. Each handler package mounts its own routes (`Routes`); every operation has one `@Tags` tag, by subject; `x-tagGroups` in `rest/swagger.go` groups the tags, rendered by the plugin in `rest/docs/swagger.js` as collapsible sections, closed by default. Custom styles live in `rest/docs/swagger.css`. `swagger_test.go` fails when a route and the docs disagree.
 
-An icon-only theme toggle sits at the right of the API title, on the same line. Dark is the default; the selection is saved in browser local storage when available. The button has a tooltip, supports keyboard activation and exposes its accessible name and state with `aria-label` and `aria-pressed`.
+An icon-only theme toggle sits at the right of the API title, on the same line. The first visit follows the system theme; the selection is saved in browser local storage when available. The button has a tooltip, supports keyboard activation and exposes its accessible name and state with `aria-label` and `aria-pressed`.
 
 ## Known gaps vs intent
 
-1. **Observability thin** — no correlation id / metrics / traces, or structured administrative audit beyond login attempts.
+1. **Observability thin** — no correlation id or traces, and no structured administrative audit beyond login attempts.
 2. **Scale and SLOs unmeasured** — no measured throughput, latency or availability targets; the HTTP rate limiter is local to each process.
 
 ## Boundaries and verification
@@ -198,6 +197,6 @@ Application services use a small logging port, a protected email payload codec a
 
 Authentication is split into login, refresh, request authentication, session insertion, attempt limits and notifications. Integration scenarios live under `tests/integration`, while pure policies and handlers keep focused tests beside their code. `tests/architecture` guards dependency direction. SQL record maintenance timestamps use the database/runtime clock; login attempt and email token issuance times, expirations and session rules use the application Clock. Health TTLs and diagnostic heartbeats intentionally use elapsed real time.
 
-Products keep numbered pagination. `cursor=start` selects a count-free cursor page ordered by `(created_at DESC, id DESC)`; subsequent requests send `next_cursor`. Cursor mode only supports that order, with `page=1`; search must remain unchanged while traversing. An exact-sized final page may return a cursor whose following page is empty. Migration 000007 adds the matching composite index and a trigram index for substring search.
+Products keep numbered pagination. `cursor=start` selects a count-free cursor page ordered by `(created_at DESC, id DESC)`; subsequent requests send `next_cursor`. Cursor mode only supports that order, with `page=1`; search must remain unchanged while traversing. An exact-sized final page may return a cursor whose following page is empty. Migration 000004 adds the matching composite index and a trigram index for substring search.
 
 Benchmarks: `go test -run '^$' -bench BenchmarkHashParallel -benchmem ./pkg/password` and, with an empty TEST_POSTGRES_URL, `go test -run '^$' -bench BenchmarkHTTPProducts -benchmem ./tests/integration`. The latter exercises Fiber, JWT/session validation, RBAC and SQL through app.Test; TCP/TLS and production traffic are outside its scope. Use deployment measurements before claiming capacity or changing cryptographic cost.

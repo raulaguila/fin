@@ -61,7 +61,6 @@ type UserDetails struct {
 type Credential struct {
 	UserID              string
 	PasswordHash        *string
-	PasswordAlgorithm   *string
 	FailedLoginAttempts int
 	LockedUntil         *time.Time
 	LastLoginAt         *time.Time

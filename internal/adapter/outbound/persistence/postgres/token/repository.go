@@ -29,7 +29,6 @@ type row struct {
 	TokenHash []byte     `gorm:"column:token_hash"`
 	ExpiresAt time.Time  `gorm:"column:expires_at"`
 	UsedAt    *time.Time `gorm:"column:used_at"`
-	Attempts  int        `gorm:"column:attempts"`
 	CreatedAt time.Time  `gorm:"column:created_at"`
 }
 
@@ -41,7 +40,6 @@ func (m row) toDomain() *domain.EmailToken {
 		TokenHash: m.TokenHash,
 		ExpiresAt: m.ExpiresAt,
 		UsedAt:    m.UsedAt,
-		Attempts:  m.Attempts,
 		CreatedAt: m.CreatedAt,
 	}
 }
@@ -53,8 +51,8 @@ func (r *Repository) Create(ctx context.Context, t *domain.EmailToken) error {
 		now = time.Now()
 	}
 	err := r.db.WithContext(ctx).Exec(`
-		INSERT INTO usr.usr_token (id, user_id, purpose, token_hash, expires_at, used_at, attempts, created_at)
-		VALUES (?, ?, ?, ?, ?, NULL, 0, ?)
+		INSERT INTO usr.usr_token (id, user_id, purpose, token_hash, expires_at, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
 	`, id, t.UserID, t.Purpose, t.TokenHash, t.ExpiresAt, now).Error
 	if err != nil {
 		return shared.WrapError(err, "token")
@@ -86,21 +84,6 @@ func (r *Repository) MarkUsed(ctx context.Context, id string, usedAt time.Time) 
 		return shared.WrapError(gorm.ErrRecordNotFound, "token")
 	}
 	return nil
-}
-
-func (r *Repository) IncrementAttempts(ctx context.Context, id string) (int, error) {
-	var attempts int
-	err := r.db.WithContext(ctx).Raw(`
-		UPDATE usr.usr_token
-		SET attempts = attempts + 1,
-		    used_at = CASE WHEN attempts + 1 >= 5 THEN COALESCE(used_at, now()) ELSE used_at END
-		WHERE id = ?
-		RETURNING attempts
-	`, id).Scan(&attempts).Error
-	if err != nil {
-		return 0, shared.WrapError(err, "token")
-	}
-	return attempts, nil
 }
 
 func (r *Repository) IssuedSince(ctx context.Context, userID, purpose string, since time.Time) (bool, error) {

@@ -21,14 +21,14 @@ const maxSearchBytes = 120
 var statuses = []string{domain.UserStatusPending, domain.UserStatusActive, domain.UserStatusLocked, domain.UserStatusDisabled}
 
 type Service struct {
-	UOW   output.UserStore
+	UOW   output.IdentityStore
 	Tx    output.TxManager
 	Clock output.Clock
 }
 
 var _ input.UserService = (*Service)(nil)
 
-func New(uow output.UserStore, tx output.TxManager, clock output.Clock) *Service {
+func New(uow output.IdentityStore, tx output.TxManager, clock output.Clock) *Service {
 	return &Service{UOW: uow, Tx: tx, Clock: clock}
 }
 
@@ -44,14 +44,14 @@ func (s *Service) List(ctx context.Context, filter domain.UserFilter) ([]domain.
 }
 
 func (s *Service) Get(ctx context.Context, id string) (*domain.UserDetails, error) {
-	return reachable(ctx, s.UOW, id)
+	return policy.Reachable(ctx, s.UOW, id)
 }
 
 // Disable refuses the caller's own account, compared on the stored id: the path
 // may spell the same UUID in another case.
 func (s *Service) Disable(ctx context.Context, actorID, id string) error {
 	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
-		target, err := reachable(ctx, uow, id)
+		target, err := policy.Reachable(ctx, uow, id)
 		if err != nil {
 			return err
 		}
@@ -63,29 +63,9 @@ func (s *Service) Disable(ctx context.Context, actorID, id string) error {
 }
 
 func (s *Service) Enable(ctx context.Context, id string) error {
-	target, err := reachable(ctx, s.UOW, id)
+	target, err := policy.Reachable(ctx, s.UOW, id)
 	if err != nil {
 		return err
 	}
 	return s.UOW.Users().Enable(ctx, target.ID)
-}
-
-// reachable loads a user the API may see. Nothing here can give a user a protected
-// role, so the answer cannot go stale before a write.
-func reachable(ctx context.Context, uow output.UserStore, id string) (*domain.UserDetails, error) {
-	if err := validate.ID(id); err != nil {
-		return nil, err
-	}
-	user, err := uow.Users().FindByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	roles, err := uow.Roles().ForUser(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if slices.ContainsFunc(roles, domain.Role.Protected) {
-		return nil, apperror.New(apperror.CodeForbidden, "a user with a superuser role cannot be managed here")
-	}
-	return &domain.UserDetails{User: *user, Roles: roles}, nil
 }

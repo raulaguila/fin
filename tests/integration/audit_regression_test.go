@@ -12,6 +12,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
+	"github.com/raulaguila/authenticity/pkg/apperror"
 )
 
 // Pause immediately before the session transaction: a completed reset must
@@ -28,6 +29,7 @@ func (tx *beforeTx) WithinTx(ctx context.Context, f func(context.Context, output
 	}
 	return tx.TxManager.WithinTx(ctx, f)
 }
+
 func TestAuditResetMustInvalidateInFlightLogin(t *testing.T) {
 	e := newEnv(t)
 	addr := e.activeUser(t)
@@ -51,6 +53,27 @@ func TestAuditResetMustInvalidateInFlightLogin(t *testing.T) {
 		if _, err = e.svc.Authenticate(ctx, pair.AccessToken); err == nil {
 			t.Fatal("old password created a live session after reset")
 		}
+	}
+}
+
+func TestLoginLosingToALockStaysAPasswordFailure(t *testing.T) {
+	e := newEnv(t)
+	addr := e.activeUser(t)
+	id := e.userID(t, addr)
+	// reserveAttempt is the first transaction; the session is the second.
+	tx := &beforeTx{TxManager: e.store}
+	tx.hook = func() {
+		tx.hook = func() {
+			if _, err := e.store.Credentials().RecordFailure(context.Background(), id, 1, e.clock.now.Add(time.Hour), e.clock.now); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	e.svc.Tx = tx
+	_, err := e.login(addr, strongPassword)
+	wantCode(t, err, apperror.CodeInvalidCredentials)
+	if got := e.lastFailure(t, addr); got != domain.FailureBadPassword {
+		t.Fatalf("failure kind %q", got)
 	}
 }
 

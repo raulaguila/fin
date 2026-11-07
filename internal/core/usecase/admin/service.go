@@ -67,7 +67,7 @@ func (s *Service) Bootstrap(ctx context.Context, cmd input.BootstrapCommand) (bo
 		if err := uow.Credentials().Create(ctx, user.ID); err != nil {
 			return err
 		}
-		if err := uow.Credentials().SetPassword(ctx, user.ID, hash, domain.PasswordAlgorithmArgon2id); err != nil {
+		if err := uow.Credentials().SetPassword(ctx, user.ID, hash); err != nil {
 			return err
 		}
 		defaultID, err := uow.Roles().FindDefaultRoleID(ctx)

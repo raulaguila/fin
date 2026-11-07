@@ -33,14 +33,8 @@ type AccountStore interface {
 	Notifications() NotificationRepository
 }
 
-// UserStore exposes only the repositories this application service reads or updates.
-type UserStore interface {
-	Users() UserRepository
-	Roles() RoleRepository
-}
-
-// RoleStore exposes only the repositories this application service reads or updates.
-type RoleStore interface {
+// IdentityStore exposes only the repositories the user and role services read or update.
+type IdentityStore interface {
 	Users() UserRepository
 	Roles() RoleRepository
 }

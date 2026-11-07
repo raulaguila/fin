@@ -3,11 +3,11 @@
 (() => {
   const storageKey = "authenticity.swagger.theme";
   const root = document.documentElement;
-  let theme = "dark";
+  let theme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
   try {
     const saved = localStorage.getItem(storageKey);
     if (saved === "light" || saved === "dark") theme = saved;
-  } catch (_) { /* Keep the existing dark default when storage is unavailable. */ }
+  } catch (_) { /* Keep the system theme when storage is unavailable. */ }
   root.dataset.swaggerTheme = theme;
 
   const mount = () => {

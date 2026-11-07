@@ -82,7 +82,6 @@ func (r *Repository) List(ctx context.Context, filter domain.ProductFilter) ([]d
 	}
 	var rows []row
 	err := q.Select("id, name, price::text AS price, enabled, created_at, updated_at").Order(order).Limit(filter.Page.Limit).Scan(&rows).Error
-
 	if err != nil {
 		return nil, 0, shared.WrapError(err, "product")
 	}

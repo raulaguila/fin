@@ -1,12 +1,6 @@
-ALTER DEFAULT PRIVILEGES IN SCHEMA usr, sys, app
-    REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM authenticity_app;
-REVOKE USAGE ON SCHEMA usr, sys, app FROM authenticity_app;
-DROP ROLE IF EXISTS authenticity_app;
+DROP OWNED BY authenticity_app, authenticity_mailer;
+DROP ROLE authenticity_app, authenticity_mailer;
 
 DROP FUNCTION public.fn_set_updated_at();
-
-DROP SCHEMA app;
-DROP SCHEMA sys;
-DROP SCHEMA usr;
-
-DROP EXTENSION citext;
+DROP SCHEMA app, sys, usr;
+DROP EXTENSION pg_trgm, citext;

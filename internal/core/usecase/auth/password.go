@@ -64,12 +64,7 @@ func (s *Service) ConfirmPasswordReset(ctx context.Context, cmd input.ConfirmPas
 	hash := tokenhash.SHA256Bytes(cmd.Token)
 	now := s.Clock.Now()
 
-	if tok, err := resetToken(ctx, s.UOW, hash, now); err != nil {
-		if tok != nil {
-			if _, err := s.UOW.Tokens().IncrementAttempts(ctx, tok.ID); err != nil {
-				s.warn("Token attempt not counted", err)
-			}
-		}
+	if _, err := resetToken(ctx, s.UOW, hash, now); err != nil {
 		return err
 	}
 
@@ -84,7 +79,7 @@ func (s *Service) ConfirmPasswordReset(ctx context.Context, cmd input.ConfirmPas
 		if err != nil {
 			return err
 		}
-		if err := uow.Credentials().SetPassword(ctx, tok.UserID, ph, domain.PasswordAlgorithmArgon2id); err != nil {
+		if err := uow.Credentials().SetPassword(ctx, tok.UserID, ph); err != nil {
 			return err
 		}
 		user, err := uow.Users().FindByID(ctx, tok.UserID)
@@ -114,8 +109,7 @@ func (s *Service) ConfirmPasswordReset(ctx context.Context, cmd input.ConfirmPas
 	})
 }
 
-// resetToken checks a reset token. A refused token comes back with the error,
-// for the caller to count outside any rolled-back transaction.
+// resetToken checks a reset token.
 func resetToken(ctx context.Context, uow output.UnitOfWork, hash []byte, now time.Time) (*domain.EmailToken, error) {
 	tok, err := uow.Tokens().FindActiveByHash(ctx, domain.TokenPurposePasswordReset, hash)
 	if err != nil {
@@ -125,7 +119,7 @@ func resetToken(ctx context.Context, uow output.UnitOfWork, hash []byte, now tim
 		return nil, err
 	}
 	if tok.UsedAt != nil || !tok.ExpiresAt.After(now) {
-		return tok, apperror.New(apperror.CodeTokenExpired, "reset token expired or used")
+		return nil, apperror.New(apperror.CodeTokenExpired, "reset token expired or used")
 	}
 	return tok, nil
 }

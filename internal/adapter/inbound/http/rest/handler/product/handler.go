@@ -131,16 +131,17 @@ func (h *Handler) List(c fiber.Ctx) error {
 		out = append(out, toDTO(p))
 	}
 	if filter.Cursor {
-		next := ""
+		pagination := productPaginationDTO{Limit: filter.Page.Limit}
 		if len(items) == filter.Page.Limit {
 			last := items[len(items)-1]
 			raw, err := json.Marshal(domain.ProductCursor{CreatedAt: last.CreatedAt, ID: last.ID})
 			if err != nil {
 				return err
 			}
-			next = base64.RawURLEncoding.EncodeToString(raw)
+			next := base64.RawURLEncoding.EncodeToString(raw)
+			pagination.NextCursor = &next
 		}
-		return c.JSON(fiber.Map{"items": out, "pagination": productPaginationDTO{Limit: filter.Page.Limit, NextCursor: pointer.Of(next)}})
+		return c.JSON(fiber.Map{"items": out, "pagination": pagination})
 	}
 	page := mapper.Pagination(filter.Page, total)
 	return c.JSON(fiber.Map{"items": out, "pagination": productPaginationDTO{Page: page.Page, Limit: page.Limit, TotalItems: &page.TotalItems, TotalPages: &page.TotalPages}})

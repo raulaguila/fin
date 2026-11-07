@@ -15,7 +15,7 @@ import (
 const (
 	defaultBatch   = 10
 	defaultPoll    = 2 * time.Second
-	maxAttempts    = 8
+	maxAttempts    = 14 // about 75 minutes of backoff, to outlast an SMTP outage
 	maxBackoffSecs = 15 * 60
 	maxErrorBytes  = 500
 	// claimLease must outlast a full batch of sends (10 x the 30s SMTP deadline).
@@ -151,19 +151,12 @@ func render(msg *domain.OutboxMessage, codec output.EmailTokenCodec) (to, subjec
 	switch msg.Purpose {
 	case domain.OutboxPurposeActivation:
 		subject = "Activate your account"
-		body = fmt.Sprintf("Hello%s,\n\nUse this activation token:\n\n%s\n", nameSuffix(p.Name), p.Token)
+		body = "Hello,\n\nUse this activation token:\n\n" + p.Token + "\n"
 	case domain.OutboxPurposePasswordReset:
 		subject = "Password reset"
-		body = fmt.Sprintf("Hello%s,\n\nUse this password reset token:\n\n%s\n", nameSuffix(p.Name), p.Token)
+		body = "Hello,\n\nUse this password reset token:\n\n" + p.Token + "\n"
 	default:
 		return "", "", "", fmt.Errorf("unknown_purpose")
 	}
 	return p.Email, subject, body, nil
-}
-
-func nameSuffix(name string) string {
-	if name == "" {
-		return ""
-	}
-	return " " + name
 }

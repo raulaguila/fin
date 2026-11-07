@@ -1,13 +1,5 @@
 DROP VIEW usr.vw_user_effective_permissions;
-
-DROP TABLE usr.usr_notification;
-DROP TABLE usr.usr_preference;
-DROP TABLE usr.usr_user_role;
-DROP TABLE usr.usr_role_permission;
-DROP TABLE usr.usr_role;
-DROP TABLE usr.usr_resource;
-DROP TABLE usr.usr_login_attempt;
-DROP TABLE usr.usr_token;
-DROP TABLE usr.usr_session;
-DROP TABLE usr.usr_credential;
-DROP TABLE usr.usr_user;
+DROP TABLE
+    usr.usr_notification, usr.usr_preference, usr.usr_user_role, usr.usr_role_permission,
+    usr.usr_role, usr.usr_resource, usr.usr_login_attempt, usr.usr_token, usr.usr_session,
+    usr.usr_credential, usr.usr_user;

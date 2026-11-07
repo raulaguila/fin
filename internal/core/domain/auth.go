@@ -22,8 +22,6 @@ const (
 	FailureAccountPending   = "account_pending"
 	FailureRateLimitedIP    = "rate_limited_ip"
 	FailureRateLimitedEmail = "rate_limited_email"
-
-	PasswordAlgorithmArgon2id = "argon2id"
 )
 
 // EmailToken is usr.usr_token (activation | password_reset).
@@ -34,7 +32,6 @@ type EmailToken struct {
 	TokenHash []byte
 	ExpiresAt time.Time
 	UsedAt    *time.Time
-	Attempts  int
 	CreatedAt time.Time
 }
 

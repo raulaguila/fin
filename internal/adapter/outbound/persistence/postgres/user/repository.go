@@ -83,19 +83,10 @@ func (r *Repository) Create(ctx context.Context, u *domain.User) error {
 	return nil
 }
 
-// unprotected must agree with domain.Role.Protected.
-const unprotected = `NOT EXISTS (
-	SELECT 1 FROM usr.usr_user_role ur
-	JOIN usr.usr_role r ON r.id = ur.role_id
-	WHERE ur.user_id = u.id AND (
-		r.is_superuser OR EXISTS (SELECT 1 FROM usr.usr_role_permission p WHERE p.role_id = r.id AND p.resource = '*')
-	)
-)`
-
 // shortcut: OFFSET and leading-wildcard ILIKE scan what they skip, fine for thousands of users; move to keyset and pg_trgm beyond that.
 func (r *Repository) List(ctx context.Context, filter domain.UserFilter) ([]domain.User, int64, error) {
 	matching := func() *gorm.DB {
-		q := r.db.WithContext(ctx).Table("usr.usr_user u").Where(unprotected)
+		q := r.db.WithContext(ctx).Table("usr.usr_user u").Where(shared.Unprotected)
 		if filter.Search != "" {
 			pattern := shared.Contains(filter.Search)
 			q = q.Where("(u.name ILIKE ? OR u.email::text ILIKE ?)", pattern, pattern)
@@ -135,6 +126,18 @@ func (r *Repository) Enable(ctx context.Context, id string) error {
 		WHERE u.id = ? AND u.status = ?
 	`, domain.UserStatusActive, domain.UserStatusPending, id, domain.UserStatusDisabled).Error
 	return shared.WrapError(err, "user")
+}
+
+func (r *Repository) LockStatus(ctx context.Context, id string) (string, error) {
+	var status string
+	err := r.db.WithContext(ctx).Raw(`SELECT status FROM usr.usr_user WHERE id = ? FOR SHARE`, id).Scan(&status).Error
+	if err != nil {
+		return "", shared.WrapError(err, "user")
+	}
+	if status == "" {
+		return "", shared.WrapError(gorm.ErrRecordNotFound, "user")
+	}
+	return status, nil
 }
 
 func (r *Repository) UpdateStatus(ctx context.Context, id, status string) error {

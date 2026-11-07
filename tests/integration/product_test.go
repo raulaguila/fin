@@ -49,6 +49,10 @@ func TestProductListPagesSearchesAndSorts(t *testing.T) {
 	if got, total := names(domain.ProductFilter{Page: all, Search: "%"}); total != 1 || got[0] != "100% cotton" {
 		t.Fatalf("wildcard must be literal: %v of %d", got, total)
 	}
+	disabled := false
+	if got, total := names(domain.ProductFilter{Page: all, Enabled: &disabled}); total != 1 || got[0] != "Hidden" {
+		t.Fatalf("enabled filter: %v of %d", got, total)
+	}
 	if got, total := names(domain.ProductFilter{Page: domain.NewPage(9, 100)}); total != 4 || len(got) != 0 {
 		t.Fatalf("past the end: %v of %d", got, total)
 	}

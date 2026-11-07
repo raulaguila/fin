@@ -18,7 +18,8 @@ tracked file: imports, Docker images and containers, the database roles
 `<name>_app` and `<name>_mailer`, the pg_cron jobs and titles. `NAME` must be
 lowercase letters, digits and `_`, since it becomes Postgres role names. Then
 point the `origin` remote at the new repository and drop the `products`
-example once a real module replaces it.
+example once a real module replaces it. The web app follows: the visible name
+lives in `web/src/lib/brand.ts` and the mark in `web/src/components/brand-mark.tsx`.
 
 ## Add a module
 
@@ -38,6 +39,8 @@ GORM, Fiber or the config.
 | 8. Wiring | `internal/core/port/input/application.go`, `internal/composition/wire.go`, `internal/adapter/inbound/http/rest/server.go` | Field in `Application`, construction, and the route group behind `bearer`. |
 | 9. Tests | `service_test.go`, `handler_test.go`, `tests/integration/product_test.go` | Unit tests for rules and HTTP mapping; integration tests against Postgres. |
 | 10. Docs | `make swagger` | Regenerates the Swagger spec from the annotations. |
+| 11. Web types | `web/src/lib/api/types.ts`, `web/src/lib/api/endpoints.ts` | Response types and one function per route. |
+| 12. Web screen | `web/src/app/(app)/products/page.tsx`, `web/src/lib/navigation.ts`, `web/src/lib/i18n/messages.ts` | The page, a menu entry gated by `needs: [resource, action]`, and the texts in both languages. |
 
 The app role gets read and write rights on new tables in `usr`, `sys` and
 `app` by default privileges. A table in a new schema needs its own `GRANT`.
@@ -52,3 +55,4 @@ them up with nothing to wire.
 - Migrations that run up and down, `authenticity_app` and `authenticity_mailer` roles without owner rights.
 - `X-Request-ID` correlation, administrative audit log, rate limits shared by every instance.
 - Private diagnostics server with `/metrics` and `/health`.
+- A Next.js frontend with the session in an httpOnly cookie, light and dark themes, pt-BR and en-US.

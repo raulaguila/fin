@@ -109,6 +109,48 @@ func (s *Service) ConfirmPasswordReset(ctx context.Context, cmd input.ConfirmPas
 	})
 }
 
+// ChangePassword replaces the password of a signed in user who knows the
+// current one, and ends their other sessions.
+func (s *Service) ChangePassword(ctx context.Context, cmd input.ChangePasswordCommand) error {
+	if err := policy.ValidatePassword(cmd.NewPassword); err != nil {
+		return apperror.New(apperror.CodeInvalidInput, err.Error()).WithField("new_password")
+	}
+	cred, err := s.UOW.Credentials().FindByUserID(ctx, cmd.UserID)
+	if err != nil {
+		return err
+	}
+	wrong := apperror.New(apperror.CodeInvalidInput, "current password is wrong").WithField("current_password")
+	if cred.PasswordHash == nil {
+		return wrong
+	}
+	ok, err := password.Verify(ctx, *cred.PasswordHash, cmd.CurrentPassword)
+	if err != nil {
+		return hashError(ctx, err)
+	}
+	if !ok {
+		return wrong
+	}
+	ph, err := password.Hash(ctx, cmd.NewPassword)
+	if err != nil {
+		return hashError(ctx, err)
+	}
+	now := s.Clock.Now()
+	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
+		if err := uow.Credentials().SetPassword(ctx, cmd.UserID, ph); err != nil {
+			return err
+		}
+		if err := uow.Sessions().RevokeOthers(ctx, cmd.UserID, cmd.SessionID, now, domain.RevokePasswordChanged); err != nil {
+			return err
+		}
+		return uow.Notifications().Create(ctx, &domain.Notification{
+			UserID:  cmd.UserID,
+			Level:   domain.NotificationWarning,
+			Title:   "Password changed",
+			Message: "Your password was changed and your other sessions were ended.",
+		})
+	})
+}
+
 // resetToken checks a reset token.
 func resetToken(ctx context.Context, uow output.UnitOfWork, hash []byte, now time.Time) (*domain.EmailToken, error) {
 	tok, err := uow.Tokens().FindActiveByHash(ctx, domain.TokenPurposePasswordReset, hash)

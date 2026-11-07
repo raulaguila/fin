@@ -86,8 +86,11 @@ func New(cfg *config.Environment, app *input.Application, hits middleware.Hits, 
 	notificationhttp.New(app.Account).Routes(user.Group("/notifications"))
 
 	permissionhttp.New(app.Resources).Routes(v1.Group("/permissions", bearer), app.Authorizer)
-	rolehttp.New(app.Roles).Routes(v1.Group("/roles", bearer), app.Authorizer)
-	usershttp.New(app.Users).Routes(v1.Group("/users", bearer), app.Authorizer)
+	roles := rolehttp.New(app.Roles)
+	roles.Routes(v1.Group("/roles", bearer), app.Authorizer)
+	users := v1.Group("/users", bearer)
+	usershttp.New(app.Users).Routes(users, app.Authorizer)
+	roles.UserRoutes(users, app.Authorizer)
 	producthttp.New(app.Products).Routes(v1.Group("/products", bearer), app.Authorizer)
 
 	return fiberApp

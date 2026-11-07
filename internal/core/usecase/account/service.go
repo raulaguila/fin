@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/authenticity/internal/core/policy"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
 	"github.com/raulaguila/authenticity/pkg/apperror"
@@ -43,12 +44,32 @@ func (s *Service) Profile(ctx context.Context, userID string) (*domain.Profile, 
 	if err != nil {
 		return nil, err
 	}
-	profile := &domain.Profile{User: *user, Preferences: *prefs}
+	roles, err := s.UOW.Roles().ForUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	profile := &domain.Profile{User: *user, Preferences: *prefs, Roles: []string{}}
+	for _, r := range roles {
+		if r.Enabled {
+			profile.Roles = append(profile.Roles, r.Name)
+		}
+	}
 	if eff != nil {
 		profile.IsSuperuser = eff.IsSuperuser
 		profile.Permissions = eff.ByResource
 	}
 	return profile, nil
+}
+
+func (s *Service) Rename(ctx context.Context, userID, name string) (*domain.Profile, error) {
+	name, err := policy.ValidateName(name)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.UOW.Users().UpdateName(ctx, userID, name); err != nil {
+		return nil, err
+	}
+	return s.Profile(ctx, userID)
 }
 
 func (s *Service) Sessions(ctx context.Context, userID string) ([]domain.Session, error) {

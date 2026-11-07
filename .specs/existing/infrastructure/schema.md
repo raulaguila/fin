@@ -33,7 +33,7 @@ Fonte: `deploy/db/migrations`. Schema `usr` = identidade; `sys` = outbox; `app` 
 
 ## RBAC (ADR-004)
 
-- Catálogo `usr_resource` (códigos seed: `users`, `roles`, `permissions`, `products`). Sem tabela `usr_permission`.
+- Catálogo `usr_resource` (códigos seed: `users`, `roles`, `products`; `permissions` saiu na 000005: ler o catálogo faz parte de editar papéis). Sem tabela `usr_permission`.
 - Uma linha `(role_id, resource)` com `actions INT4`. `catalog_code` (`NULLIF(resource, '*')`, coluna gerada) tem FK para o catálogo: grant de recurso desconhecido falha e recurso com grant não sai do catálogo; `*` passa sem linha. `GET /v1/permissions/resources` lista o catálogo.
 - Bits CRUD: `create=1`, `read=2`, `update=4`, `delete=8` (4–30 livres). `CHECK (actions >= 0)`.
 - `resource` é tipo do catálogo ou sentinela `*`. Não é UUID de instância.

@@ -32,6 +32,7 @@ type AccountStore interface {
 	Sessions() SessionRepository
 	Preferences() PreferenceRepository
 	Notifications() NotificationRepository
+	Roles() RoleRepository
 }
 
 // IdentityStore exposes only the repositories the user and role services read or update.

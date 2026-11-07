@@ -4,7 +4,7 @@
 
 ## Overview
 
-**Confirmed.** Authenticity runs as two long-lived processes plus Postgres: `cmd/backend` serves Fiber HTTP (health, auth, sessions, preferences, notifications, permissions, roles, users and products CRUD); `cmd/mailer` claims `sys.outbox` rows under a 10-minute lease (`SKIP LOCKED`), opens the sealed token and sends SMTP. `cmd/admin` handles operator actions. Composition wires use cases to Postgres. Product constraints live in `PRODUCT.md`; surface briefs in `.keel/surfaces/`.
+**Confirmed.** Authenticity runs as two long-lived processes plus Postgres: `cmd/backend` serves Fiber HTTP (health, auth, sessions, preferences, notifications, permissions, roles, users and products CRUD); `cmd/mailer` claims `sys.outbox` rows under a 10-minute lease (`SKIP LOCKED`), opens the sealed token and sends SMTP. `cmd/admin` handles operator actions. `web/` is a Next.js BFF: it keeps the tokens in a signed httpOnly cookie, forwards API calls with the bearer and sends the client IP as `X-Real-IP`, which the backend accepts only from the web container's fixed address (`API_TRUSTED_PROXIES`). Composition wires use cases to Postgres. Product constraints live in `PRODUCT.md`; surface briefs in `.keel/surfaces/`.
 
 ## Boundaries
 
@@ -25,6 +25,7 @@ core/domain → stdlib only
 | `internal/core` | — | Domain + ports + use cases; no Fiber/GORM/config |
 | `adapter/inbound/http/rest` | — | DTOs, route map, `apperror`→HTTP |
 | `adapter/outbound/persistence/postgres` | `usr.*`, `sys.outbox`, `app.product` | GORM/`Exec`; `Store` = TxManager + UnitOfWork |
+| `web/` | session cookie only | Next.js; never reaches Postgres, holds no signing key |
 | `cmd/mailer` | outbox claim → SMTP | Poll 2s, batch 10; terminal fail after 14 attempts or smtp_disabled |
 
 **Sacred (product + ADR):** JWT must not carry permission claims; authz loads live from the DB on each check. Plaintext passwords / refresh JTIs / email tokens must not be stored.
@@ -60,25 +61,31 @@ core/domain → stdlib only
 | GET | `/health` |
 | POST | `/v1/auth/register`, `/v1/auth/activate`, `/v1/auth/login`, `/v1/auth/refresh`, `/v1/auth/logout` |
 | POST | `/v1/auth/password-reset/request`, `/v1/auth/password-reset/confirm` |
-| GET | `/v1/auth/me` (Bearer) |
+| GET/PATCH | `/v1/auth/me` (Bearer; PATCH renames) |
+| POST | `/v1/auth/password` (Bearer; current password required, ends the other sessions) |
 | GET | `/v1/auth/sessions` (Bearer) |
 | DELETE | `/v1/auth/sessions/others`, `/v1/auth/sessions/:id` (Bearer) |
 | GET/PUT | `/v1/user/preferences` (Bearer) |
 | GET | `/v1/user/notifications`, `/v1/user/notifications/count` (Bearer) |
 | PUT | `/v1/user/notifications/:id/read` (Bearer) |
-| GET | `/v1/permissions/resources` (`permissions:read`) |
-| GET/POST | `/v1/roles` (`roles:read`, `roles:create`) |
-| PATCH | `/v1/roles/:id` (`roles:update`) |
+| GET | `/v1/permissions/resources` (`roles:read`) |
+| GET/POST | `/v1/roles`, `search` and pagination (`roles:read`, `roles:create`) |
+| GET | `/v1/roles/:id` (`roles:read`) |
+| POST | `/v1/roles/batch-delete`, all or none (`roles:delete`) |
+| PATCH | `/v1/roles/:id`; `is_default` marks or unmarks a default role; several may be default (`roles:update`) |
 | DELETE | `/v1/roles/:id` (`roles:delete`) |
 | PUT | `/v1/roles/:id/permissions`, full map in one transaction (`roles:update`) |
-| GET | `/v1/roles/:id/members` (`roles:read`) |
+| GET | `/v1/roles/:id/members`, `search` and pagination (`roles:read`) |
 | PUT/DELETE | `/v1/roles/:id/members/:user_id` (`roles:update`) |
+| PUT | `/v1/users/:id/roles` (`roles:update`; replaces every role of the user) |
 | GET | `/v1/users`, `search`, `status` and pagination (`users:read`) |
 | GET | `/v1/users/:id`, with roles (`users:read`) |
 | POST | `/v1/users/:id/disable`, `/v1/users/:id/enable` (`users:update`) |
+| POST | `/v1/users/batch-disable`, `/v1/users/batch-enable`, all or none (`users:update`) |
 | GET/POST | `/v1/products` |
 | GET | `/v1/products/list` |
 | GET/PATCH/DELETE | `/v1/products/:id` |
+| POST | `/v1/products/batch-delete`, all or none |
 
 **Auth tokens:** RS256; access claims `sub`, `sid`, `jti`, `iat`, `exp`; refresh same with `jti` hashed at rest. Defaults: access 15m, refresh 60m.
 
@@ -90,7 +97,7 @@ core/domain → stdlib only
 
 **Own-account routes:** the user id comes from the verified token, never from the request, and every query filters by it. Another user's session or notification answers `404`.
 
-**Pagination / idempotency:** `GET /v1/products`, `GET /v1/users` and `GET /v1/user/notifications` return `{items, pagination{page,limit,total_items,total_pages}}`; limit defaults to 20, up to 100. Products also take `search`, `sort` (allowlist) and `order`. `GET /v1/products/list` returns enabled products as id and name, up to 1000. Register is idempotent on email: an unactivated account gets a fresh token, any other answers as new and sends nothing. Outbox rows are append-only inserts (no idempotency key column today).
+**Pagination / idempotency:** `GET /v1/products`, `GET /v1/users`, `GET /v1/roles` and `GET /v1/user/notifications` return `{items, pagination{page,limit,total_items,total_pages}}`; limit defaults to 20, up to 100. Products also take `search`, `sort` (allowlist) and `order`. `GET /v1/products/list` returns enabled products as id and name, up to 1000. Register is idempotent on email: an unactivated account gets a fresh token, any other answers as new and sends nothing. Outbox rows are append-only inserts (no idempotency key column today).
 
 **Contracts (authz on wire):** Bearer middleware calls `input.Authenticator`, which validates the access JWT + live session; `Require(resource, action)` calls Authorizer (fail closed).
 
@@ -99,7 +106,7 @@ core/domain → stdlib only
 **Sync (request path, confirmed):**
 
 1. **Register** — tx: user `pending` + empty credential + activation token hash + outbox enqueue; optional plaintext token in response if `AUTH_MANUAL_TOKEN_DELIVERY`.
-2. **Activate** — validate token and hash outside the transaction; tx: revalidate token → set password → `active` → default role → mark token used.
+2. **Activate** — validate token and hash outside the transaction; tx: revalidate token → set password → `active` → every enabled default role → mark token used.
 3. **Login** — rate-limit checks on attempts → status/lockout → verify password → atomic credential update → create session + issue JWT pair → record attempt.
 4. **Refresh** — parse refresh → load session by `sid` → reuse detection / compare-and-swap rotate → new pair. Each refresh extends the session, never past `AUTH_SESSION_MAX_LIFETIME` (30 days) from login. A lock does not stop refresh. The token rotated in the last 10 s answers `409`, without revoking: the client reads the winner's token and retries.
 5. **Logout** — Bearer resolves the session → revoke it (`user_logout`).

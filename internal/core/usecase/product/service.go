@@ -126,6 +126,21 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	return s.Repo.Delete(ctx, id)
 }
 
+const maxBatch = 100 // ids in one batch request; a page holds at most 100 rows
+
+func (s *Service) DeleteMany(ctx context.Context, ids []string) error {
+	if len(ids) == 0 || len(ids) > maxBatch {
+		return apperror.New(apperror.CodeInvalidInput, "ids must hold 1 to 100 ids").WithField("ids")
+	}
+	ids = slices.Compact(slices.Sorted(slices.Values(ids))) // a repeated id would fail the count check
+	for _, id := range ids {
+		if err := validate.ID(id); err != nil {
+			return err
+		}
+	}
+	return s.Repo.DeleteMany(ctx, ids)
+}
+
 func validateNamePrice(name, price string) (string, string, error) {
 	name, err := normalizeName(name)
 	if err != nil {

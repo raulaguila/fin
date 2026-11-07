@@ -32,6 +32,7 @@ func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
 	r.Get("/:id", read, h.Get)
 	r.Post("/", middleware.Require(authz, domain.ResourceProducts, domain.ActionCreate), h.Create)
 	r.Patch("/:id", middleware.Require(authz, domain.ResourceProducts, domain.ActionUpdate), h.Update)
+	r.Post("/batch-delete", middleware.Require(authz, domain.ResourceProducts, domain.ActionDelete), h.DeleteMany)
 	r.Delete("/:id", middleware.Require(authz, domain.ResourceProducts, domain.ActionDelete), h.Delete)
 }
 
@@ -96,6 +97,7 @@ func priceString(v any) (string, error) {
 // @Param cursor query string false "Use start for the first cursor page, then next_cursor; requires created_at desc and omits totals"
 // @Param limit query int false "Items per page, up to 100" default(20)
 // @Param search query string false "Part of the name"
+// @Param enabled query bool false "Only enabled (true) or disabled (false) products"
 // @Param sort query string false "Sort field" Enums(name, price, created_at, updated_at) default(created_at)
 // @Param order query string false "Sort direction" Enums(asc, desc) default(desc)
 // @Security BearerAuth
@@ -111,6 +113,13 @@ func (h *Handler) List(c fiber.Ctx) error {
 		Search: c.Query("search"),
 		Sort:   c.Query("sort"),
 		Order:  c.Query("order"),
+	}
+	if raw := c.Query("enabled"); raw != "" {
+		enabled, err := strconv.ParseBool(raw)
+		if err != nil {
+			return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "enabled must be true or false").WithField("enabled"))
+		}
+		filter.Enabled = &enabled
 	}
 	if raw := c.Query("cursor"); raw != "" {
 		filter.Cursor = true
@@ -249,6 +258,34 @@ func (h *Handler) Update(c fiber.Ctx) error {
 		return mapper.WriteError(c, err)
 	}
 	return c.JSON(toDTO(*p))
+}
+
+type idsDTO struct {
+	IDs []string `json:"ids"`
+}
+
+// @Summary Delete several products at once; all or none
+// @Tags Products
+// @Accept json
+// @Produce json
+// @Param body body idsDTO true "Product IDs, 1 to 100"
+// @Security BearerAuth
+// @Success 204
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Failure 403 {object} mapper.errorBody
+// @Failure 404 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
+// @Router /v1/products/batch-delete [post]
+func (h *Handler) DeleteMany(c fiber.Ctx) error {
+	var body idsDTO
+	if err := c.Bind().Body(&body); err != nil {
+		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "invalid body"))
+	}
+	if err := h.svc.DeleteMany(c.Context(), body.IDs); err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // @Summary Delete a product

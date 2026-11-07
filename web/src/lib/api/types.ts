@@ -1,0 +1,119 @@
+// Contract of the Go API (see the backend Swagger at /swagger/index.html).
+
+export type Action = "create" | "read" | "update" | "delete";
+export type UserStatus = "pending" | "active" | "locked" | "disabled";
+export type Theme = "system" | "light" | "dark";
+export type Language = "pt-BR" | "en-US";
+
+export interface ApiErrorBody {
+  code: string;
+  message: string;
+  field?: string;
+  details?: Record<string, unknown>;
+}
+
+export interface Preferences {
+  theme: Theme;
+  language: Language;
+}
+
+export interface Me {
+  id: string;
+  name: string;
+  email: string;
+  status: UserStatus;
+  created_at: string;
+  is_superuser: boolean;
+  permissions: Record<string, Action[]>;
+  preferences: Preferences;
+  /** Names of the enabled roles. */
+  roles: string[];
+}
+
+export interface MeResponse {
+  user: Me;
+  session_id: string;
+}
+
+export interface TokenPair {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  token_type: string;
+  user?: Me;
+}
+
+export interface Pagination {
+  page: number;
+  limit: number;
+  total_items: number;
+  total_pages: number;
+}
+
+export interface Paged<T> {
+  items: T[];
+  pagination: Pagination;
+}
+
+export interface Session {
+  id: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+  last_seen_at: string;
+  expires_at: string;
+  current: boolean;
+}
+
+export interface Notification {
+  id: string;
+  level: "info" | "warning" | "critical";
+  title: string;
+  message: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  status: UserStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserDetails extends User {
+  roles: { id: string; name: string }[];
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  enabled: boolean;
+  is_default: boolean;
+  permissions: Record<string, Action[]>;
+  member_count: number;
+  created_at: string;
+}
+
+export interface Resource {
+  code: string;
+  description: string;
+}
+
+export interface Member {
+  id: string;
+  name: string;
+  email: string;
+  status: UserStatus;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  price: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}

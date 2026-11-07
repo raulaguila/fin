@@ -9,6 +9,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
+	"github.com/raulaguila/authenticity/pkg/apperror"
 )
 
 type Handler struct {
@@ -25,6 +26,8 @@ func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
 	update := middleware.Require(authz, domain.ResourceUsers, domain.ActionUpdate)
 	r.Get("/", read, h.List)
 	r.Get("/:id", read, h.Get)
+	r.Post("/batch-disable", update, h.DisableMany)
+	r.Post("/batch-enable", update, h.EnableMany)
 	r.Post("/:id/disable", update, h.Disable)
 	r.Post("/:id/enable", update, h.Enable)
 }
@@ -121,6 +124,66 @@ func (h *Handler) Get(c fiber.Ctx) error {
 // @Router /v1/users/{id}/disable [post]
 func (h *Handler) Disable(c fiber.Ctx) error {
 	if err := h.svc.Disable(c.Context(), middleware.UserID(c), c.Params("id")); err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+type idsDTO struct {
+	IDs []string `json:"ids"`
+}
+
+func (h *Handler) bindIDs(c fiber.Ctx) ([]string, error) {
+	var body idsDTO
+	if err := c.Bind().Body(&body); err != nil {
+		return nil, apperror.New(apperror.CodeInvalidInput, "invalid body")
+	}
+	return body.IDs, nil
+}
+
+// @Summary Disable several users at once and end their sessions; all or none
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param body body idsDTO true "User IDs, 1 to 100; not your own"
+// @Security BearerAuth
+// @Success 204
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Failure 403 {object} mapper.errorBody
+// @Failure 404 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
+// @Router /v1/users/batch-disable [post]
+func (h *Handler) DisableMany(c fiber.Ctx) error {
+	ids, err := h.bindIDs(c)
+	if err == nil {
+		err = h.svc.DisableMany(c.Context(), middleware.UserID(c), ids)
+	}
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// @Summary Enable several users at once; all or none
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param body body idsDTO true "User IDs, 1 to 100"
+// @Security BearerAuth
+// @Success 204
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Failure 403 {object} mapper.errorBody
+// @Failure 404 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
+// @Router /v1/users/batch-enable [post]
+func (h *Handler) EnableMany(c fiber.Ctx) error {
+	ids, err := h.bindIDs(c)
+	if err == nil {
+		err = h.svc.EnableMany(c.Context(), ids)
+	}
+	if err != nil {
 		return mapper.WriteError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)

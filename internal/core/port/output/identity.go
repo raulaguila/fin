@@ -15,6 +15,7 @@ type UserRepository interface {
 	// transaction ends. Inside a transaction only.
 	LockStatus(ctx context.Context, id string) (string, error)
 	Create(ctx context.Context, user *domain.User) error
+	UpdateName(ctx context.Context, id, name string) error
 	// UpdateStatus leaves a disabled account as it is: a login or activation already
 	// running when the account was disabled must not undo that.
 	UpdateStatus(ctx context.Context, id, status string) error
@@ -92,19 +93,22 @@ type LoginAttemptRepository interface {
 
 // RoleRepository resolves roles and assigns them to users.
 type RoleRepository interface {
-	FindDefaultRoleID(ctx context.Context) (string, error)
+	// DefaultRoleIDs lists the enabled default roles a new account gets.
+	DefaultRoleIDs(ctx context.Context) ([]string, error)
 	FindIDByName(ctx context.Context, name string) (string, error)
 	Assign(ctx context.Context, userID, roleID string) error
 	// HasMembers reports whether any user holds the role.
 	HasMembers(ctx context.Context, roleID string) (bool, error)
 	List(ctx context.Context, limit int) ([]domain.Role, error)
+	// Page lists unprotected roles by name, with the count of all matches.
+	Page(ctx context.Context, filter domain.RoleFilter) ([]domain.Role, int64, error)
 	FindByID(ctx context.Context, id string) (*domain.Role, error)
 	Create(ctx context.Context, name string) (*domain.Role, error)
 	Delete(ctx context.Context, id string) error
 	Update(ctx context.Context, id string, patch domain.RolePatch) error
 	ClearPermissions(ctx context.Context, roleID string) error
 	Grant(ctx context.Context, roleID, resource string, actions domain.Action) error
-	Members(ctx context.Context, roleID string, page domain.Page) ([]domain.User, int64, error)
+	Members(ctx context.Context, roleID string, filter domain.UserFilter) ([]domain.User, int64, error) // Page and Search only
 	// ForUser returns every role of a user, enabled or not.
 	ForUser(ctx context.Context, userID string) ([]domain.Role, error)
 	Unassign(ctx context.Context, userID, roleID string) error

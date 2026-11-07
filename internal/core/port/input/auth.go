@@ -48,6 +48,13 @@ type ConfirmPasswordResetCommand struct {
 	Password string
 }
 
+type ChangePasswordCommand struct {
+	UserID          string
+	SessionID       string // stays signed in; every other session ends
+	CurrentPassword string
+	NewPassword     string
+}
+
 // Authenticator turns an access token into who is calling, refusing dead sessions.
 type Authenticator interface {
 	Authenticate(ctx context.Context, accessToken string) (*domain.Principal, error)
@@ -63,4 +70,5 @@ type AuthService interface {
 	Logout(ctx context.Context, sessionID string) error
 	RequestPasswordReset(ctx context.Context, cmd RequestPasswordResetCommand) (*RequestPasswordResetResult, error)
 	ConfirmPasswordReset(ctx context.Context, cmd ConfirmPasswordResetCommand) error
+	ChangePassword(ctx context.Context, cmd ChangePasswordCommand) error
 }

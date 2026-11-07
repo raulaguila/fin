@@ -10,6 +10,10 @@ networks:
   authenticity_network:
     name: authenticity_network
     driver: bridge
+    # A fixed range lets the web container keep the address the backend trusts.
+    ipam:
+      config:
+        - subnet: ${DOCKER_SUBNET:-172.30.99.0/24}
 
 services:
 

@@ -6,6 +6,7 @@ import (
 	"context"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/policy"
@@ -15,7 +16,11 @@ import (
 	"github.com/raulaguila/authenticity/pkg/validate"
 )
 
-const listCap = 1000
+const (
+	listCap        = 1000
+	maxSearchBytes = 120
+	maxBatch       = 100 // ids in one batch request; a page holds at most 100 rows
+)
 
 // Same rule as chk_usr_role_name.
 var nameFormat = regexp.MustCompile(`^[a-z0-9_-]{2,40}$`)
@@ -38,12 +43,16 @@ func errInvalidName() error {
 
 // List leaves out protected roles: the API cannot change them, so a role form
 // has nothing to do with them.
-func (s *Service) List(ctx context.Context) ([]domain.Role, error) {
-	roles, err := s.UOW.Roles().List(ctx, listCap)
-	if err != nil {
-		return nil, err
+func (s *Service) List(ctx context.Context, filter domain.RoleFilter) ([]domain.Role, int64, error) {
+	filter.Search = strings.TrimSpace(filter.Search)
+	if err := validate.Search(filter.Search, maxSearchBytes); err != nil {
+		return nil, 0, err
 	}
-	return slices.DeleteFunc(roles, domain.Role.Protected), nil
+	return s.UOW.Roles().Page(ctx, filter)
+}
+
+func (s *Service) Get(ctx context.Context, id string) (*domain.Role, error) {
+	return s.editable(ctx, s.UOW, id)
 }
 
 func (s *Service) Create(ctx context.Context, name string) (*domain.Role, error) {
@@ -65,23 +74,42 @@ func (s *Service) Create(ctx context.Context, name string) (*domain.Role, error)
 }
 
 func (s *Service) Delete(ctx context.Context, id string) error {
+	return s.DeleteMany(ctx, []string{id})
+}
+
+func (s *Service) DeleteMany(ctx context.Context, ids []string) error {
+	if err := checkBatch(ids); err != nil {
+		return err
+	}
 	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
-		role, err := s.editable(ctx, uow, id)
-		if err != nil {
-			return err
+		for _, id := range slices.Compact(slices.Sorted(slices.Values(ids))) {
+			role, err := s.editable(ctx, uow, id)
+			if err != nil {
+				return err
+			}
+			if role.IsDefault {
+				return apperror.New(apperror.CodeConflict, "a default role cannot be deleted: "+role.Name) // unmark it first
+			}
+			if err := uow.Roles().Delete(ctx, role.ID); err != nil {
+				return err
+			}
+			if err := policy.Audit(ctx, uow, "role.delete", role.ID, map[string]any{"name": role.Name}); err != nil {
+				return err
+			}
 		}
-		if role.IsDefault {
-			return apperror.New(apperror.CodeConflict, "the default role cannot be deleted") // activation needs it
-		}
-		if err := uow.Roles().Delete(ctx, role.ID); err != nil {
-			return err
-		}
-		return policy.Audit(ctx, uow, "role.delete", role.ID, map[string]any{"name": role.Name})
+		return nil
 	})
 }
 
-// Update renames or switches a role on and off. The default role stays
-// enabled: activation looks only for an enabled one.
+func checkBatch(ids []string) error {
+	if len(ids) == 0 || len(ids) > maxBatch {
+		return apperror.New(apperror.CodeInvalidInput, "ids must hold 1 to 100 ids").WithField("ids")
+	}
+	return nil
+}
+
+// Update renames, switches a role on and off, or marks it default. A default
+// role stays enabled: activation gives only enabled ones.
 func (s *Service) Update(ctx context.Context, id string, patch domain.RolePatch) (*domain.Role, error) {
 	if patch.Name != nil && !nameFormat.MatchString(*patch.Name) {
 		return nil, errInvalidName()
@@ -92,8 +120,15 @@ func (s *Service) Update(ctx context.Context, id string, patch domain.RolePatch)
 		if err != nil {
 			return err
 		}
-		if role.IsDefault && patch.Enabled != nil && !*patch.Enabled {
-			return apperror.New(apperror.CodeConflict, "the default role cannot be disabled")
+		enabled, isDefault := role.Enabled, role.IsDefault
+		if patch.Enabled != nil {
+			enabled = *patch.Enabled
+		}
+		if patch.IsDefault != nil {
+			isDefault = *patch.IsDefault
+		}
+		if isDefault && !enabled {
+			return apperror.New(apperror.CodeConflict, "a default role cannot be disabled")
 		}
 		if err := uow.Roles().Update(ctx, role.ID, patch); err != nil {
 			return err
@@ -104,6 +139,9 @@ func (s *Service) Update(ctx context.Context, id string, patch domain.RolePatch)
 		}
 		if patch.Enabled != nil {
 			changes["enabled"] = *patch.Enabled
+		}
+		if patch.IsDefault != nil {
+			changes["is_default"] = *patch.IsDefault
 		}
 		if err := policy.Audit(ctx, uow, "role.update", role.ID, changes); err != nil {
 			return err
@@ -166,11 +204,15 @@ func (s *Service) SetPermissions(ctx context.Context, roleID string, permissions
 	return updated, nil
 }
 
-func (s *Service) Members(ctx context.Context, roleID string, page domain.Page) ([]domain.User, int64, error) {
+func (s *Service) Members(ctx context.Context, roleID string, filter domain.UserFilter) ([]domain.User, int64, error) {
+	filter.Search = strings.TrimSpace(filter.Search)
+	if err := validate.Search(filter.Search, maxSearchBytes); err != nil {
+		return nil, 0, err
+	}
 	if _, err := s.editable(ctx, s.UOW, roleID); err != nil {
 		return nil, 0, err
 	}
-	return s.UOW.Roles().Members(ctx, roleID, page)
+	return s.UOW.Roles().Members(ctx, roleID, filter)
 }
 
 func (s *Service) AddMember(ctx context.Context, roleID, userID string) error {
@@ -195,6 +237,46 @@ func (s *Service) changeMember(ctx context.Context, roleID, userID, action strin
 			return err
 		}
 		return policy.Audit(ctx, uow, action, role.ID, map[string]any{"user_id": target.ID})
+	})
+}
+
+func (s *Service) SetUserRoles(ctx context.Context, userID string, roleIDs []string) error {
+	if err := validate.ID(userID); err != nil {
+		return err
+	}
+	if len(roleIDs) > listCap {
+		return apperror.New(apperror.CodeInvalidInput, "too many roles").WithField("role_ids")
+	}
+	want := map[string]bool{}
+	for _, id := range roleIDs {
+		want[id] = true
+	}
+	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
+		if err := uow.Lock(ctx, "user-roles:"+userID); err != nil { // two saves at once would race on the diff
+			return err
+		}
+		target, err := policy.Reachable(ctx, uow, userID)
+		if err != nil {
+			return err
+		}
+		for id := range want {
+			if _, err := s.editable(ctx, uow, id); err != nil {
+				return err
+			}
+		}
+		for _, r := range target.Roles {
+			if want[r.ID] {
+				delete(want, r.ID) // already held
+			} else if err := uow.Roles().Unassign(ctx, target.ID, r.ID); err != nil {
+				return err
+			}
+		}
+		for id := range want {
+			if err := uow.Roles().Assign(ctx, target.ID, id); err != nil {
+				return err
+			}
+		}
+		return policy.Audit(ctx, uow, "user.roles", target.ID, map[string]any{"role_ids": roleIDs})
 	})
 }
 

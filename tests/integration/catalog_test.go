@@ -17,7 +17,7 @@ func TestCatalogHoldsEveryResourceTheCodeChecks(t *testing.T) {
 	for _, r := range resources {
 		found[r.Code] = true
 	}
-	for _, code := range []string{domain.ResourcePermissions, domain.ResourceProducts, domain.ResourceRoles} {
+	for _, code := range []string{domain.ResourceProducts, domain.ResourceRoles, domain.ResourceUsers} {
 		if !found[code] {
 			t.Errorf("%s is missing from usr_resource: %v", code, resources)
 		}

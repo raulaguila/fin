@@ -34,12 +34,12 @@ func (stubCatalog) ListResources(context.Context) ([]domain.Resource, error) {
 	return []domain.Resource{{Code: "products", Description: "Example"}}, nil
 }
 
-func TestResourcesNeedPermissionsRead(t *testing.T) {
+func TestResourcesNeedRolesRead(t *testing.T) {
 	for _, tc := range []struct {
 		allow  string
 		status int
 	}{
-		{domain.ResourcePermissions, fiber.StatusOK},
+		{domain.ResourceRoles, fiber.StatusOK},
 		{domain.ResourceProducts, fiber.StatusForbidden},
 	} {
 		app := fiber.New()

@@ -18,15 +18,23 @@ const (
 
 // ValidateIdentity returns the name and email a new account stores.
 func ValidateIdentity(rawName, rawEmail string) (name, email string, err error) {
-	name = strings.TrimSpace(rawName)
-	email = NormalizeEmail(rawEmail)
-	if n := utf8.RuneCountInString(name); n < 2 || n > 80 || strings.ContainsFunc(name, unicode.IsControl) {
-		return "", "", apperror.New(apperror.CodeInvalidInput, "name must be 2-80 characters").WithField("name")
+	if name, err = ValidateName(rawName); err != nil {
+		return "", "", err
 	}
+	email = NormalizeEmail(rawEmail)
 	if addr, err := mail.ParseAddress(email); err != nil || addr.Address != email || email != strings.ToLower(strings.TrimSpace(rawEmail)) {
 		return "", "", apperror.New(apperror.CodeInvalidInput, "invalid email").WithField("email")
 	}
 	return name, email, nil
+}
+
+// ValidateName returns the name an account stores.
+func ValidateName(raw string) (string, error) {
+	name := strings.TrimSpace(raw)
+	if n := utf8.RuneCountInString(name); n < 2 || n > 80 || strings.ContainsFunc(name, unicode.IsControl) {
+		return "", apperror.New(apperror.CodeInvalidInput, "name must be 2-80 characters").WithField("name")
+	}
+	return name, nil
 }
 
 // NormalizeEmail makes an address safe to compare and to store: Postgres refuses

@@ -16,7 +16,10 @@ import (
 	"github.com/raulaguila/authenticity/pkg/validate"
 )
 
-const maxSearchBytes = 120
+const (
+	maxSearchBytes = 120
+	maxBatch       = 100 // ids in one batch request; a page holds at most 100 rows
+)
 
 var statuses = []string{domain.UserStatusPending, domain.UserStatusActive, domain.UserStatusLocked, domain.UserStatusDisabled}
 
@@ -47,14 +50,18 @@ func (s *Service) Get(ctx context.Context, id string) (*domain.UserDetails, erro
 	return policy.Reachable(ctx, s.UOW, id)
 }
 
-// Disable refuses the caller's own account, compared on the stored id: the path
-// may spell the same UUID in another case.
 func (s *Service) Disable(ctx context.Context, actorID, id string) error {
-	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
-		target, err := policy.Reachable(ctx, uow, id)
-		if err != nil {
-			return err
-		}
+	return s.DisableMany(ctx, actorID, []string{id})
+}
+
+func (s *Service) Enable(ctx context.Context, id string) error {
+	return s.EnableMany(ctx, []string{id})
+}
+
+// DisableMany refuses the caller's own account, compared on the stored id: the
+// path may spell the same UUID in another case.
+func (s *Service) DisableMany(ctx context.Context, actorID string, ids []string) error {
+	return s.each(ctx, ids, func(ctx context.Context, uow output.UnitOfWork, target *domain.UserDetails) error {
 		if target.ID == actorID {
 			return apperror.New(apperror.CodeForbidden, "your own account cannot be disabled")
 		}
@@ -65,15 +72,30 @@ func (s *Service) Disable(ctx context.Context, actorID, id string) error {
 	})
 }
 
-func (s *Service) Enable(ctx context.Context, id string) error {
-	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
-		target, err := policy.Reachable(ctx, uow, id)
-		if err != nil {
-			return err
-		}
+func (s *Service) EnableMany(ctx context.Context, ids []string) error {
+	return s.each(ctx, ids, func(ctx context.Context, uow output.UnitOfWork, target *domain.UserDetails) error {
 		if err := uow.Users().Enable(ctx, target.ID); err != nil {
 			return err
 		}
 		return policy.Audit(ctx, uow, "user.enable", target.ID, nil)
+	})
+}
+
+// each runs change on every reachable user in one transaction, so one refusal undoes all.
+func (s *Service) each(ctx context.Context, ids []string, change func(context.Context, output.UnitOfWork, *domain.UserDetails) error) error {
+	if len(ids) == 0 || len(ids) > maxBatch {
+		return apperror.New(apperror.CodeInvalidInput, "ids must hold 1 to 100 ids").WithField("ids")
+	}
+	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
+		for _, id := range slices.Compact(slices.Sorted(slices.Values(ids))) {
+			target, err := policy.Reachable(ctx, uow, id)
+			if err != nil {
+				return err
+			}
+			if err := change(ctx, uow, target); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }

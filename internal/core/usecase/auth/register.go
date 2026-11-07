@@ -97,11 +97,7 @@ func (s *Service) Activate(ctx context.Context, cmd input.ActivateCommand) error
 		if err := uow.Users().UpdateStatus(ctx, user.ID, domain.UserStatusActive); err != nil {
 			return err
 		}
-		roleID, err := uow.Roles().FindDefaultRoleID(ctx)
-		if err != nil {
-			return err
-		}
-		if err := uow.Roles().Assign(ctx, user.ID, roleID); err != nil {
+		if err := policy.AssignDefaultRoles(ctx, uow, user.ID); err != nil {
 			return err
 		}
 		return uow.Tokens().MarkUsed(ctx, tok.ID, now)

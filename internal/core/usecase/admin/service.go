@@ -70,11 +70,7 @@ func (s *Service) Bootstrap(ctx context.Context, cmd input.BootstrapCommand) (bo
 		if err := uow.Credentials().SetPassword(ctx, user.ID, hash); err != nil {
 			return err
 		}
-		defaultID, err := uow.Roles().FindDefaultRoleID(ctx)
-		if err != nil {
-			return err
-		}
-		if err := uow.Roles().Assign(ctx, user.ID, defaultID); err != nil {
+		if err := policy.AssignDefaultRoles(ctx, uow, user.ID); err != nil {
 			return err
 		}
 		created = true

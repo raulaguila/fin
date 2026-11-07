@@ -32,6 +32,8 @@ func (h *Handler) Routes(r fiber.Router, bearer, authLimit, passwordLimit fiber.
 	r.Post("/refresh", h.Refresh)
 	r.Post("/logout", bearer, h.Logout)
 	r.Get("/me", bearer, h.Me)
+	r.Patch("/me", bearer, h.Rename)
+	r.Post("/password", bearer, passwordLimit, h.ChangePassword)
 	r.Post("/password-reset/request", passwordLimit, h.RequestPasswordReset)
 	r.Post("/password-reset/confirm", passwordLimit, h.ConfirmPasswordReset)
 }
@@ -55,6 +57,15 @@ type refreshDTO struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type renameDTO struct {
+	Name string `json:"name"`
+}
+
+type changePasswordDTO struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
 type resetRequestDTO struct {
 	Email string `json:"email"`
 }
@@ -74,6 +85,7 @@ type userDTO struct {
 	IsSuperuser bool                  `json:"is_superuser"`
 	Permissions map[string][]string   `json:"permissions"`
 	Preferences mapper.PreferencesDTO `json:"preferences"`
+	Roles       []string              `json:"roles"`
 }
 
 type tokenPairDTO struct {
@@ -103,6 +115,7 @@ func toUserDTO(p *domain.Profile) userDTO {
 		IsSuperuser: p.IsSuperuser,
 		Permissions: permissions,
 		Preferences: mapper.Preferences(p.Preferences),
+		Roles:       p.Roles,
 	}
 }
 
@@ -253,6 +266,55 @@ func (h *Handler) Me(c fiber.Ctx) error {
 		return mapper.WriteError(c, err)
 	}
 	return c.JSON(meDTO{User: toUserDTO(profile), SessionID: middleware.SessionID(c)})
+}
+
+// @Summary Change the name of the current user
+// @Tags Account
+// @Produce json
+// @Accept json
+// @Security BearerAuth
+// @Param body body renameDTO true "Request"
+// @Success 200 {object} meDTO
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Router /v1/auth/me [patch]
+func (h *Handler) Rename(c fiber.Ctx) error {
+	var body renameDTO
+	if err := c.Bind().Body(&body); err != nil {
+		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "invalid body"))
+	}
+	profile, err := h.account.Rename(c.Context(), middleware.UserID(c), body.Name)
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.JSON(meDTO{User: toUserDTO(profile), SessionID: middleware.SessionID(c)})
+}
+
+// @Summary Change the password and end the other sessions
+// @Tags Password
+// @Accept json
+// @Security BearerAuth
+// @Param body body changePasswordDTO true "Request"
+// @Success 204
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
+// @Router /v1/auth/password [post]
+func (h *Handler) ChangePassword(c fiber.Ctx) error {
+	var body changePasswordDTO
+	if err := c.Bind().Body(&body); err != nil {
+		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "invalid body"))
+	}
+	err := h.svc.ChangePassword(c.Context(), input.ChangePasswordCommand{
+		UserID:          middleware.UserID(c),
+		SessionID:       middleware.SessionID(c),
+		CurrentPassword: body.CurrentPassword,
+		NewPassword:     body.NewPassword,
+	})
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // @Summary Send a password reset email

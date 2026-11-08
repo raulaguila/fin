@@ -75,7 +75,7 @@ func RequestLog(log *logger.Logger, all bool) fiber.Handler {
 			Int("status", status).
 			Str("method", c.Method()).
 			Str("ip", c.IP()).
-			Dur("latency", time.Since(start)).
+			Str("latency", time.Since(start).String()). // "12.3ms": the unit travels with the value
 			Str("path", c.Path()).
 			Str("request_id", reqctx.RequestID(c.Context())).
 			Err(cause)

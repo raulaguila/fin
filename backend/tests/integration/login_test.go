@@ -160,7 +160,7 @@ func TestIPv6ClientCountsAsItsPrefix(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	n, err := e.store.Attempts().CountRecentFailuresByIP(ctx, prefix+"::abcd", since)
+	n, err := countByIP(ctx, prefix+"::abcd", since)
 	if err != nil || n != 3 {
 		t.Fatalf("counted %d %v", n, err)
 	}
@@ -221,7 +221,7 @@ func TestTimedOutLoginDoesNotCount(t *testing.T) {
 	if err == nil {
 		t.Fatal("login succeeded")
 	}
-	n, err := e.store.Attempts().CountRecentFailuresByIP(context.Background(), ip, time.Now().Add(-time.Minute))
+	n, err := countByIP(context.Background(), ip, time.Now().Add(-time.Minute))
 	if err != nil || n != 0 {
 		t.Fatalf("counted %d %v", n, err)
 	}

@@ -55,7 +55,7 @@ func (s *Service) List(ctx context.Context, filter domain.RoleFilter) ([]domain.
 }
 
 func (s *Service) Get(ctx context.Context, id string) (*domain.Role, error) {
-	return s.editable(ctx, s.UOW, id)
+	return s.editable(ctx, s.UOW, id, true)
 }
 
 func (s *Service) Create(ctx context.Context, name string) (*domain.Role, error) {
@@ -82,7 +82,7 @@ func (s *Service) DeleteMany(ctx context.Context, ids []string) error {
 	}
 	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
 		for _, id := range slices.Compact(slices.Sorted(slices.Values(ids))) {
-			role, err := s.editable(ctx, uow, id)
+			role, err := s.editable(ctx, uow, id, false)
 			if err != nil {
 				return err
 			}
@@ -115,7 +115,7 @@ func (s *Service) Update(ctx context.Context, id string, patch domain.RolePatch)
 	}
 	var updated *domain.Role
 	err := s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
-		role, err := s.editable(ctx, uow, id)
+		role, err := s.editable(ctx, uow, id, false)
 		if err != nil {
 			return err
 		}
@@ -145,7 +145,7 @@ func (s *Service) Update(ctx context.Context, id string, patch domain.RolePatch)
 		if err := policy.Audit(ctx, uow, "role.update", role.ID, changes); err != nil {
 			return err
 		}
-		updated, err = uow.Roles().FindByID(ctx, role.ID)
+		updated, err = uow.Roles().FindByID(ctx, role.ID, true)
 		return err
 	})
 	if err != nil {
@@ -177,7 +177,7 @@ func (s *Service) SetPermissions(ctx context.Context, roleID string, permissions
 		if err := uow.Lock(ctx, "role:"+roleID); err != nil { // two saves at once would collide on the rows
 			return err
 		}
-		if _, err := s.editable(ctx, uow, roleID); err != nil {
+		if _, err := s.editable(ctx, uow, roleID, false); err != nil {
 			return err
 		}
 		if err := uow.Roles().ClearPermissions(ctx, roleID); err != nil {
@@ -194,7 +194,7 @@ func (s *Service) SetPermissions(ctx context.Context, roleID string, permissions
 		if err := policy.Audit(ctx, uow, "role.permissions", roleID, map[string]any{"permissions": permissions}); err != nil {
 			return err
 		}
-		updated, err = uow.Roles().FindByID(ctx, roleID)
+		updated, err = uow.Roles().FindByID(ctx, roleID, true)
 		return err
 	})
 	if err != nil {
@@ -208,7 +208,7 @@ func (s *Service) Members(ctx context.Context, roleID string, filter domain.User
 	if err := validate.Search(filter.Search, maxSearchBytes); err != nil {
 		return nil, 0, err
 	}
-	if _, err := s.editable(ctx, s.UOW, roleID); err != nil {
+	if _, err := s.editable(ctx, s.UOW, roleID, false); err != nil {
 		return nil, 0, err
 	}
 	return s.UOW.Roles().Members(ctx, roleID, filter)
@@ -224,7 +224,7 @@ func (s *Service) RemoveMember(ctx context.Context, roleID, userID string) error
 
 func (s *Service) changeMember(ctx context.Context, roleID, userID, action string, change func(output.RoleRepository, context.Context, string, string) error) error {
 	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
-		role, err := s.editable(ctx, uow, roleID)
+		role, err := s.editable(ctx, uow, roleID, false)
 		if err != nil {
 			return err
 		}
@@ -259,7 +259,7 @@ func (s *Service) SetUserRoles(ctx context.Context, userID string, roleIDs []str
 			return err
 		}
 		for id := range want {
-			if _, err := s.editable(ctx, uow, id); err != nil {
+			if _, err := s.editable(ctx, uow, id, false); err != nil {
 				return err
 			}
 		}
@@ -281,11 +281,11 @@ func (s *Service) SetUserRoles(ctx context.Context, userID string, roleIDs []str
 
 // editable loads a role the API may change. No transaction: nothing here can
 // make a role protected, so the answer cannot go stale before the write.
-func (s *Service) editable(ctx context.Context, uow output.IdentityStore, id string) (*domain.Role, error) {
+func (s *Service) editable(ctx context.Context, uow output.IdentityStore, id string, members bool) (*domain.Role, error) {
 	if err := validate.ID(id); err != nil {
 		return nil, err
 	}
-	role, err := uow.Roles().FindByID(ctx, id)
+	role, err := uow.Roles().FindByID(ctx, id, members)
 	if err != nil {
 		return nil, err
 	}

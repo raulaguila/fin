@@ -196,3 +196,9 @@ func (e *env) titles(t testing.TB, userID string) []string {
 	sort.Strings(out)
 	return out
 }
+
+// countByIP counts the failures that count against one client, any account.
+func countByIP(ctx context.Context, ip string, since time.Time) (int, error) {
+	n, err := postgres.NewStore(testDB).Attempts().CountRecentFailures(ctx, "", &ip, since, since)
+	return n.IP, err
+}

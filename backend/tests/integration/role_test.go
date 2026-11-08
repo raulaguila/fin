@@ -17,17 +17,16 @@ import (
 
 func findRole(t *testing.T, svc *role.Service, name string) domain.Role {
 	t.Helper()
-	roles, err := svc.UOW.Roles().List(context.Background(), 1000) // the repository also sees protected roles
+	ctx := context.Background()
+	id, err := svc.UOW.Roles().FindIDByName(ctx, name) // the repository also sees protected roles
+	if err != nil {
+		t.Fatalf("role %s: %v", name, err)
+	}
+	r, err := svc.UOW.Roles().FindByID(ctx, id, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, r := range roles {
-		if r.Name == name {
-			return r
-		}
-	}
-	t.Fatalf("role %s missing", name)
-	return domain.Role{}
+	return *r
 }
 
 func TestAdminRoleCannotBeChangedThroughTheAPI(t *testing.T) {

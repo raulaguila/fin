@@ -83,7 +83,7 @@ func (l *Logger) write(level zerolog.Level, msg string, attrs []slog.Attr) {
 		case slog.KindBool:
 			ev.Bool(attr.Key, attr.Value.Bool())
 		case slog.KindDuration:
-			ev.Dur(attr.Key, attr.Value.Duration())
+			ev.Str(attr.Key, attr.Value.Duration().String()) // "12.3ms": the unit travels with the value
 		default:
 			ev.Interface(attr.Key, attr.Value.Any())
 		}

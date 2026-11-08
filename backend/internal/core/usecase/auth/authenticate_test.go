@@ -29,7 +29,7 @@ type stubSessions struct {
 	err  error
 }
 
-func (s stubSessions) FindByID(context.Context, string) (*domain.Session, error) {
+func (s stubSessions) FindLive(context.Context, string) (*domain.Session, error) {
 	return s.sess, s.err
 }
 

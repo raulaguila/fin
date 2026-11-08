@@ -25,7 +25,7 @@ func (s *Service) Authenticate(ctx context.Context, accessToken string) (*domain
 	if !claims.ExpiresAt.IsZero() && !claims.ExpiresAt.After(now) {
 		return nil, apperror.New(apperror.CodeTokenExpired, "access token expired")
 	}
-	sess, err := s.UOW.Sessions().FindByID(ctx, claims.SessionID)
+	sess, err := s.UOW.Sessions().FindLive(ctx, claims.SessionID)
 	if apperror.IsNotFound(err) {
 		return nil, apperror.New(apperror.CodeUnauthorized, "session not found")
 	}

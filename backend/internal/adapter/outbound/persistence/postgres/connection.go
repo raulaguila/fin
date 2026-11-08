@@ -18,9 +18,10 @@ type Config struct {
 // Connect establishes a connection to the PostgreSQL database
 func Connect(cfg *Config) (*gorm.DB, error) {
 	db, err := gorm.Open(postgres.Open(cfg.URL), &gorm.Config{
-		Logger:      logger.Default.LogMode(logger.Silent),
-		NowFunc:     time.Now,
-		PrepareStmt: true,
+		Logger:  logger.Default.LogMode(logger.Silent),
+		NowFunc: time.Now,
+		// No PrepareStmt: its cache has no size limit, and every IN list length is
+		// a new statement on every connection. pgx already caches 512 per connection.
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)

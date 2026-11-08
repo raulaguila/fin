@@ -22,7 +22,7 @@ func TestJSONFieldsAndLevels(t *testing.T) {
 		t.Fatalf("%v: %s", err, out.String())
 	}
 	if got["level"] != "warn" || got["message"] != "shown" || got["service"] != "x" ||
-		got["s"] != "v" || got["n"] != float64(7) || got["b"] != true || got["d"] != float64(2) {
+		got["s"] != "v" || got["n"] != float64(7) || got["b"] != true || got["d"] != "2ms" {
 		t.Fatalf("%v", got)
 	}
 }

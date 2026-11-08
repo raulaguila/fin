@@ -44,6 +44,8 @@ type CredentialRepository interface {
 // SessionRepository persists usr.usr_session.
 type SessionRepository interface {
 	FindByID(ctx context.Context, id string) (*domain.Session, error)
+	// FindLive fills only ID, UserID, ExpiresAt and RevokedAt.
+	FindLive(ctx context.Context, id string) (*domain.Session, error)
 	Create(ctx context.Context, session *domain.Session) error
 	// Rotate swaps the refresh hash only if currentHash is still the live one.
 	// False means another request already rotated or revoked the session.
@@ -74,14 +76,20 @@ type TokenRepository interface {
 	CountIssuedSince(ctx context.Context, userID, purpose string, since time.Time) (int, error)
 }
 
+// FailureCounts are the recent failures against an account, against it from
+// one client, and from that client overall.
+type FailureCounts struct {
+	Email int `gorm:"column:email"`
+	Pair  int `gorm:"column:pair"`
+	IP    int `gorm:"column:ip"`
+}
+
 // LoginAttemptRepository appends login audits.
 type LoginAttemptRepository interface {
 	Create(ctx context.Context, attempt *domain.LoginAttempt) error
-	CountRecentFailuresByEmail(ctx context.Context, email string, since time.Time) (int, error)
-	// CountRecentFailuresByIP counts the whole client: an IPv6 address counts its /64.
-	CountRecentFailuresByIP(ctx context.Context, ip string, since time.Time) (int, error)
-	// CountRecentFailuresByEmailAndIP counts one client's failures against one account.
-	CountRecentFailuresByEmailAndIP(ctx context.Context, email, ip string, since time.Time) (int, error)
+	// CountRecentFailures counts the failures that count against a login. The
+	// pair uses the email window; an IPv6 address counts its whole /64.
+	CountRecentFailures(ctx context.Context, email string, ip *string, emailSince, ipSince time.Time) (FailureCounts, error)
 	// ClearFailures forgets what counts against an account since a moment, older
 	// history stays. A password reset proves the owner, who must get back in.
 	ClearFailures(ctx context.Context, email string, since time.Time) error
@@ -99,17 +107,17 @@ type RoleRepository interface {
 	Assign(ctx context.Context, userID, roleID string) error
 	// HasMembers reports whether any user holds the role.
 	HasMembers(ctx context.Context, roleID string) (bool, error)
-	List(ctx context.Context, limit int) ([]domain.Role, error)
 	// Page lists unprotected roles by name, with the count of all matches.
 	Page(ctx context.Context, filter domain.RoleFilter) ([]domain.Role, int64, error)
-	FindByID(ctx context.Context, id string) (*domain.Role, error)
+	// FindByID counts the members only when members is set: it costs a visit per member.
+	FindByID(ctx context.Context, id string, members bool) (*domain.Role, error)
 	Create(ctx context.Context, name string) (*domain.Role, error)
 	Delete(ctx context.Context, id string) error
 	Update(ctx context.Context, id string, patch domain.RolePatch) error
 	ClearPermissions(ctx context.Context, roleID string) error
 	Grant(ctx context.Context, roleID, resource string, actions domain.Action) error
 	Members(ctx context.Context, roleID string, filter domain.UserFilter) ([]domain.User, int64, error) // Page and Search only
-	// ForUser returns every role of a user, enabled or not.
+	// ForUser returns every role of a user, enabled or not, without member counts.
 	ForUser(ctx context.Context, userID string) ([]domain.Role, error)
 	Unassign(ctx context.Context, userID, roleID string) error
 }

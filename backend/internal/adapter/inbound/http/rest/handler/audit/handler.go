@@ -117,16 +117,22 @@ const maxExport = 10_000
 // @Failure 429 {object} mapper.errorBody
 // @Router /v1/audit/export [get]
 func (h *Handler) Export(c fiber.Ctx) error {
-	filter, err := filterFrom(c, domain.Page{Number: 1, Limit: maxExport})
+	// A one-row page first: refusing must not cost the 10000 rows.
+	filter, err := filterFrom(c, domain.Page{Number: 1, Limit: 1})
 	if err != nil {
 		return mapper.WriteError(c, err)
 	}
-	records, total, err := h.svc.List(c.Context(), filter)
+	_, total, err := h.svc.List(c.Context(), filter)
 	if err != nil {
 		return mapper.WriteError(c, err)
 	}
 	if total > maxExport {
 		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "more than 10000 records: narrow the filters"))
+	}
+	filter.Page.Limit = maxExport
+	records, _, err := h.svc.List(c.Context(), filter)
+	if err != nil {
+		return mapper.WriteError(c, err)
 	}
 	body, err := auditCSV(records)
 	if err != nil {

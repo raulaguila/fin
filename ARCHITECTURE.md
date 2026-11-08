@@ -54,6 +54,18 @@ core/domain → stdlib only
 
 **Consistency:** auth multi-step writes use `WithinTx` (register, activate, reset confirm). `RecordFailure` counts in SQL. After hashing outside the transaction, login updates the credential conditionally and inserts its session in one short transaction. The credential row lock serializes this with password reset, which changes the password before revoking sessions. Email cooldown/cap checks and issuance share a transaction lock per user and purpose. Initial sessions and refresh both honor the absolute lifetime.
 
+### Query rules
+
+Every query reads only what its caller uses. A hot path pays for each extra column and each extra row in every request.
+
+- **Name the columns.** No `SELECT *` and no GORM `Find`/`Take` into a full row struct when the caller reads only part of it. A narrower need gets its own method that names its columns (`Sessions().FindLive` for Bearer, next to `FindByID` for refresh). Secrets such as hashes and tokens leave the database only on the path that compares them.
+- **Expensive values stay opt-in.** Aggregates that visit many rows (`member_count` on roles) are computed only for the screen that shows them (`FindByID(ctx, id, members)`). `ForUser`, permission checks and batch loops never pay for them.
+- **One round trip where one statement can answer.** Several counts over one table use `count(*) FILTER (...)` in one query (`CountRecentFailures`). This matters most inside a transaction that holds locks.
+- **Check the cheap thing before the expensive one.** Refuse on a count before loading the rows (audit CSV export).
+- **Filters must match the indexes.** A partial index is used only when the query repeats its predicate literally (`countedFailure`).
+- **Bounded caches only.** GORM `PrepareStmt` stays off: its cache has no size limit, and every `IN` list length is a new statement. pgx already caches 512 statements per connection.
+- **Every list has a limit.** OFFSET pages and leading-wildcard `ILIKE` are accepted shortcuts, marked `shortcut:` with the size where they stop being enough.
+
 ## Contracts
 
 **HTTP (confirmed):** JSON; base path `/v1` for API; health stays at `/health`, outside the rate limit.
@@ -183,7 +195,7 @@ Do not log refresh tokens, passwords, or email token plaintext (payload in outbo
 - Argon2id verify on every login (`time=3`, `memory=64MiB`, 4 threads in `pkg/password`)
 - Each permission check → one query, no cache
 - Login attempt inserts + rate-limit counts
-- Login, refresh and `/v1/me` each run user + permissions + preferences queries
+- Login, refresh and `/v1/me` each run user + permissions + preferences queries (roles without member counts)
 - `search` is a leading-wildcard `ILIKE`, and lists use `OFFSET` plus a count: scans grow with the table
 
 ## ADR index

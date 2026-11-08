@@ -54,28 +54,13 @@ func (s *Service) reserveAttempt(ctx context.Context, email string, ip, ua *stri
 
 // overLimit names the limit this login is over, if any.
 func (s *Service) overLimit(ctx context.Context, attempts output.LoginAttemptRepository, email string, ip *string, now time.Time) (string, error) {
-	n, err := attempts.CountRecentFailuresByEmail(ctx, email, now.Add(-s.Cfg.LoginAttemptEmailWindow))
-	if err != nil {
+	n, err := attempts.CountRecentFailures(ctx, email, ip, now.Add(-s.Cfg.LoginAttemptEmailWindow), now.Add(-s.Cfg.LoginAttemptIPWindow))
+	switch {
+	case err != nil:
 		return "", err
-	}
-	if n >= s.Cfg.LoginAttemptEmailMaxFailures {
+	case n.Email >= s.Cfg.LoginAttemptEmailMaxFailures, n.Pair >= s.Cfg.LoginAttemptPairMaxFailures:
 		return domain.FailureRateLimitedEmail, nil
-	}
-	if ip == nil || *ip == "" {
-		return "", nil
-	}
-	n, err = attempts.CountRecentFailuresByEmailAndIP(ctx, email, *ip, now.Add(-s.Cfg.LoginAttemptEmailWindow))
-	if err != nil {
-		return "", err
-	}
-	if n >= s.Cfg.LoginAttemptPairMaxFailures {
-		return domain.FailureRateLimitedEmail, nil
-	}
-	n, err = attempts.CountRecentFailuresByIP(ctx, *ip, now.Add(-s.Cfg.LoginAttemptIPWindow))
-	if err != nil {
-		return "", err
-	}
-	if n >= s.Cfg.LoginAttemptIPMaxFailures {
+	case n.IP >= s.Cfg.LoginAttemptIPMaxFailures:
 		return domain.FailureRateLimitedIP, nil
 	}
 	return "", nil

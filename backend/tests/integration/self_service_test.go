@@ -96,6 +96,16 @@ func TestRoleMemberCountSkipsProtectedUsers(t *testing.T) {
 	if got := findRole(t, svc, created.Name).MemberCount; got != 1 {
 		t.Fatalf("member count %d", got)
 	}
+	// Paths that never show the number must not pay for it.
+	roles, err := e.store.Roles().ForUser(ctx, e.userID(t, plain))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range roles {
+		if r.MemberCount != 0 {
+			t.Fatalf("ForUser counted members of %s", r.Name)
+		}
+	}
 }
 
 func TestSetUserRolesReplacesTheSet(t *testing.T) {

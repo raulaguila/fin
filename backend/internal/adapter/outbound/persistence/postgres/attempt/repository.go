@@ -44,39 +44,33 @@ func (r *Repository) Create(ctx context.Context, a *domain.LoginAttempt) error {
 	return nil
 }
 
-func (r *Repository) CountRecentFailuresByEmail(ctx context.Context, email string, since time.Time) (int, error) {
-	var n int64
-	err := r.db.WithContext(ctx).Table("usr.usr_login_attempt").
-		Where("email = ? AND created_at >= ? AND "+countedFailure, email, since).
-		Count(&n).Error
-	if err != nil {
-		return 0, shared.WrapError(err, "login_attempt")
+// CountRecentFailures counts the three limits in one round trip, since it runs
+// under the login locks. The OR lets the planner combine both partial indexes.
+func (r *Repository) CountRecentFailures(ctx context.Context, email string, ip *string, emailSince, ipSince time.Time) (output.FailureCounts, error) {
+	var first, last *string // NULL bounds match nothing: no IP counts nothing
+	if ip != nil && *ip != "" {
+		f, l := clientip.Range(*ip)
+		first, last = &f, &l
 	}
-	return int(n), nil
-}
-
-func (r *Repository) CountRecentFailuresByIP(ctx context.Context, ip string, since time.Time) (int, error) {
-	first, last := clientip.Range(ip)
-	var n int64
-	err := r.db.WithContext(ctx).Table("usr.usr_login_attempt").
-		Where("ip_address BETWEEN ?::inet AND ?::inet AND created_at >= ? AND "+countedFailure, first, last, since).
-		Count(&n).Error
+	var out output.FailureCounts
+	// Plain parameters, no CTE: the planner needs constants to pick the partial indexes.
+	byEmail := "email = ?::citext AND created_at >= ?"
+	byIP := "ip_address BETWEEN ?::inet AND ?::inet AND created_at >= ?"
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT
+			count(*) FILTER (WHERE `+byEmail+`) AS email,
+			count(*) FILTER (WHERE `+byEmail+` AND ip_address BETWEEN ?::inet AND ?::inet) AS pair,
+			count(*) FILTER (WHERE `+byIP+`) AS ip
+		FROM usr.usr_login_attempt
+		WHERE `+countedFailure+` AND ((`+byEmail+`) OR (`+byIP+`))
+	`, email, emailSince,
+		email, emailSince, first, last,
+		first, last, ipSince,
+		email, emailSince, first, last, ipSince).Scan(&out).Error
 	if err != nil {
-		return 0, shared.WrapError(err, "login_attempt")
+		return output.FailureCounts{}, shared.WrapError(err, "login_attempt")
 	}
-	return int(n), nil
-}
-
-func (r *Repository) CountRecentFailuresByEmailAndIP(ctx context.Context, email, ip string, since time.Time) (int, error) {
-	first, last := clientip.Range(ip)
-	var n int64
-	err := r.db.WithContext(ctx).Table("usr.usr_login_attempt").
-		Where("email = ? AND ip_address BETWEEN ?::inet AND ?::inet AND created_at >= ? AND "+countedFailure, email, first, last, since).
-		Count(&n).Error
-	if err != nil {
-		return 0, shared.WrapError(err, "login_attempt")
-	}
-	return int(n), nil
+	return out, nil
 }
 
 func (r *Repository) ClearFailures(ctx context.Context, email string, since time.Time) error {

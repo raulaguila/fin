@@ -62,6 +62,18 @@ func (r *Repository) FindByID(ctx context.Context, id string) (*domain.Session, 
 	return m.toDomain(), nil
 }
 
+// FindLive reads only what Bearer checks on every request: the refresh hashes
+// and the client details stay in the database.
+func (r *Repository) FindLive(ctx context.Context, id string) (*domain.Session, error) {
+	var m row
+	err := r.db.WithContext(ctx).Table("usr.usr_session").
+		Select("id, user_id, expires_at, revoked_at").Where("id = ?", id).Take(&m).Error
+	if err != nil {
+		return nil, shared.WrapError(err, "session")
+	}
+	return m.toDomain(), nil
+}
+
 func (r *Repository) Create(ctx context.Context, s *domain.Session) error {
 	id := uuid.New()
 	if s.ID != "" {
@@ -124,6 +136,7 @@ func (r *Repository) RevokeAllForUser(ctx context.Context, userID string, now ti
 func (r *Repository) ListActive(ctx context.Context, userID string, now time.Time, limit int) ([]domain.Session, error) {
 	var rows []row
 	err := r.db.WithContext(ctx).Table("usr.usr_session").
+		Select("id, user_id, expires_at, ip_address, user_agent, created_at, last_seen_at"). // no refresh hashes
 		Where("user_id = ? AND revoked_at IS NULL AND expires_at > ?", userID, now).
 		Order("last_seen_at DESC").Limit(limit).Find(&rows).Error
 	if err != nil {

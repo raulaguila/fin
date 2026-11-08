@@ -127,7 +127,7 @@ func TestHostileEmailsNeverReachTheDatabaseRaw(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	n, err := e.store.Attempts().CountRecentFailuresByIP(context.Background(), ip, time.Now().Add(-time.Minute))
+	n, err := countByIP(context.Background(), ip, time.Now().Add(-time.Minute))
 	if err != nil || n < 2 {
 		t.Fatalf("attempts not recorded: %d %v", n, err)
 	}

@@ -450,7 +450,7 @@ export default function RoleDetailPage() {
         destructive
         confirmLabel={t("common.delete")}
         onConfirm={async () => {
-          await roles.remove(id);
+          await roles.remove([id]);
           router.push("/admin/roles");
           client.removeQueries({ queryKey: ["roles", "detail", id] });
           void client.invalidateQueries({ queryKey: ["roles"] });

@@ -76,10 +76,6 @@ func (s *Service) Create(ctx context.Context, name string) (*domain.Role, error)
 	return created, nil
 }
 
-func (s *Service) Delete(ctx context.Context, id string) error {
-	return s.DeleteMany(ctx, []string{id})
-}
-
 func (s *Service) DeleteMany(ctx context.Context, ids []string) error {
 	if err := checkBatch(ids); err != nil {
 		return err

@@ -118,6 +118,7 @@ const ptBR = {
   "notifications.empty": "Nenhuma notificação",
   "notifications.empty_desc": "Avisos sobre sua conta aparecem aqui.",
   "notifications.mark_read": "Marcar como lida",
+  "notifications.mark_all_read": "Marcar todas como lidas",
   "notifications.subtitle": "Avisos sobre sua conta e segurança.",
 
   "products.delete": "Excluir produto",
@@ -399,6 +400,7 @@ const enUS: Record<MessageKey, string> = {
   "notifications.empty": "No notifications",
   "notifications.empty_desc": "Notices about your account show up here.",
   "notifications.mark_read": "Mark as read",
+  "notifications.mark_all_read": "Mark all as read",
   "notifications.subtitle": "Notices about your account and security.",
 
   "products.delete": "Delete product",

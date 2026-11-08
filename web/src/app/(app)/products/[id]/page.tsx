@@ -128,7 +128,7 @@ export default function ProductPage() {
         destructive
         confirmLabel={t("common.delete")}
         onConfirm={async () => {
-          await products.remove(id);
+          await products.remove([id]);
           router.push("/products");
           client.removeQueries({ queryKey: ["products", "detail", id] });
           void client.invalidateQueries({ queryKey: ["products"] });

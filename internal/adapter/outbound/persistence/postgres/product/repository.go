@@ -174,14 +174,3 @@ func (r *Repository) DeleteMany(ctx context.Context, ids []string) error {
 	}
 	return nil
 }
-
-func (r *Repository) Delete(ctx context.Context, id string) error {
-	res := r.db.WithContext(ctx).Exec(`DELETE FROM app.product WHERE id = ?`, id)
-	if res.Error != nil {
-		return shared.WrapError(res.Error, "product")
-	}
-	if res.RowsAffected == 0 {
-		return shared.WrapError(gorm.ErrRecordNotFound, "product")
-	}
-	return nil
-}

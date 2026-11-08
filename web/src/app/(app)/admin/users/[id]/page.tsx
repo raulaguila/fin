@@ -246,7 +246,7 @@ function UserDetail({ id }: { id: string }) {
         description={t(disabled ? "users.enable_desc" : "users.disable_desc")}
         destructive={!disabled}
         onConfirm={async () => {
-          await (disabled ? users.enable(id) : users.disable(id));
+          await (disabled ? users.enable : users.disable)([id]);
           await client.invalidateQueries({ queryKey: ["users"] });
           toast.success(t("common.saved"));
         }}

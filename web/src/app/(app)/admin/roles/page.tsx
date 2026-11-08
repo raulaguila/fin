@@ -77,7 +77,7 @@ export default function RolesPage() {
     deleteWithUndo({
       message: t("common.deleted_n").replace("{n}", String(ids.length)),
       undoLabel: t("common.undo"),
-      run: () => roles.removeMany(ids),
+      run: () => roles.remove(ids),
       onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
       onSettled: async () => {
         await client.invalidateQueries({ queryKey: ["roles"] });

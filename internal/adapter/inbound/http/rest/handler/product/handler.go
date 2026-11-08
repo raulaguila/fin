@@ -32,8 +32,7 @@ func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
 	r.Get("/:id", read, h.Get)
 	r.Post("/", middleware.Require(authz, domain.ResourceProducts, domain.ActionCreate), h.Create)
 	r.Patch("/:id", middleware.Require(authz, domain.ResourceProducts, domain.ActionUpdate), h.Update)
-	r.Post("/batch-delete", middleware.Require(authz, domain.ResourceProducts, domain.ActionDelete), h.DeleteMany)
-	r.Delete("/:id", middleware.Require(authz, domain.ResourceProducts, domain.ActionDelete), h.Delete)
+	r.Post("/delete", middleware.Require(authz, domain.ResourceProducts, domain.ActionDelete), h.Delete)
 }
 
 type productDTO struct {
@@ -264,7 +263,7 @@ type idsDTO struct {
 	IDs []string `json:"ids"`
 }
 
-// @Summary Delete several products at once; all or none
+// @Summary Delete products; all or none
 // @Tags Products
 // @Accept json
 // @Produce json
@@ -276,31 +275,13 @@ type idsDTO struct {
 // @Failure 403 {object} mapper.errorBody
 // @Failure 404 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/products/batch-delete [post]
-func (h *Handler) DeleteMany(c fiber.Ctx) error {
+// @Router /v1/products/delete [post]
+func (h *Handler) Delete(c fiber.Ctx) error {
 	var body idsDTO
 	if err := c.Bind().Body(&body); err != nil {
 		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "invalid body"))
 	}
 	if err := h.svc.DeleteMany(c.Context(), body.IDs); err != nil {
-		return mapper.WriteError(c, err)
-	}
-	return c.SendStatus(fiber.StatusNoContent)
-}
-
-// @Summary Delete a product
-// @Tags Products
-// @Produce json
-// @Param id path string true "Product ID"
-// @Security BearerAuth
-// @Success 204
-// @Failure 401 {object} mapper.errorBody
-// @Failure 403 {object} mapper.errorBody
-// @Failure 404 {object} mapper.errorBody
-// @Failure 429 {object} mapper.errorBody
-// @Router /v1/products/{id} [delete]
-func (h *Handler) Delete(c fiber.Ctx) error {
-	if err := h.svc.Delete(c.Context(), c.Params("id")); err != nil {
 		return mapper.WriteError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)

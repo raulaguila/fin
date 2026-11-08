@@ -106,10 +106,6 @@ type meDTO struct {
 }
 
 func toUserDTO(p *domain.Profile) userDTO {
-	permissions := make(map[string][]string, len(p.Permissions))
-	for resource, actions := range p.Permissions {
-		permissions[resource] = domain.ActionNames(actions)
-	}
 	return userDTO{
 		ID:          p.User.ID,
 		Name:        p.User.Name,
@@ -117,7 +113,7 @@ func toUserDTO(p *domain.Profile) userDTO {
 		Status:      p.User.Status,
 		CreatedAt:   p.User.CreatedAt,
 		IsSuperuser: p.IsSuperuser,
-		Permissions: permissions,
+		Permissions: mapper.Permissions(p.Permissions),
 		Preferences: mapper.Preferences(p.Preferences),
 		Roles:       p.Roles,
 	}

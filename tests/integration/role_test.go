@@ -51,7 +51,7 @@ func TestAdminRoleCannotBeChangedThroughTheAPI(t *testing.T) {
 	wantCode(t, err, apperror.CodeForbidden)
 	_, err = svc.Update(ctx, before.ID, domain.RolePatch{Enabled: &enabled})
 	wantCode(t, err, apperror.CodeForbidden)
-	wantCode(t, svc.Delete(ctx, before.ID), apperror.CodeForbidden)
+	wantCode(t, svc.DeleteMany(ctx, []string{before.ID}), apperror.CodeForbidden)
 	wantCode(t, svc.AddMember(ctx, before.ID, e.userID(t, e.activeUser(t))), apperror.CodeForbidden)
 	wantCode(t, svc.RemoveMember(ctx, before.ID, userID), apperror.CodeForbidden)
 
@@ -153,7 +153,7 @@ func TestRolePermissionsApplyAtOnce(t *testing.T) {
 		t.Fatalf("members %+v %d %v", members, total, err)
 	}
 
-	wantCode(t, svc.Delete(ctx, created.ID), apperror.CodeResourceInUse)
+	wantCode(t, svc.DeleteMany(ctx, []string{created.ID}), apperror.CodeResourceInUse)
 	updated, err = svc.SetPermissions(ctx, created.ID, map[string]domain.Action{})
 	if err != nil || len(updated.Permissions) != 0 {
 		t.Fatalf("permissions %+v %v", updated, err)
@@ -167,10 +167,10 @@ func TestRolePermissionsApplyAtOnce(t *testing.T) {
 	if err := svc.RemoveMember(ctx, created.ID, userID); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.Delete(ctx, created.ID); err != nil {
+	if err := svc.DeleteMany(ctx, []string{created.ID}); err != nil {
 		t.Fatal(err)
 	}
-	wantCode(t, svc.Delete(ctx, created.ID), apperror.CodeNotFound)
+	wantCode(t, svc.DeleteMany(ctx, []string{created.ID}), apperror.CodeNotFound)
 }
 
 func TestDefaultRoleCanChangeButNotLeave(t *testing.T) {
@@ -179,7 +179,7 @@ func TestDefaultRoleCanChangeButNotLeave(t *testing.T) {
 	svc := role.New(e.store, e.store, rbac.NewRepository(testDB))
 	def := findRole(t, svc, "user")
 
-	wantCode(t, svc.Delete(ctx, def.ID), apperror.CodeConflict)
+	wantCode(t, svc.DeleteMany(ctx, []string{def.ID}), apperror.CodeConflict)
 	off := false
 	_, err := svc.Update(ctx, def.ID, domain.RolePatch{Enabled: &off})
 	wantCode(t, err, apperror.CodeConflict)

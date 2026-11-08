@@ -45,8 +45,8 @@ func TestEveryRouteNeedsItsPermission(t *testing.T) {
 	for _, tc := range []struct{ method, path, action string }{
 		{"GET", "/users", "read"},
 		{"GET", "/users/u1", "read"},
-		{"POST", "/users/u1/disable", "update"},
-		{"POST", "/users/u1/enable", "update"},
+		{"POST", "/users/disable", "update"},
+		{"POST", "/users/enable", "update"},
 		{"DELETE", "/users/u1/sessions", "update"},
 		{"POST", "/users", "create"},
 	} {
@@ -69,8 +69,9 @@ func TestEveryRouteNeedsItsPermission(t *testing.T) {
 
 type stubUsers struct {
 	input.UserService
-	filter        domain.UserFilter
-	actor, target string
+	filter domain.UserFilter
+	actor  string
+	ids    []string
 }
 
 func (s *stubUsers) List(_ context.Context, filter domain.UserFilter) ([]domain.User, int64, error) {
@@ -84,8 +85,8 @@ func (s *stubUsers) Get(context.Context, string) (*domain.UserDetails, error) {
 	}}}, nil
 }
 
-func (s *stubUsers) Disable(_ context.Context, actorID, id string) error {
-	s.actor, s.target = actorID, id
+func (s *stubUsers) DisableMany(_ context.Context, actorID string, ids []string) error {
+	s.actor, s.ids = actorID, ids
 	return nil
 }
 
@@ -134,10 +135,13 @@ func TestGetShowsOnlyTheRoleNames(t *testing.T) {
 
 func TestDisableSaysWhoAsked(t *testing.T) {
 	svc := &stubUsers{}
-	if status, _ := call(t, svc, "POST", "/users/u1/disable"); status != fiber.StatusNoContent {
-		t.Fatalf("status %d", status)
+	req := httptest.NewRequest("POST", "/users/disable", strings.NewReader(`{"ids":["u1"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := newApp(svc, stubAuthz{nil, new(string), new(string)}).Test(req)
+	if err != nil || resp.StatusCode != fiber.StatusNoContent {
+		t.Fatalf("status %v %v", resp, err)
 	}
-	if svc.actor != "actor" || svc.target != "u1" {
+	if svc.actor != "actor" || len(svc.ids) != 1 || svc.ids[0] != "u1" {
 		t.Fatalf("%+v", svc)
 	}
 }

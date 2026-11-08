@@ -21,6 +21,8 @@ type NotificationRepository interface {
 	// List returns one page, newest first, and the count of all the user's notifications.
 	List(ctx context.Context, userID string, page domain.Page) ([]domain.Notification, int64, error)
 	CountUnread(ctx context.Context, userID string) (int64, error)
-	// MarkRead is idempotent. False means this user has no such notification.
-	MarkRead(ctx context.Context, id, userID string, now time.Time) (bool, error)
+	// MarkRead marks the listed notifications, or every unread one when ids is
+	// nil. Idempotent. With ids it is all or none: false means one of them is
+	// not this user's, and nothing changed.
+	MarkRead(ctx context.Context, userID string, ids []string, now time.Time) (bool, error)
 }

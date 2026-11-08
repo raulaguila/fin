@@ -60,14 +60,6 @@ func (s *Service) Get(ctx context.Context, id string) (*domain.UserDetails, erro
 	return policy.Reachable(ctx, s.UOW, id)
 }
 
-func (s *Service) Disable(ctx context.Context, actorID, id string) error {
-	return s.DisableMany(ctx, actorID, []string{id})
-}
-
-func (s *Service) Enable(ctx context.Context, id string) error {
-	return s.EnableMany(ctx, []string{id})
-}
-
 // DisableMany refuses the caller's own account, compared on the stored id: the
 // path may spell the same UUID in another case.
 func (s *Service) DisableMany(ctx context.Context, actorID string, ids []string) error {

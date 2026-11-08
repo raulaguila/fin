@@ -43,7 +43,7 @@ func TestEveryRouteNeedsItsPermission(t *testing.T) {
 	for _, tc := range []struct{ method, path, action string }{
 		{"GET", "/roles", "read"},
 		{"POST", "/roles", "create"},
-		{"DELETE", "/roles/r1", "delete"},
+		{"POST", "/roles/delete", "delete"},
 		{"PATCH", "/roles/r1", "update"},
 		{"PUT", "/roles/r1/permissions", "update"},
 		{"GET", "/roles/r1/members", "read"},

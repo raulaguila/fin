@@ -661,12 +661,15 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/me/notifications/{id}/read": {
+        "/v1/me/notifications/read": {
             "put": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
+                ],
+                "consumes": [
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -674,14 +677,15 @@ const docTemplate = `{
                 "tags": [
                     "Notifications"
                 ],
-                "summary": "Mark a notification as read",
+                "summary": "Mark notifications as read: the listed ones (all or none), or every one when the body is empty",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "Notification ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
+                        "description": "Notification IDs, 1 to 100; leave out to mark all",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/notification.idsDTO"
+                        }
                     }
                 ],
                 "responses": {
@@ -1213,7 +1217,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/products/batch-delete": {
+        "/v1/products/delete": {
             "post": {
                 "security": [
                     {
@@ -1229,7 +1233,7 @@ const docTemplate = `{
                 "tags": [
                     "Products"
                 ],
-                "summary": "Delete several products at once; all or none",
+                "summary": "Delete products; all or none",
                 "parameters": [
                     {
                         "description": "Product IDs, 1 to 100",
@@ -1357,58 +1361,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/product.productDTO"
                         }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "429": {
-                        "description": "Too Many Requests",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Products"
-                ],
-                "summary": "Delete a product",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Product ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
                     },
                     "401": {
                         "description": "Unauthorized",
@@ -1679,7 +1631,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/roles/batch-delete": {
+        "/v1/roles/delete": {
             "post": {
                 "security": [
                     {
@@ -1695,7 +1647,7 @@ const docTemplate = `{
                 "tags": [
                     "Roles"
                 ],
-                "summary": "Delete several roles at once; all or none",
+                "summary": "Delete roles without members; all or none",
                 "parameters": [
                     {
                         "description": "Role IDs, 1 to 100",
@@ -1800,70 +1752,6 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "429": {
-                        "description": "Too Many Requests",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Roles"
-                ],
-                "summary": "Delete a role without members",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Role ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
                         }
@@ -2457,7 +2345,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/users/batch-disable": {
+        "/v1/users/disable": {
             "post": {
                 "security": [
                     {
@@ -2473,7 +2361,7 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Disable several users at once and end their sessions; all or none",
+                "summary": "Disable users and end their sessions; all or none",
                 "parameters": [
                     {
                         "description": "User IDs, 1 to 100; not your own",
@@ -2522,7 +2410,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/users/batch-enable": {
+        "/v1/users/enable": {
             "post": {
                 "security": [
                     {
@@ -2538,7 +2426,7 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Enable several users at once; all or none",
+                "summary": "Enable users; one who never set a password goes back to pending. All or none",
                 "parameters": [
                     {
                         "description": "User IDs, 1 to 100",
@@ -2616,126 +2504,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/user.detailsDTO"
                         }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "429": {
-                        "description": "Too Many Requests",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/users/{id}/disable": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Users"
-                ],
-                "summary": "Disable a user and end their sessions",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "User ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "429": {
-                        "description": "Too Many Requests",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/users/{id}/enable": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Users"
-                ],
-                "summary": "Enable a disabled user; one who never set a password goes back to pending",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "User ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -3157,6 +2925,17 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string"
+                }
+            }
+        },
+        "notification.idsDTO": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

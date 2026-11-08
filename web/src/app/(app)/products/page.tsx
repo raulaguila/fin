@@ -70,7 +70,7 @@ export default function ProductsPage() {
     deleteWithUndo({
       message: t("common.deleted_n").replace("{n}", String(ids.length)),
       undoLabel: t("common.undo"),
-      run: () => products.removeMany(ids),
+      run: () => products.remove(ids),
       onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
       onSettled: async () => {
         await client.invalidateQueries({ queryKey: ["products"] });
@@ -160,7 +160,7 @@ export default function ProductsPage() {
         destructive
         confirmLabel={t("common.delete")}
         onConfirm={async () => {
-          await products.remove(deleting!.id);
+          await products.remove([deleting!.id]);
           await client.invalidateQueries({ queryKey: ["products"] });
         }}
       />

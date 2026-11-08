@@ -67,13 +67,12 @@ core/domain → stdlib only
 | DELETE | `/v1/me/sessions/others`, `/v1/me/sessions/:id` (Bearer) |
 | GET/PUT | `/v1/me/preferences` (Bearer) |
 | GET | `/v1/me/notifications`, `/v1/me/notifications/count` (Bearer) |
-| PUT | `/v1/me/notifications/:id/read` (Bearer) |
+| PUT | `/v1/me/notifications/read`, body `{"ids": [...]}` (1 to 100, all or none) or no body for every one (Bearer) |
 | GET | `/v1/permissions/resources` (`roles:read`) |
 | GET/POST | `/v1/roles`, `search`, `sort` (`name`, `created_at`), `order` and pagination (`roles:read`, `roles:create`) |
 | GET | `/v1/roles/:id` (`roles:read`) |
-| POST | `/v1/roles/batch-delete`, all or none (`roles:delete`) |
+| POST | `/v1/roles/delete`, body `{"ids": [...]}` (1 to 100), all or none; roles without members, not default (`roles:delete`) |
 | PATCH | `/v1/roles/:id`; `is_default` marks or unmarks a default role; several may be default (`roles:update`) |
-| DELETE | `/v1/roles/:id` (`roles:delete`) |
 | PUT | `/v1/roles/:id/permissions`, full map in one transaction (`roles:update`) |
 | GET | `/v1/roles/:id/members`, `search` and pagination (`roles:read`) |
 | PUT/DELETE | `/v1/roles/:id/members/:user_id` (`roles:update`) |
@@ -82,13 +81,12 @@ core/domain → stdlib only
 | POST | `/v1/users`, invite: creates a pending account and sends the activation email; a taken email is 409 (`users:create`) |
 | DELETE | `/v1/users/:id/sessions`, ends every session of another user (`users:update`) |
 | GET | `/v1/users/:id`, with roles (`users:read`) |
-| POST | `/v1/users/:id/disable`, `/v1/users/:id/enable` (`users:update`) |
-| POST | `/v1/users/batch-disable`, `/v1/users/batch-enable`, all or none (`users:update`) |
+| POST | `/v1/users/disable`, `/v1/users/enable`, body `{"ids": [...]}` (1 to 100), all or none (`users:update`) |
 | GET | `/v1/audit`, newest first; `action` prefix, `user_id` (actor or target), `from`/`to` (RFC 3339) and pagination (`audit:read`) |
 | GET/POST | `/v1/products` |
 | GET | `/v1/products/list` |
-| GET/PATCH/DELETE | `/v1/products/:id` |
-| POST | `/v1/products/batch-delete`, all or none |
+| GET/PATCH | `/v1/products/:id` |
+| POST | `/v1/products/delete`, body `{"ids": [...]}` (1 to 100), all or none |
 
 **Auth tokens:** RS256; access claims `sub`, `sid`, `jti`, `iat`, `exp`; refresh same with `jti` hashed at rest. Defaults: access 15m, refresh 60m.
 

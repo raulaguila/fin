@@ -22,14 +22,13 @@ Fonte: `Routes` de cada handler em `internal/adapter/inbound/http/rest/`, montad
 | PUT | `/v1/me/preferences` | Bearer | global |
 | GET | `/v1/me/notifications` | Bearer | global |
 | GET | `/v1/me/notifications/count` | Bearer | global |
-| PUT | `/v1/me/notifications/:id/read` | Bearer, só notificação própria | global |
+| PUT | `/v1/me/notifications/read` | Bearer, só notificações próprias; `{"ids": [...]}` (1 a 100, tudo ou nada) ou sem body para todas | global |
 | GET | `/v1/permissions/resources` | `roles:read` | global |
 | GET | `/v1/roles` | `roles:read`; não lista `is_superuser` nem grant `*` | global |
 | POST | `/v1/roles` | `roles:create` | global |
 | GET | `/v1/roles/:id` | `roles:read`; não `is_superuser` | global |
-| POST | `/v1/roles/batch-delete` | `roles:delete`; tudo ou nada; mesmas regras do DELETE | global |
+| POST | `/v1/roles/delete` | `roles:delete`; `{"ids": [...]}` (1 a 100); tudo ou nada; sem membros; não `is_superuser` nem padrão | global |
 | PATCH | `/v1/roles/:id` | `roles:update`; não `is_superuser`; padrão não desativa; `is_default` marca/desmarca (vários padrões) | global |
-| DELETE | `/v1/roles/:id` | `roles:delete`; sem membros; não `is_superuser` nem padrão | global |
 | PUT | `/v1/roles/:id/permissions` | `roles:update`; não `is_superuser`; mapa completo em uma transação | global |
 | GET | `/v1/roles/:id/members` | `roles:read` | global |
 | PUT | `/v1/roles/:id/members/:user_id` | `roles:update`; não `is_superuser` | global |
@@ -40,10 +39,9 @@ Fonte: `Routes` de cada handler em `internal/adapter/inbound/http/rest/`, montad
 | GET | `/v1/products/:id` | `products:read` | global |
 | POST | `/v1/products` | `products:create` | global |
 | PATCH | `/v1/products/:id` | `products:update` | global |
-| DELETE | `/v1/products/:id` | `products:delete` | global |
-| POST | `/v1/products/batch-delete` | `products:delete`; tudo ou nada | global |
-| POST | `/v1/users/batch-disable` | `users:update`; tudo ou nada; não a própria conta | global |
-| POST | `/v1/users/batch-enable` | `users:update`; tudo ou nada | global |
+| POST | `/v1/products/delete` | `products:delete`; `{"ids": [...]}` (1 a 100); tudo ou nada | global |
+| POST | `/v1/users/disable` | `users:update`; `{"ids": [...]}` (1 a 100); tudo ou nada; não a própria conta | global |
+| POST | `/v1/users/enable` | `users:update`; `{"ids": [...]}` (1 a 100); tudo ou nada | global |
 | POST | `/v1/users` | `users:create`; convite: conta pendente + e-mail de ativação; e-mail já usado = 409 | global |
 | DELETE | `/v1/users/:id/sessions` | `users:update`; não a própria conta; não `is_superuser` | global |
 | GET | `/v1/audit` | `audit:read`; filtros `action` (prefixo), `user_id`, `from`, `to` | global |

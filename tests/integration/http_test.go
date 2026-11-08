@@ -84,7 +84,8 @@ func TestHTTPAccountOwnershipAndProductValidation(t *testing.T) {
 	request("PUT", "/v1/me/preferences", `{`, pair.AccessToken, 400)
 	request("GET", "/v1/me/notifications", "", pair.AccessToken, 200)
 	request("GET", "/v1/me/notifications/count", "", pair.AccessToken, 200)
-	request("PUT", "/v1/me/notifications/"+note.ID+"/read", "", pair.AccessToken, 404)
+	request("PUT", "/v1/me/notifications/read", `{"ids":["`+note.ID+`"]}`, pair.AccessToken, 404)
+	request("PUT", "/v1/me/notifications/read", "", pair.AccessToken, 204)
 	request("POST", "/v1/products", `{"name":"HTTP test","price":"10.00"}`, pair.AccessToken, 403)
 	if err := admin.New(e.store, e.clock).Promote(ctx, addr); err != nil {
 		t.Fatal(err)
@@ -101,7 +102,7 @@ func TestHTTPAccountOwnershipAndProductValidation(t *testing.T) {
 	request("GET", "/v1/products?cursor=start&limit=2", "", pair.AccessToken, 200)
 	request("GET", "/v1/products?cursor=bad", "", pair.AccessToken, 400)
 	request("GET", "/v1/products?cursor=start&sort=price", "", pair.AccessToken, 400)
-	request("DELETE", "/v1/products/"+id, "", pair.AccessToken, 204)
+	request("POST", "/v1/products/delete", `{"ids":["`+id+`"]}`, pair.AccessToken, 204)
 	request("GET", "/v1/products/"+id, "", pair.AccessToken, 404)
 	if _, err := e.svc.Authenticate(ctx, foreign.AccessToken); err != nil {
 		t.Fatalf("other user's session was revoked: %v", err)

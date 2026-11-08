@@ -31,3 +31,16 @@ type PreferencesDTO struct {
 func Preferences(p domain.Preferences) PreferencesDTO {
 	return PreferencesDTO{Theme: p.Theme, Language: p.Language}
 }
+
+// Permissions lists the action names per resource. "*" already grants every
+// action on every resource, so when it is present the other entries are left out.
+func Permissions(p map[string]domain.Action) map[string][]string {
+	if all, ok := p[domain.ResourceAll]; ok {
+		return map[string][]string{domain.ResourceAll: domain.ActionNames(all)}
+	}
+	out := make(map[string][]string, len(p))
+	for resource, actions := range p {
+		out[resource] = domain.ActionNames(actions)
+	}
+	return out
+}

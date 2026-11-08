@@ -110,13 +110,6 @@ func (s *Service) Update(ctx context.Context, cmd input.UpdateProductCommand) (*
 	return s.Repo.Update(ctx, cmd.ID, patch)
 }
 
-func (s *Service) Delete(ctx context.Context, id string) error {
-	if err := validate.ID(id); err != nil {
-		return err
-	}
-	return s.Repo.Delete(ctx, id)
-}
-
 const maxBatch = 100 // ids in one batch request; a page holds at most 100 rows
 
 func (s *Service) DeleteMany(ctx context.Context, ids []string) error {

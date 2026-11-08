@@ -79,12 +79,20 @@ func (r *Repository) CountUnread(ctx context.Context, userID string) (int64, err
 	return n, nil
 }
 
-func (r *Repository) MarkRead(ctx context.Context, id, userID string, now time.Time) (bool, error) {
+func (r *Repository) MarkRead(ctx context.Context, userID string, ids []string, now time.Time) (bool, error) {
+	if ids == nil {
+		err := r.db.WithContext(ctx).Exec(`
+			UPDATE usr.usr_notification SET read_at = ? WHERE user_id = ? AND read_at IS NULL
+		`, now, userID).Error
+		return true, shared.WrapError(err, "notification")
+	}
+	// One statement: the ownership count and the update see the same snapshot.
 	res := r.db.WithContext(ctx).Exec(`
-		UPDATE usr.usr_notification SET read_at = COALESCE(read_at, ?) WHERE id = ? AND user_id = ?
-	`, now, id, userID)
+		UPDATE usr.usr_notification SET read_at = COALESCE(read_at, ?) WHERE user_id = ? AND id IN ?
+		AND (SELECT count(*) FROM usr.usr_notification WHERE user_id = ? AND id IN ?) = ?
+	`, now, userID, ids, userID, ids, len(ids))
 	if res.Error != nil {
 		return false, shared.WrapError(res.Error, "notification")
 	}
-	return res.RowsAffected == 1, nil
+	return res.RowsAffected == int64(len(ids)), nil
 }

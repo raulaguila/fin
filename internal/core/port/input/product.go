@@ -26,7 +26,6 @@ type ProductService interface {
 	Get(ctx context.Context, id string) (*domain.Product, error)
 	Create(ctx context.Context, cmd CreateProductCommand) (*domain.Product, error)
 	Update(ctx context.Context, cmd UpdateProductCommand) (*domain.Product, error)
-	Delete(ctx context.Context, id string) error
 	// DeleteMany deletes every listed product or none.
 	DeleteMany(ctx context.Context, ids []string) error
 }

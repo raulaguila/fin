@@ -37,7 +37,7 @@ func TestSeveralDefaultRolesGoToNewAccounts(t *testing.T) {
 	}
 	_, err = svc.Update(ctx, created.ID, domain.RolePatch{Enabled: &no})
 	wantCode(t, err, apperror.CodeConflict)
-	wantCode(t, svc.Delete(ctx, created.ID), apperror.CodeConflict)
+	wantCode(t, svc.DeleteMany(ctx, []string{created.ID}), apperror.CodeConflict)
 
 	names := func() []string {
 		got, err := e.store.Roles().ForUser(ctx, e.userID(t, e.activeUser(t)))

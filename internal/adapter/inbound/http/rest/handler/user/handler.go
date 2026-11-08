@@ -34,10 +34,8 @@ func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
 	r.Get("/", read, h.List)
 	r.Post("/", middleware.Require(authz, domain.ResourceUsers, domain.ActionCreate), h.Invite)
 	r.Get("/:id", read, h.Get)
-	r.Post("/batch-disable", update, h.DisableMany)
-	r.Post("/batch-enable", update, h.EnableMany)
-	r.Post("/:id/disable", update, h.Disable)
-	r.Post("/:id/enable", update, h.Enable)
+	r.Post("/disable", update, h.Disable)
+	r.Post("/enable", update, h.Enable)
 	r.Delete("/:id/sessions", update, h.RevokeSessions)
 }
 
@@ -125,25 +123,6 @@ func (h *Handler) Get(c fiber.Ctx) error {
 	return c.JSON(out)
 }
 
-// @Summary Disable a user and end their sessions
-// @Tags Users
-// @Produce json
-// @Param id path string true "User ID"
-// @Security BearerAuth
-// @Success 204
-// @Failure 400 {object} mapper.errorBody
-// @Failure 401 {object} mapper.errorBody
-// @Failure 403 {object} mapper.errorBody
-// @Failure 404 {object} mapper.errorBody
-// @Failure 429 {object} mapper.errorBody
-// @Router /v1/users/{id}/disable [post]
-func (h *Handler) Disable(c fiber.Ctx) error {
-	if err := h.svc.Disable(c.Context(), middleware.UserID(c), c.Params("id")); err != nil {
-		return mapper.WriteError(c, err)
-	}
-	return c.SendStatus(fiber.StatusNoContent)
-}
-
 type idsDTO struct {
 	IDs []string `json:"ids"`
 }
@@ -156,7 +135,7 @@ func (h *Handler) bindIDs(c fiber.Ctx) ([]string, error) {
 	return body.IDs, nil
 }
 
-// @Summary Disable several users at once and end their sessions; all or none
+// @Summary Disable users and end their sessions; all or none
 // @Tags Users
 // @Accept json
 // @Produce json
@@ -168,8 +147,8 @@ func (h *Handler) bindIDs(c fiber.Ctx) ([]string, error) {
 // @Failure 403 {object} mapper.errorBody
 // @Failure 404 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/users/batch-disable [post]
-func (h *Handler) DisableMany(c fiber.Ctx) error {
+// @Router /v1/users/disable [post]
+func (h *Handler) Disable(c fiber.Ctx) error {
 	ids, err := h.bindIDs(c)
 	if err == nil {
 		err = h.svc.DisableMany(c.Context(), middleware.UserID(c), ids)
@@ -180,7 +159,7 @@ func (h *Handler) DisableMany(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// @Summary Enable several users at once; all or none
+// @Summary Enable users; one who never set a password goes back to pending. All or none
 // @Tags Users
 // @Accept json
 // @Produce json
@@ -192,32 +171,13 @@ func (h *Handler) DisableMany(c fiber.Ctx) error {
 // @Failure 403 {object} mapper.errorBody
 // @Failure 404 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/users/batch-enable [post]
-func (h *Handler) EnableMany(c fiber.Ctx) error {
+// @Router /v1/users/enable [post]
+func (h *Handler) Enable(c fiber.Ctx) error {
 	ids, err := h.bindIDs(c)
 	if err == nil {
 		err = h.svc.EnableMany(c.Context(), ids)
 	}
 	if err != nil {
-		return mapper.WriteError(c, err)
-	}
-	return c.SendStatus(fiber.StatusNoContent)
-}
-
-// @Summary Enable a disabled user; one who never set a password goes back to pending
-// @Tags Users
-// @Produce json
-// @Param id path string true "User ID"
-// @Security BearerAuth
-// @Success 204
-// @Failure 400 {object} mapper.errorBody
-// @Failure 401 {object} mapper.errorBody
-// @Failure 403 {object} mapper.errorBody
-// @Failure 404 {object} mapper.errorBody
-// @Failure 429 {object} mapper.errorBody
-// @Router /v1/users/{id}/enable [post]
-func (h *Handler) Enable(c fiber.Ctx) error {
-	if err := h.svc.Enable(c.Context(), c.Params("id")); err != nil {
 		return mapper.WriteError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)

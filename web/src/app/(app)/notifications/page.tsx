@@ -1,7 +1,8 @@
 "use client";
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Bell, Info, OctagonAlert } from "lucide-react";
+import { AlertTriangle, Bell, CheckCheck, Info, OctagonAlert } from "lucide-react";
+import { UNREAD_KEY } from "@/components/app-shell";
 import { PageBody, PageHeader, useFormatDate } from "@/components/bits";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
@@ -33,6 +34,7 @@ export default function NotificationsPage() {
   });
   const fallback = list.isPlaceholderData ? null : emptyPageFallback(page, limit, list.data);
   useGoToPage(fallback, set); // the last rows of the last page went away
+  const unread = useQuery({ queryKey: UNREAD_KEY, queryFn: notifications.unread }); // shared with the bell
   const markRead = useMutation({
     mutationFn: notifications.markRead,
     onSuccess: () => void client.invalidateQueries({ queryKey: ["notifications"] }),
@@ -40,7 +42,15 @@ export default function NotificationsPage() {
 
   return (
     <>
-      <PageHeader title={t("nav.notifications")} description={t("notifications.subtitle")} />
+      <PageHeader
+        title={t("nav.notifications")}
+        description={t("notifications.subtitle")}
+        action={(unread.data?.unread ?? 0) > 0 && (
+          <Button variant="outline" disabled={markRead.isPending} onClick={() => markRead.mutate(undefined)}>
+            <CheckCheck className="size-4" />{t("notifications.mark_all_read")}
+          </Button>
+        )}
+      />
       <PageBody>
         {list.isPending ? (
           <ListSkeleton />
@@ -66,7 +76,7 @@ export default function NotificationsPage() {
                       <p className="mt-0.5 text-sm text-muted-foreground">{n.message}</p>
                     </div>
                     {!n.read_at && (
-                      <Button variant="ghost" size="sm" disabled={markRead.isPending} onClick={() => markRead.mutate(n.id)}>
+                      <Button variant="ghost" size="sm" disabled={markRead.isPending} onClick={() => markRead.mutate([n.id])}>
                         {t("notifications.mark_read")}
                       </Button>
                     )}

@@ -158,7 +158,7 @@ export default function UsersPage() {
         description={t(bulk === "enable" ? "users.enable_selected_desc" : "users.disable_selected_desc")}
         destructive={bulk === "disable"}
         onConfirm={async () => {
-          await (bulk === "enable" ? users.enableMany : users.disableMany)(selection.ids);
+          await (bulk === "enable" ? users.enable : users.disable)(selection.ids);
           selection.clear();
           toast.success(t("common.saved"));
           await client.invalidateQueries({ queryKey: ["users"] });

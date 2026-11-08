@@ -33,7 +33,7 @@ func TestMalformedIDIsInvalidInput(t *testing.T) {
 	if _, err := svc.Get(context.Background(), "abc"); !apperror.IsCode(err, apperror.CodeInvalidInput) {
 		t.Fatalf("get: %v", err)
 	}
-	if err := svc.Delete(context.Background(), "abc"); !apperror.IsCode(err, apperror.CodeInvalidInput) {
+	if err := svc.DeleteMany(context.Background(), []string{"abc"}); !apperror.IsCode(err, apperror.CodeInvalidInput) {
 		t.Fatalf("delete: %v", err)
 	}
 	if _, err := svc.Update(context.Background(), input.UpdateProductCommand{ID: "abc"}); !apperror.IsCode(err, apperror.CodeInvalidInput) {

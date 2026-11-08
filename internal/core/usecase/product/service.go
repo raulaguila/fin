@@ -41,17 +41,8 @@ func (s *Service) List(ctx context.Context, filter domain.ProductFilter) ([]doma
 	if err := validate.Search(filter.Search, maxSearchBytes); err != nil {
 		return nil, 0, err
 	}
-	if filter.Sort == "" {
-		filter.Sort = "created_at"
-	}
-	if !slices.Contains(sortable, filter.Sort) {
-		return nil, 0, apperror.New(apperror.CodeInvalidInput, "sort must be one of "+strings.Join(sortable, ", ")).WithField("sort")
-	}
-	if filter.Order == "" {
-		filter.Order = "desc"
-	}
-	if filter.Order != "asc" && filter.Order != "desc" {
-		return nil, 0, apperror.New(apperror.CodeInvalidInput, "order must be asc or desc").WithField("order")
+	if err := validate.Sort(&filter.Sort, &filter.Order, sortable, "created_at", "desc"); err != nil {
+		return nil, 0, err
 	}
 	filter.Page = domain.NewPage(filter.Page.Number, filter.Page.Limit)
 	if filter.Cursor {

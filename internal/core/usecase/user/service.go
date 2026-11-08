@@ -21,6 +21,8 @@ const (
 	maxBatch       = 100 // ids in one batch request; a page holds at most 100 rows
 )
 
+var sortable = []string{"name", "email", "status", "created_at"}
+
 var statuses = []string{domain.UserStatusPending, domain.UserStatusActive, domain.UserStatusLocked, domain.UserStatusDisabled}
 
 type Service struct {
@@ -42,6 +44,14 @@ func (s *Service) List(ctx context.Context, filter domain.UserFilter) ([]domain.
 	}
 	if filter.Status != "" && !slices.Contains(statuses, filter.Status) {
 		return nil, 0, apperror.New(apperror.CodeInvalidInput, "status must be one of "+strings.Join(statuses, ", ")).WithField("status")
+	}
+	if filter.RoleID != "" {
+		if err := validate.ID(filter.RoleID); err != nil {
+			return nil, 0, err
+		}
+	}
+	if err := validate.Sort(&filter.Sort, &filter.Order, sortable, "name", "asc"); err != nil {
+		return nil, 0, err
 	}
 	return s.UOW.Users().List(ctx, filter)
 }
@@ -69,6 +79,19 @@ func (s *Service) DisableMany(ctx context.Context, actorID string, ids []string)
 			return err
 		}
 		return policy.Audit(ctx, uow, "user.disable", target.ID, nil)
+	})
+}
+
+// RevokeSessions ends every session of another user; they must sign in again.
+func (s *Service) RevokeSessions(ctx context.Context, actorID, id string) error {
+	return s.each(ctx, []string{id}, func(ctx context.Context, uow output.UnitOfWork, target *domain.UserDetails) error {
+		if target.ID == actorID {
+			return apperror.New(apperror.CodeForbidden, "end your own sessions from your profile")
+		}
+		if err := uow.Sessions().RevokeAllForUser(ctx, target.ID, s.Clock.Now(), domain.RevokeAdmin); err != nil {
+			return err
+		}
+		return policy.Audit(ctx, uow, "user.sessions_revoke", target.ID, nil)
 	})
 }
 

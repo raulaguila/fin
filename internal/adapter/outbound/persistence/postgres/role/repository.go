@@ -68,16 +68,20 @@ type roleRow struct {
 	MemberCount int64          `gorm:"column:member_count"`
 }
 
-// load reads the roles of source with their permissions in one round trip.
-func (r *Repository) load(ctx context.Context, source string, args ...any) ([]domain.Role, error) {
+// load reads the roles of source with their permissions in one round trip, in
+// the given order of the alias r.
+func (r *Repository) load(ctx context.Context, source, order string, args ...any) ([]domain.Role, error) {
 	var rows []roleRow
 	err := r.db.WithContext(ctx).Raw(`
-		SELECT r.id::text AS id, r.name, r.enabled, r.is_default, r.is_superuser, r.created_at, p.resource, p.actions,
-			(SELECT count(*) FROM usr.usr_user u JOIN usr.usr_user_role m ON m.user_id = u.id
-			 WHERE m.role_id = r.id AND `+shared.Unprotected+`) AS member_count
-		FROM `+source+` r
+		WITH r AS MATERIALIZED ( -- one count per role, not one per permission row
+			SELECT s.*, (SELECT count(*) FROM usr.usr_user u JOIN usr.usr_user_role m ON m.user_id = u.id
+				WHERE m.role_id = s.id AND `+shared.Unprotected+`) AS member_count
+			FROM `+source+` s
+		)
+		SELECT r.id::text AS id, r.name, r.enabled, r.is_default, r.is_superuser, r.created_at, p.resource, p.actions, r.member_count
+		FROM r
 		LEFT JOIN usr.usr_role_permission p ON p.role_id = r.id
-		ORDER BY r.name, p.resource
+		ORDER BY `+order+`, r.id, p.resource
 	`, args...).Scan(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "role")
@@ -99,7 +103,7 @@ func (r *Repository) load(ctx context.Context, source string, args ...any) ([]do
 }
 
 func (r *Repository) List(ctx context.Context, limit int) ([]domain.Role, error) {
-	return r.load(ctx, `(SELECT * FROM usr.usr_role ORDER BY name LIMIT ?)`, limit)
+	return r.load(ctx, `(SELECT * FROM usr.usr_role ORDER BY name LIMIT ?)`, "r.name", limit)
 }
 
 // unprotectedRole matches roles the API may change (alias r0); mirrors domain.Role.Protected.
@@ -118,7 +122,8 @@ func (r *Repository) Page(ctx context.Context, filter domain.RoleFilter) ([]doma
 		return nil, 0, shared.WrapError(err, "role")
 	}
 	args = append(args, filter.Page.Limit, filter.Page.Offset())
-	roles, err := r.load(ctx, `(SELECT r0.* FROM usr.usr_role r0 WHERE `+where+` ORDER BY r0.name LIMIT ? OFFSET ?)`, args...)
+	order := shared.OrderBy("r0", filter.Sort, filter.Order)
+	roles, err := r.load(ctx, `(SELECT r0.* FROM usr.usr_role r0 WHERE `+where+` ORDER BY `+order+` LIMIT ? OFFSET ?)`, shared.OrderBy("r", filter.Sort, filter.Order), args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -126,11 +131,11 @@ func (r *Repository) Page(ctx context.Context, filter domain.RoleFilter) ([]doma
 }
 
 func (r *Repository) ForUser(ctx context.Context, userID string) ([]domain.Role, error) {
-	return r.load(ctx, `(SELECT r.* FROM usr.usr_role r JOIN usr.usr_user_role ur ON ur.role_id = r.id WHERE ur.user_id = ?)`, userID)
+	return r.load(ctx, `(SELECT r.* FROM usr.usr_role r JOIN usr.usr_user_role ur ON ur.role_id = r.id WHERE ur.user_id = ?)`, "r.name", userID)
 }
 
 func (r *Repository) FindByID(ctx context.Context, id string) (*domain.Role, error) {
-	roles, err := r.load(ctx, `(SELECT * FROM usr.usr_role WHERE id = ?)`, id)
+	roles, err := r.load(ctx, `(SELECT * FROM usr.usr_role WHERE id = ?)`, "r.name", id)
 	if err != nil {
 		return nil, err
 	}

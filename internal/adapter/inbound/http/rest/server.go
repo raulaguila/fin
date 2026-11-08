@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/recover"
 
 	"github.com/raulaguila/authenticity/config"
+	audithttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/audit"
 	authhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/auth"
 	healthhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/health"
 	notificationhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/notification"
@@ -77,21 +78,25 @@ func New(cfg *config.Environment, app *input.Application, hits middleware.Hits, 
 
 	v1 := fiberApp.Group("/v1")
 
-	auth := v1.Group("/auth")
-	authhttp.New(app.Auth, app.Account).Routes(auth, bearer, middleware.RateLimit("auth", cfg.API.AuthRateLimit, hits), middleware.RateLimit("password", cfg.API.PasswordRateLimit, hits))
-	sessionhttp.New(app.Account).Routes(auth.Group("/sessions", bearer))
+	passwordLimit := middleware.RateLimit("password", cfg.API.PasswordRateLimit, hits)
+	authHandler := authhttp.New(app.Auth, app.Account)
+	authHandler.Routes(v1.Group("/auth"), bearer, middleware.RateLimit("auth", cfg.API.AuthRateLimit, hits), passwordLimit)
 
-	user := v1.Group("/user", bearer)
-	preferencehttp.New(app.Account).Routes(user.Group("/preferences"))
-	notificationhttp.New(app.Account).Routes(user.Group("/notifications"))
+	// Everything about the signed in user's own account.
+	me := v1.Group("/me", bearer)
+	authHandler.MeRoutes(me, passwordLimit)
+	sessionhttp.New(app.Account).Routes(me.Group("/sessions"))
+	preferencehttp.New(app.Account).Routes(me.Group("/preferences"))
+	notificationhttp.New(app.Account).Routes(me.Group("/notifications"))
 
 	permissionhttp.New(app.Resources).Routes(v1.Group("/permissions", bearer), app.Authorizer)
 	roles := rolehttp.New(app.Roles)
 	roles.Routes(v1.Group("/roles", bearer), app.Authorizer)
 	users := v1.Group("/users", bearer)
-	usershttp.New(app.Users).Routes(users, app.Authorizer)
+	usershttp.New(app.Users, app.Auth).Routes(users, app.Authorizer)
 	roles.UserRoutes(users, app.Authorizer)
 	producthttp.New(app.Products).Routes(v1.Group("/products", bearer), app.Authorizer)
+	audithttp.New(app.Audit).Routes(v1.Group("/audit", bearer), app.Authorizer)
 
 	return fiberApp
 }

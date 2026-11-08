@@ -6,7 +6,7 @@
 - Rate limit: janelas em `usr_login_attempt` no use case (recusas sem teste de senha nao contam) e middleware `API_RATE_LIMIT_*` por IP/minuto, em memória do processo. Login reserva a tentativa sob advisory lock antes do Argon2. IPv6 conta por `/64` nos dois.
 - JWT: chaves RSA distintas access/refresh; claims `sub`/`sid`/`jti`; **sem** permissions.
 - Authz: load effective map (view); `is_superuser` ou `*`; senão `Allows(have, need)` CRUD.
-- Rotas: `POST /v1/auth/{register,activate,login,refresh,logout,password-reset/request,password-reset/confirm}`, `GET /v1/auth/me`, `/v1/auth/sessions`, `/v1/user/{preferences,notifications}`.
+- Rotas: `POST /v1/auth/{register,activate,login,refresh,logout,password-reset/request,password-reset/confirm}`, `/v1/me` (perfil, `password`, `sessions`, `preferences`, `notifications`).
 - Conta própria: use case `account`; `user_id` sempre do token verificado, toda query filtra por ele.
 - Notificações: troca de senha, conta bloqueada, reuso de refresh e cliente novo. Só a troca de senha é transacional; as demais não derrubam o fluxo.
 - Primeiro admin: `admin bootstrap`, idempotente sob advisory lock; senha nunca como argumento.

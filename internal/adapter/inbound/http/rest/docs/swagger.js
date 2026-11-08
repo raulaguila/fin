@@ -78,3 +78,16 @@ function TagGroups() {
     },
   };
 }
+
+// Log in or refresh in "Try it out" and the access token goes into Authorize,
+// so protected routes work without copying it. Logging out clears it.
+function saveToken(res) {
+  const path = new URL(res.url, location.href).pathname;
+  if (res.ok && (path === "/v1/auth/login" || path === "/v1/auth/refresh") && res.body && res.body.access_token) {
+    window.ui.preauthorizeApiKey("BearerAuth", "Bearer " + res.body.access_token);
+    window.ui.authActions.persistAuthorizationIfNeeded(); // preauthorize skips persistAuthorization
+  } else if (res.ok && path === "/v1/auth/logout") {
+    window.ui.authActions.logoutWithPersistOption(["BearerAuth"]);
+  }
+  return res;
+}

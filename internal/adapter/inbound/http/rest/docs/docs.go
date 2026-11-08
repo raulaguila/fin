@@ -40,6 +40,105 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/audit": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Audit"
+                ],
+                "summary": "List the audit log, newest first",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page, up to 100",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Action prefix, such as role. or user.disable",
+                        "name": "action",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "The actor or the target",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "From this time on (RFC 3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Before this time (RFC 3339)",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "items": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/audit.recordDTO"
+                                    }
+                                },
+                                "pagination": {
+                                    "$ref": "#/definitions/mapper.PaginationDTO"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/auth/activate": {
             "post": {
                 "consumes": [
@@ -166,140 +265,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/auth/me": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Auth"
-                ],
-                "summary": "Current user, with live permissions and preferences",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/auth.meDTO"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "429": {
-                        "description": "Too Many Requests",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Account"
-                ],
-                "summary": "Change the name of the current user",
-                "parameters": [
-                    {
-                        "description": "Request",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/auth.renameDTO"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/auth.meDTO"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/auth/password": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Password"
-                ],
-                "summary": "Change the password and end the other sessions",
-                "parameters": [
-                    {
-                        "description": "Request",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/auth.changePasswordDTO"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "429": {
-                        "description": "Too Many Requests",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    }
-                }
-            }
-        },
         "/v1/auth/password-reset/confirm": {
             "post": {
                 "consumes": [
@@ -309,7 +274,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Password"
+                    "Password reset"
                 ],
                 "summary": "Set a new password with a reset token",
                 "parameters": [
@@ -357,7 +322,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Password"
+                    "Password reset"
                 ],
                 "summary": "Send a password reset email",
                 "parameters": [
@@ -508,7 +473,389 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/auth/sessions": {
+        "/v1/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "Current user, with live permissions and preferences",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/auth.meDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "Change the name of the current user",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.renameDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/auth.meDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/me/notifications": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "List the notifications of the current user, newest first",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page, up to 100",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "items": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/notification.notificationDTO"
+                                    }
+                                },
+                                "pagination": {
+                                    "$ref": "#/definitions/mapper.PaginationDTO"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/me/notifications/count": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Count unread notifications of the current user",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "unread": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/me/notifications/{id}/read": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Mark a notification as read",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Notification ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/me/password": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "Change the password and end the other sessions",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.changePasswordDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/me/preferences": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Preferences"
+                ],
+                "summary": "Preferences of the current user",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.PreferencesDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Preferences"
+                ],
+                "summary": "Replace the preferences of the current user",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/mapper.PreferencesDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.PreferencesDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/me/sessions": {
             "get": {
                 "security": [
                     {
@@ -552,7 +899,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/auth/sessions/others": {
+        "/v1/me/sessions/others": {
             "delete": {
                 "security": [
                     {
@@ -585,7 +932,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/auth/sessions/{id}": {
+        "/v1/me/sessions/{id}": {
             "delete": {
                 "security": [
                     {
@@ -650,7 +997,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Permissions"
+                    "Roles"
                 ],
                 "summary": "List the resources that roles may be granted",
                 "responses": {
@@ -1196,6 +1543,28 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Part of the name",
                         "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "name",
+                            "created_at"
+                        ],
+                        "type": "string",
+                        "default": "name",
+                        "description": "Sort field",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "default": "asc",
+                        "description": "Sort direction",
+                        "name": "order",
                         "in": "query"
                     }
                 ],
@@ -1888,254 +2257,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/user/notifications": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Notifications"
-                ],
-                "summary": "List the notifications of the current user, newest first",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "Page",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 20,
-                        "description": "Items per page, up to 100",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "items": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "#/definitions/notification.notificationDTO"
-                                    }
-                                },
-                                "pagination": {
-                                    "$ref": "#/definitions/mapper.PaginationDTO"
-                                }
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "429": {
-                        "description": "Too Many Requests",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/user/notifications/count": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Notifications"
-                ],
-                "summary": "Count unread notifications of the current user",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "unread": {
-                                    "type": "integer"
-                                }
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "429": {
-                        "description": "Too Many Requests",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/user/notifications/{id}/read": {
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Notifications"
-                ],
-                "summary": "Mark a notification as read",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Notification ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "429": {
-                        "description": "Too Many Requests",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/user/preferences": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Preferences"
-                ],
-                "summary": "Preferences of the current user",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.PreferencesDTO"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "429": {
-                        "description": "Too Many Requests",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Preferences"
-                ],
-                "summary": "Replace the preferences of the current user",
-                "parameters": [
-                    {
-                        "description": "Request",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/mapper.PreferencesDTO"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.PreferencesDTO"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "429": {
-                        "description": "Too Many Requests",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    }
-                }
-            }
-        },
         "/v1/users": {
             "get": {
                 "security": [
@@ -2182,6 +2303,36 @@ const docTemplate = `{
                         "description": "Status",
                         "name": "status",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only holders of this role",
+                        "name": "role_id",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "name",
+                            "email",
+                            "status",
+                            "created_at"
+                        ],
+                        "type": "string",
+                        "default": "name",
+                        "description": "Sort field",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "default": "asc",
+                        "description": "Sort direction",
+                        "name": "order",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2216,6 +2367,83 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Create an account for someone and send its activation email",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.inviteDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "activation_token only with manual delivery",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "activation_token": {
+                                    "type": "string"
+                                },
+                                "status": {
+                                    "type": "string"
+                                },
+                                "user_id": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
                         }
@@ -2557,7 +2785,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Roles"
+                    "Users"
                 ],
                 "summary": "Replace every role of a user",
                 "parameters": [
@@ -2614,9 +2842,106 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/v1/users/{id}/sessions": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "End every session of another user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "audit.recordDTO": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "example": "role.update"
+                },
+                "actor_email": {
+                    "type": "string"
+                },
+                "actor_id": {
+                    "type": "string"
+                },
+                "actor_name": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "id": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "target_id": {
+                    "type": "string"
+                },
+                "target_label": {
+                    "type": "string"
+                }
+            }
+        },
         "auth.activateDTO": {
             "type": "object",
             "properties": {
@@ -3145,6 +3470,17 @@ const docTemplate = `{
                 }
             }
         },
+        "user.inviteDTO": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "user.roleDTO": {
             "type": "object",
             "properties": {
@@ -3195,7 +3531,7 @@ const docTemplate = `{
             "name": "Health"
         },
         {
-            "description": "Login and current user",
+            "description": "Log in, rotate tokens and log out",
             "name": "Auth"
         },
         {
@@ -3203,11 +3539,15 @@ const docTemplate = `{
             "name": "Registration"
         },
         {
-            "description": "Password reset",
-            "name": "Password"
+            "description": "Forgotten password, by email",
+            "name": "Password reset"
         },
         {
-            "description": "Devices logged in to the account",
+            "description": "The current user: identity, live permissions and password",
+            "name": "Profile"
+        },
+        {
+            "description": "Devices logged in to the current account",
             "name": "Sessions"
         },
         {
@@ -3219,16 +3559,16 @@ const docTemplate = `{
             "name": "Notifications"
         },
         {
-            "description": "Resources that roles may be granted",
-            "name": "Permissions"
+            "description": "Accounts of other people, their roles and sessions. Users with a protected role stay out of reach",
+            "name": "Users"
         },
         {
-            "description": "Roles, their permissions and members. Protected roles cannot be changed",
+            "description": "Roles, their permissions and members, and the resources they may be granted. Protected roles cannot be changed",
             "name": "Roles"
         },
         {
-            "description": "Accounts of other people. Users with a protected role stay out of reach",
-            "name": "Users"
+            "description": "Log of administrative changes",
+            "name": "Audit"
         },
         {
             "description": "Product catalog",
@@ -3243,27 +3583,28 @@ const docTemplate = `{
             ]
         },
         {
-            "name": "Identity",
+            "name": "Authentication",
             "tags": [
                 "Auth",
                 "Registration",
-                "Password",
-                "Sessions"
+                "Password reset"
             ]
         },
         {
             "name": "Account",
             "tags": [
+                "Profile",
+                "Sessions",
                 "Preferences",
                 "Notifications"
             ]
         },
         {
-            "name": "Access",
+            "name": "Administration",
             "tags": [
-                "Permissions",
+                "Users",
                 "Roles",
-                "Users"
+                "Audit"
             ]
         },
         {
@@ -3282,7 +3623,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Authenticity API",
-	Description:      "Identity service. To call protected routes, log in and paste \"Bearer <access_token>\" in Authorize.",
+	Description:      "Identity service. Logging in from this page fills Authorize with the access token.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

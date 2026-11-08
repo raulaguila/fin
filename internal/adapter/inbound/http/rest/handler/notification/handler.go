@@ -44,7 +44,7 @@ type notificationDTO struct {
 // @Success 200 {object} object{items=[]notificationDTO,pagination=mapper.PaginationDTO}
 // @Failure 401 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/user/notifications [get]
+// @Router /v1/me/notifications [get]
 func (h *Handler) List(c fiber.Ctx) error {
 	page := domain.NewPage(fiber.Query[int](c, "page"), fiber.Query[int](c, "limit"))
 	items, total, err := h.svc.Notifications(c.Context(), middleware.UserID(c), page)
@@ -67,7 +67,7 @@ func (h *Handler) List(c fiber.Ctx) error {
 // @Success 200 {object} object{unread=int}
 // @Failure 401 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/user/notifications/count [get]
+// @Router /v1/me/notifications/count [get]
 func (h *Handler) Count(c fiber.Ctx) error {
 	unread, err := h.svc.CountUnread(c.Context(), middleware.UserID(c))
 	if err != nil {
@@ -86,7 +86,7 @@ func (h *Handler) Count(c fiber.Ctx) error {
 // @Failure 401 {object} mapper.errorBody
 // @Failure 404 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/user/notifications/{id}/read [put]
+// @Router /v1/me/notifications/{id}/read [put]
 func (h *Handler) MarkRead(c fiber.Ctx) error {
 	if err := h.svc.MarkRead(c.Context(), middleware.UserID(c), c.Params("id")); err != nil {
 		return mapper.WriteError(c, err)

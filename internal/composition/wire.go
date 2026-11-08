@@ -15,6 +15,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/core/port/output"
 	"github.com/raulaguila/authenticity/internal/core/usecase/account"
 	"github.com/raulaguila/authenticity/internal/core/usecase/admin"
+	auditsvc "github.com/raulaguila/authenticity/internal/core/usecase/audit"
 	"github.com/raulaguila/authenticity/internal/core/usecase/auth"
 	"github.com/raulaguila/authenticity/internal/core/usecase/authorize"
 	"github.com/raulaguila/authenticity/internal/core/usecase/health"
@@ -89,5 +90,6 @@ func NewApplication(cfg *config.Environment, res *infra.Resources, log *logger.L
 		Auth:       authSvc,
 		Account:    account.New(store, permReader, output.RealClock{}),
 		Products:   product.New(productrepo.NewRepository(res.PostgresDB)),
+		Audit:      auditsvc.New(store.Audit()),
 	}
 }

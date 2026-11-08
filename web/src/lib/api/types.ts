@@ -117,3 +117,24 @@ export interface Product {
   created_at: string;
   updated_at: string;
 }
+
+export type SortOrder = "asc" | "desc";
+
+export interface AuditRecord {
+  id: string;
+  created_at: string;
+  actor_id?: string;
+  actor_name?: string;
+  actor_email?: string;
+  request_id?: string;
+  action: string;
+  target_id?: string;
+  target_label?: string;
+  details: Record<string, unknown>;
+}
+
+export interface InviteResult {
+  user_id: string;
+  status: UserStatus;
+  activation_token?: string;
+}

@@ -1,6 +1,6 @@
 "use client";
 
-// The signed in user, loaded from /v1/auth/me and refreshed on window focus so
+// The signed in user, loaded from /v1/me and refreshed on window focus so
 // a permission change shows up without a new login. Their saved theme and
 // language are applied once per load.
 import { createContext, useContext, useEffect, useRef } from "react";
@@ -12,6 +12,9 @@ import { useI18n } from "@/lib/i18n/provider";
 
 interface MeCtx {
   user: Me | null;
+  /** /me failed and nothing is cached: permissions are unknown, not empty. */
+  failed: boolean;
+  retry: () => void;
   sessionId: string | null;
   loading: boolean;
   /** Resolves true once stored; on failure reloads the server copy and resolves false. */
@@ -51,7 +54,7 @@ export function MeProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <Ctx.Provider value={{ user, sessionId: query.data?.session_id ?? null, loading: query.isPending, savePreferences }}>
+    <Ctx.Provider value={{ user, failed: query.isError && !user, retry: () => void query.refetch(), sessionId: query.data?.session_id ?? null, loading: query.isPending, savePreferences }}>
       {children}
     </Ctx.Provider>
   );

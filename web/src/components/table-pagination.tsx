@@ -101,3 +101,13 @@ export function TablePagination({
     </div>
   );
 }
+
+/**
+ * The page to move to when this one came back empty while earlier pages still
+ * have rows, as after deleting the last rows of the last page; null otherwise.
+ */
+export function emptyPageFallback(page: number, limit: number, data?: { items: unknown[]; pagination: { total_items: number } }): number | null {
+  if (!data || data.items.length > 0 || page <= 1) return null;
+  const last = Math.max(1, Math.ceil(data.pagination.total_items / limit));
+  return last < page ? last : null;
+}

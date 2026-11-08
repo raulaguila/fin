@@ -2,30 +2,34 @@
 
 import { useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Eye, Package, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Eye, Package, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { ActiveBadge, IconAction, PageBody, PageHeader, useFormatDate } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
+import { SortHead } from "@/components/sort-head";
 import { SelectAllHead, SelectCell, SelectionBar, useSelection } from "@/components/selection";
 import { ListSkeleton } from "@/components/skeletons";
-import { TablePagination } from "@/components/table-pagination";
+import { TablePagination, emptyPageFallback } from "@/components/table-pagination";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { products } from "@/lib/api/endpoints";
-import type { Product } from "@/lib/api/types";
+import type { Product, SortOrder } from "@/lib/api/types";
 import { CURRENCY } from "@/lib/brand";
 import { useMe } from "@/lib/context/me";
 import { useDebounced } from "@/lib/hooks/use-debounced";
-import type { MessageKey } from "@/lib/i18n/messages";
+import { useGoToPage, useListParams } from "@/lib/hooks/use-list-params";
+import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n/provider";
 import { can } from "@/lib/permissions";
+import { deleteWithUndo } from "@/lib/undo-delete";
 
-type Sort = "name" | "price" | "created_at";
+const SORTS = ["name", "price", "created_at"];
 type State = "all" | "on" | "off";
 
 export default function ProductsPage() {
@@ -33,41 +37,47 @@ export default function ProductsPage() {
   const format = useFormatDate();
   const { user } = useMe();
   const client = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(25);
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<Sort>("created_at");
-  const [order, setOrder] = useState<"asc" | "desc">("desc");
-  const [state, setState] = useState<State>("all");
+  const [params, set] = useListParams({ page: 1, limit: 25, q: "", sort: "created_at", order: "desc", state: "all" });
+  const { page, limit } = params;
+  const sort = SORTS.includes(params.sort) ? params.sort : "created_at";
+  const order: SortOrder = params.order === "asc" ? "asc" : "desc";
+  const state: State = params.state === "on" || params.state === "off" ? params.state : "all";
+  const [search, setSearch] = useState(params.q);
+  const [hidden, setHidden] = useState<string[]>([]);
   const router = useRouter();
   const [deleting, setDeleting] = useState<Product | null>(null);
-  const [deletingMany, setDeletingMany] = useState(false);
-  const q = useDebounced(search.trim());
+  const q = useDebounced(params.q);
   const list = useQuery({
     queryKey: ["products", page, limit, q, sort, order, state],
-    queryFn: () => products.list({ page, limit, search: q, sort, order, enabled: state === "all" ? undefined : state === "on" }),
+    queryFn: ({ signal }) => products.list({ page, limit, search: q, sort, order, enabled: state === "all" ? undefined : state === "on" }, signal),
     placeholderData: keepPreviousData,
   });
+  const fallback = list.isPlaceholderData ? null : emptyPageFallback(page, limit, list.data);
+  useGoToPage(fallback, set); // the last rows of the last page went away
+  const items = list.data?.items.filter((p) => !hidden.includes(p.id)) ?? [];
   const canEdit = can(user, "products", "update");
-  const selection = useSelection(list.data?.items.map((p) => p.id) ?? []);
+  const selection = useSelection(items.map((p) => p.id));
   const open = (id: string) => router.push(`/products/${id}`);
   const canDelete = can(user, "products", "delete");
   const money = new Intl.NumberFormat(locale, { style: "currency", currency: CURRENCY });
   const stateItems: Record<State, string> = { all: t("products.all_states"), on: t("roles.enabled"), off: t("roles.disabled") };
 
-  const sortBy = (field: Sort) => {
-    if (sort === field) setOrder((o) => (o === "asc" ? "desc" : "asc"));
-    else { setSort(field); setOrder(field === "created_at" ? "desc" : "asc"); }
-    setPage(1);
+  const sortProps = { sort, order, onSort: (s: string, o: SortOrder) => set({ sort: s, order: o, page: 1 }) };
+  const removeSelected = () => {
+    const ids = selection.ids;
+    selection.clear();
+    setHidden((h) => [...h, ...ids]);
+    deleteWithUndo({
+      message: t("common.deleted_n").replace("{n}", String(ids.length)),
+      undoLabel: t("common.undo"),
+      run: () => products.removeMany(ids),
+      onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
+      onSettled: async () => {
+        await client.invalidateQueries({ queryKey: ["products"] });
+        setHidden((h) => h.filter((id) => !ids.includes(id)));
+      },
+    });
   };
-  const sortHead = (field: Sort, label: MessageKey, className?: string) => (
-    <TableHead key={field} className={className} aria-sort={sort === field ? (order === "asc" ? "ascending" : "descending") : undefined}>
-      <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => sortBy(field)}>
-        {t(label)}
-        {sort === field && (order === "asc" ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />)}
-      </button>
-    </TableHead>
-  );
 
   return (
     <>
@@ -80,9 +90,9 @@ export default function ProductsPage() {
         <div className="flex flex-wrap gap-2">
           <div className="relative min-w-56 flex-1 sm:max-w-sm">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input type="search" aria-label={t("common.search")} placeholder={t("products.search")} className="pl-9" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+            <Input type="search" aria-label={t("common.search")} placeholder={t("products.search")} className="pl-9" value={search} onChange={(e) => { setSearch(e.target.value); set({ q: e.target.value.trim(), page: 1 }); }} />
           </div>
-          <Select value={state} items={stateItems} onValueChange={(v) => { setState(v as State); setPage(1); }}>
+          <Select value={state} items={stateItems} onValueChange={(v) => set({ state: v as State, page: 1 })}>
             <SelectTrigger className="w-44" aria-label={t("roles.state")}><SelectValue /></SelectTrigger>
             <SelectContent>
               {Object.entries(stateItems).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
@@ -93,24 +103,24 @@ export default function ProductsPage() {
         {list.isPending ? (
           <ListSkeleton />
         ) : list.isError ? (
-          <QueryErrorState onRetry={() => void list.refetch()} />
-        ) : list.data.items.length === 0 ? (
-          <EmptyState icon={Package} title={t("products.empty")} />
+          <QueryErrorState error={list.error} onRetry={() => void list.refetch()} />
+        ) : items.length === 0 ? (
+          <EmptyState icon={Package} title={t(q || state !== "all" ? "common.no_results" : "products.empty")} />
         ) : (
           <Card className="gap-0 overflow-hidden p-0">
             <Table data-responsive>
               <TableHeader>
                 <TableRow>
                   {canDelete && <SelectAllHead selection={selection} />}
-                  {sortHead("name", "auth.name")}
-                  {sortHead("price", "products.price", "w-36 text-right")}
+                  <SortHead field="name" label={t("auth.name")} {...sortProps} />
+                  <SortHead field="price" label={t("products.price")} className="w-36 text-right" {...sortProps} />
                   <TableHead className="w-28">{t("roles.state")}</TableHead>
-                  {sortHead("created_at", "common.created_at", "w-44")}
+                  <SortHead field="created_at" label={t("common.created_at")} className="w-44" {...sortProps} />
                   <TableHead className="w-24"><span className="sr-only">{t("common.actions")}</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {list.data.items.map((p) => (
+                {items.map((p) => (
                   <TableRow key={p.id} className="cursor-pointer" onClick={() => open(p.id)}>
                     {canDelete && <SelectCell selection={selection} id={p.id} label={p.name} />}
                     <TableCell data-label={t("auth.name")} className="font-medium">{p.name}</TableCell>
@@ -133,13 +143,13 @@ export default function ProductsPage() {
               page={page}
               pageSize={limit}
               totalItems={list.data.pagination.total_items}
-              onPageChange={setPage}
-              onPageSizeChange={(n) => { setLimit(n); setPage(1); }}
+              onPageChange={(n) => set({ page: n })}
+              onPageSizeChange={(n) => set({ limit: n, page: 1 })}
             />
           </Card>
         )}
         <SelectionBar selection={selection}>
-          <Button variant="destructive" onClick={() => setDeletingMany(true)}><Trash2 className="size-4" />{t("common.delete_selected")}</Button>
+          <Button variant="destructive" onClick={removeSelected}><Trash2 className="size-4" />{t("common.delete_selected")}</Button>
         </SelectionBar>
       </PageBody>
       <ConfirmDialog
@@ -151,19 +161,6 @@ export default function ProductsPage() {
         confirmLabel={t("common.delete")}
         onConfirm={async () => {
           await products.remove(deleting!.id);
-          await client.invalidateQueries({ queryKey: ["products"] });
-        }}
-      />
-      <ConfirmDialog
-        open={deletingMany}
-        onOpenChange={setDeletingMany}
-        title={t("common.delete_selected")}
-        description={t("common.delete_selected_desc")}
-        destructive
-        confirmLabel={t("common.delete")}
-        onConfirm={async () => {
-          await products.removeMany(selection.ids);
-          selection.clear();
           await client.invalidateQueries({ queryKey: ["products"] });
         }}
       />

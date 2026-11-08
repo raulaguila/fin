@@ -94,6 +94,9 @@ func (r *Repository) List(ctx context.Context, filter domain.UserFilter) ([]doma
 		if filter.Status != "" {
 			q = q.Where("u.status = ?", filter.Status)
 		}
+		if filter.RoleID != "" {
+			q = q.Where("EXISTS (SELECT 1 FROM usr.usr_user_role m WHERE m.user_id = u.id AND m.role_id = ?)", filter.RoleID)
+		}
 		return q
 	}
 	var total int64
@@ -103,7 +106,7 @@ func (r *Repository) List(ctx context.Context, filter domain.UserFilter) ([]doma
 	var rows []row
 	err := matching().
 		Select("u.id, u.name, u.email, u.status, u.created_at, u.updated_at").
-		Order("u.name, u.id"). // id keeps pages stable on ties
+		Order(shared.OrderBy("u", filter.Sort, filter.Order)).
 		Limit(filter.Page.Limit).Offset(filter.Page.Offset()).
 		Scan(&rows).Error
 	if err != nil {

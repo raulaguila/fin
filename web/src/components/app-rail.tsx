@@ -49,10 +49,12 @@ export function AppRail({ collapsed, onToggle, mobile = false, onNavigate }: { c
   };
   const adminActive = admin.some((item) => isActive(pathname, item.href));
   // Each navigation opens the group on admin pages and closes it elsewhere; the toggle still works in between.
+  // adminActive also flips once the permissions load after a direct visit to an admin page.
+  const seen = `${pathname}|${adminActive}`;
   const [adminOpen, setAdminOpen] = useState(adminActive);
-  const [seenPath, setSeenPath] = useState(pathname);
-  if (pathname !== seenPath) {
-    setSeenPath(pathname);
+  const [seenKey, setSeenKey] = useState(seen);
+  if (seen !== seenKey) {
+    setSeenKey(seen);
     setAdminOpen(adminActive);
   }
   const adminNavId = useId();

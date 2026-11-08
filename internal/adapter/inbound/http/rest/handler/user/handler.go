@@ -1,6 +1,7 @@
 package user
 
 import (
+	"context"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -12,12 +13,18 @@ import (
 	"github.com/raulaguila/authenticity/pkg/apperror"
 )
 
-type Handler struct {
-	svc input.UserService
+// Inviter creates accounts on behalf of an administrator.
+type Inviter interface {
+	Invite(ctx context.Context, cmd input.RegisterCommand) (*input.RegisterResult, error)
 }
 
-func New(svc input.UserService) *Handler {
-	return &Handler{svc: svc}
+type Handler struct {
+	svc     input.UserService
+	inviter Inviter
+}
+
+func New(svc input.UserService, inviter Inviter) *Handler {
+	return &Handler{svc: svc, inviter: inviter}
 }
 
 // Routes expects a router already behind Bearer.
@@ -25,11 +32,13 @@ func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
 	read := middleware.Require(authz, domain.ResourceUsers, domain.ActionRead)
 	update := middleware.Require(authz, domain.ResourceUsers, domain.ActionUpdate)
 	r.Get("/", read, h.List)
+	r.Post("/", middleware.Require(authz, domain.ResourceUsers, domain.ActionCreate), h.Invite)
 	r.Get("/:id", read, h.Get)
 	r.Post("/batch-disable", update, h.DisableMany)
 	r.Post("/batch-enable", update, h.EnableMany)
 	r.Post("/:id/disable", update, h.Disable)
 	r.Post("/:id/enable", update, h.Enable)
+	r.Delete("/:id/sessions", update, h.RevokeSessions)
 }
 
 type userDTO struct {
@@ -62,6 +71,9 @@ func toDTO(u domain.User) userDTO {
 // @Param limit query int false "Items per page, up to 100" default(20)
 // @Param search query string false "Part of the name or email"
 // @Param status query string false "Status" Enums(pending, active, locked, disabled)
+// @Param role_id query string false "Only holders of this role"
+// @Param sort query string false "Sort field" Enums(name, email, status, created_at) default(name)
+// @Param order query string false "Sort direction" Enums(asc, desc) default(asc)
 // @Security BearerAuth
 // @Success 200 {object} object{items=[]userDTO,pagination=mapper.PaginationDTO}
 // @Failure 400 {object} mapper.errorBody
@@ -74,6 +86,9 @@ func (h *Handler) List(c fiber.Ctx) error {
 		Page:   domain.NewPage(fiber.Query[int](c, "page"), fiber.Query[int](c, "limit")),
 		Search: c.Query("search"),
 		Status: c.Query("status"),
+		RoleID: c.Query("role_id"),
+		Sort:   c.Query("sort"),
+		Order:  c.Query("order"),
 	}
 	users, total, err := h.svc.List(c.Context(), filter)
 	if err != nil {
@@ -203,6 +218,59 @@ func (h *Handler) EnableMany(c fiber.Ctx) error {
 // @Router /v1/users/{id}/enable [post]
 func (h *Handler) Enable(c fiber.Ctx) error {
 	if err := h.svc.Enable(c.Context(), c.Params("id")); err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+type inviteDTO struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+// @Summary Create an account for someone and send its activation email
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param body body inviteDTO true "Request"
+// @Security BearerAuth
+// @Success 201 {object} object{user_id=string,status=string,activation_token=string} "activation_token only with manual delivery"
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Failure 403 {object} mapper.errorBody
+// @Failure 409 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
+// @Router /v1/users [post]
+func (h *Handler) Invite(c fiber.Ctx) error {
+	var body inviteDTO
+	if err := c.Bind().Body(&body); err != nil {
+		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "invalid body"))
+	}
+	res, err := h.inviter.Invite(c.Context(), input.RegisterCommand{Name: body.Name, Email: body.Email})
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	out := fiber.Map{"user_id": res.UserID, "status": res.Status}
+	if res.ManualDelivery {
+		out["activation_token"] = res.ActivationToken
+	}
+	return c.Status(fiber.StatusCreated).JSON(out)
+}
+
+// @Summary End every session of another user
+// @Tags Users
+// @Produce json
+// @Param id path string true "User ID"
+// @Security BearerAuth
+// @Success 204
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Failure 403 {object} mapper.errorBody
+// @Failure 404 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
+// @Router /v1/users/{id}/sessions [delete]
+func (h *Handler) RevokeSessions(c fiber.Ctx) error {
+	if err := h.svc.RevokeSessions(c.Context(), middleware.UserID(c), c.Params("id")); err != nil {
 		return mapper.WriteError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)

@@ -75,16 +75,16 @@ func TestHTTPAccountOwnershipAndProductValidation(t *testing.T) {
 		}
 		return out
 	}
-	request("GET", "/v1/user/preferences", "", "", 401)
-	request("GET", "/v1/auth/sessions", "", pair.AccessToken, 200)
-	request("DELETE", "/v1/auth/sessions/"+otherClaims.SessionID, "", pair.AccessToken, 404)
-	request("GET", "/v1/user/preferences", "", pair.AccessToken, 200)
-	request("PUT", "/v1/user/preferences", `{"theme":"dark","language":"pt-BR"}`, pair.AccessToken, 200)
-	request("PUT", "/v1/user/preferences", `{"theme":"invalid","language":"pt-BR"}`, pair.AccessToken, 400)
-	request("PUT", "/v1/user/preferences", `{`, pair.AccessToken, 400)
-	request("GET", "/v1/user/notifications", "", pair.AccessToken, 200)
-	request("GET", "/v1/user/notifications/count", "", pair.AccessToken, 200)
-	request("PUT", "/v1/user/notifications/"+note.ID+"/read", "", pair.AccessToken, 404)
+	request("GET", "/v1/me/preferences", "", "", 401)
+	request("GET", "/v1/me/sessions", "", pair.AccessToken, 200)
+	request("DELETE", "/v1/me/sessions/"+otherClaims.SessionID, "", pair.AccessToken, 404)
+	request("GET", "/v1/me/preferences", "", pair.AccessToken, 200)
+	request("PUT", "/v1/me/preferences", `{"theme":"dark","language":"pt-BR"}`, pair.AccessToken, 200)
+	request("PUT", "/v1/me/preferences", `{"theme":"invalid","language":"pt-BR"}`, pair.AccessToken, 400)
+	request("PUT", "/v1/me/preferences", `{`, pair.AccessToken, 400)
+	request("GET", "/v1/me/notifications", "", pair.AccessToken, 200)
+	request("GET", "/v1/me/notifications/count", "", pair.AccessToken, 200)
+	request("PUT", "/v1/me/notifications/"+note.ID+"/read", "", pair.AccessToken, 404)
 	request("POST", "/v1/products", `{"name":"HTTP test","price":"10.00"}`, pair.AccessToken, 403)
 	if err := admin.New(e.store, e.clock).Promote(ctx, addr); err != nil {
 		t.Fatal(err)

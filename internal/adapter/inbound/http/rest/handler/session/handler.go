@@ -42,7 +42,7 @@ type sessionDTO struct {
 // @Success 200 {object} object{items=[]sessionDTO}
 // @Failure 401 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/auth/sessions [get]
+// @Router /v1/me/sessions [get]
 func (h *Handler) List(c fiber.Ctx) error {
 	sessions, err := h.svc.Sessions(c.Context(), middleware.UserID(c))
 	if err != nil {
@@ -69,7 +69,7 @@ func (h *Handler) List(c fiber.Ctx) error {
 // @Failure 401 {object} mapper.errorBody
 // @Failure 404 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/auth/sessions/{id} [delete]
+// @Router /v1/me/sessions/{id} [delete]
 func (h *Handler) Revoke(c fiber.Ctx) error {
 	if err := h.svc.RevokeSession(c.Context(), middleware.UserID(c), c.Params("id")); err != nil {
 		return mapper.WriteError(c, err)
@@ -84,7 +84,7 @@ func (h *Handler) Revoke(c fiber.Ctx) error {
 // @Success 204
 // @Failure 401 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/auth/sessions/others [delete]
+// @Router /v1/me/sessions/others [delete]
 func (h *Handler) RevokeOthers(c fiber.Ctx) error {
 	if err := h.svc.RevokeOtherSessions(c.Context(), middleware.UserID(c), middleware.SessionID(c)); err != nil {
 		return mapper.WriteError(c, err)

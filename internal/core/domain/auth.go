@@ -14,6 +14,7 @@ const (
 	RevokePasswordChanged = "password_changed"
 	RevokeExpired         = "expired"
 	RevokeAccountDisabled = "account_disabled"
+	RevokeAdmin           = "admin_revoked"
 
 	FailureBadPassword      = "bad_password"
 	FailureUserNotFound     = "user_not_found"

@@ -2,6 +2,8 @@
 import { apiFetch } from "@/lib/api/client";
 import type {
   Action,
+  AuditRecord,
+  InviteResult,
   MeResponse,
   Member,
   Notification,
@@ -11,6 +13,7 @@ import type {
   Resource,
   Role,
   Session,
+  SortOrder,
   User,
   UserDetails,
   UserStatus,
@@ -26,24 +29,27 @@ function query(params: Record<string, string | number | boolean | undefined>): s
 const id = (v: string) => encodeURIComponent(v);
 
 export const account = {
-  me: () => apiFetch<MeResponse>("/v1/auth/me"),
-  rename: (name: string) => apiFetch<MeResponse>("/v1/auth/me", { method: "PATCH", json: { name } }),
+  me: () => apiFetch<MeResponse>("/v1/me"),
+  rename: (name: string) => apiFetch<MeResponse>("/v1/me", { method: "PATCH", json: { name } }),
   changePassword: (current_password: string, new_password: string) =>
-    apiFetch<void>("/v1/auth/password", { method: "POST", json: { current_password, new_password } }),
-  sessions: () => apiFetch<{ items: Session[] }>("/v1/auth/sessions"),
-  revokeSession: (sessionId: string) => apiFetch<void>(`/v1/auth/sessions/${id(sessionId)}`, { method: "DELETE" }),
-  revokeOtherSessions: () => apiFetch<void>("/v1/auth/sessions/others", { method: "DELETE" }),
-  savePreferences: (p: Preferences) => apiFetch<Preferences>("/v1/user/preferences", { method: "PUT", json: p }),
+    apiFetch<void>("/v1/me/password", { method: "POST", json: { current_password, new_password } }),
+  sessions: () => apiFetch<{ items: Session[] }>("/v1/me/sessions"),
+  revokeSession: (sessionId: string) => apiFetch<void>(`/v1/me/sessions/${id(sessionId)}`, { method: "DELETE" }),
+  revokeOtherSessions: () => apiFetch<void>("/v1/me/sessions/others", { method: "DELETE" }),
+  savePreferences: (p: Preferences) => apiFetch<Preferences>("/v1/me/preferences", { method: "PUT", json: p }),
 };
 
 export const notifications = {
-  list: (page: number, limit: number) => apiFetch<Paged<Notification>>(`/v1/user/notifications${query({ page, limit })}`),
-  unread: () => apiFetch<{ unread: number }>("/v1/user/notifications/count"),
-  markRead: (notificationId: string) => apiFetch<void>(`/v1/user/notifications/${id(notificationId)}/read`, { method: "PUT" }),
+  list: (page: number, limit: number, signal?: AbortSignal) => apiFetch<Paged<Notification>>(`/v1/me/notifications${query({ page, limit })}`, { signal }),
+  unread: () => apiFetch<{ unread: number }>("/v1/me/notifications/count"),
+  markRead: (notificationId: string) => apiFetch<void>(`/v1/me/notifications/${id(notificationId)}/read`, { method: "PUT" }),
 };
 
 export const users = {
-  list: (p: { page: number; limit: number; search?: string; status?: UserStatus | "" }) => apiFetch<Paged<User>>(`/v1/users${query(p)}`),
+  list: (p: { page: number; limit: number; search?: string; status?: UserStatus | ""; role_id?: string; sort?: string; order?: SortOrder }, signal?: AbortSignal) =>
+    apiFetch<Paged<User>>(`/v1/users${query(p)}`, { signal }),
+  invite: (name: string, email: string) => apiFetch<InviteResult>("/v1/users", { method: "POST", json: { name, email } }),
+  revokeSessions: (userId: string) => apiFetch<void>(`/v1/users/${id(userId)}/sessions`, { method: "DELETE" }),
   get: (userId: string) => apiFetch<UserDetails>(`/v1/users/${id(userId)}`),
   disable: (userId: string) => apiFetch<void>(`/v1/users/${id(userId)}/disable`, { method: "POST" }),
   enable: (userId: string) => apiFetch<void>(`/v1/users/${id(userId)}/enable`, { method: "POST" }),
@@ -53,7 +59,7 @@ export const users = {
 };
 
 export const roles = {
-  list: (p: { page: number; limit: number; search?: string }) => apiFetch<Paged<Role>>(`/v1/roles${query(p)}`),
+  list: (p: { page: number; limit: number; search?: string; sort?: string; order?: SortOrder }, signal?: AbortSignal) => apiFetch<Paged<Role>>(`/v1/roles${query(p)}`, { signal }),
   get: (roleId: string) => apiFetch<Role>(`/v1/roles/${id(roleId)}`),
   create: (name: string) => apiFetch<Role>("/v1/roles", { method: "POST", json: { name } }),
   update: (roleId: string, patch: { name?: string; enabled?: boolean; is_default?: boolean }) => apiFetch<Role>(`/v1/roles/${id(roleId)}`, { method: "PATCH", json: patch }),
@@ -61,7 +67,8 @@ export const roles = {
   removeMany: (ids: string[]) => apiFetch<void>("/v1/roles/batch-delete", { method: "POST", json: { ids } }),
   setPermissions: (roleId: string, permissions: Record<string, Action[]>) =>
     apiFetch<Role>(`/v1/roles/${id(roleId)}/permissions`, { method: "PUT", json: { permissions } }),
-  members: (roleId: string, page: number, limit: number, search?: string) => apiFetch<Paged<Member>>(`/v1/roles/${id(roleId)}/members${query({ page, limit, search })}`),
+  members: (roleId: string, page: number, limit: number, search?: string, signal?: AbortSignal) =>
+    apiFetch<Paged<Member>>(`/v1/roles/${id(roleId)}/members${query({ page, limit, search })}`, { signal }),
   addMember: (roleId: string, userId: string) => apiFetch<void>(`/v1/roles/${id(roleId)}/members/${id(userId)}`, { method: "PUT" }),
   removeMember: (roleId: string, userId: string) => apiFetch<void>(`/v1/roles/${id(roleId)}/members/${id(userId)}`, { method: "DELETE" }),
   resources: () => apiFetch<{ items: Resource[] }>("/v1/permissions/resources"),
@@ -74,11 +81,16 @@ export interface ProductInput {
 }
 
 export const products = {
-  list: (p: { page: number; limit: number; search?: string; sort?: string; order?: "asc" | "desc"; enabled?: boolean }) =>
-    apiFetch<Paged<Product>>(`/v1/products${query(p)}`),
+  list: (p: { page: number; limit: number; search?: string; sort?: string; order?: SortOrder; enabled?: boolean }, signal?: AbortSignal) =>
+    apiFetch<Paged<Product>>(`/v1/products${query(p)}`, { signal }),
   get: (productId: string) => apiFetch<Product>(`/v1/products/${id(productId)}`),
   create: (input: ProductInput) => apiFetch<Product>("/v1/products", { method: "POST", json: input }),
   update: (productId: string, input: Partial<ProductInput>) => apiFetch<Product>(`/v1/products/${id(productId)}`, { method: "PATCH", json: input }),
   remove: (productId: string) => apiFetch<void>(`/v1/products/${id(productId)}`, { method: "DELETE" }),
   removeMany: (ids: string[]) => apiFetch<void>("/v1/products/batch-delete", { method: "POST", json: { ids } }),
+};
+
+export const audit = {
+  list: (p: { page: number; limit: number; action?: string; user_id?: string; from?: string; to?: string }, signal?: AbortSignal) =>
+    apiFetch<Paged<AuditRecord>>(`/v1/audit${query(p)}`, { signal }),
 };

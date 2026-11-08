@@ -72,9 +72,6 @@ button,a,input,select,textarea {
   max-width: 75ch;
   font-size: 13px
 }
-.app-page [data-slot=card] {
-  box-shadow: none
-}
 .app-page [data-slot=table-container] {
   border-radius: min(10px,calc(var(--radius)*1))
 }

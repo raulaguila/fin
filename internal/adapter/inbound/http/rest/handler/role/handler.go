@@ -99,6 +99,8 @@ func toDTO(r domain.Role) roleDTO {
 // @Param page query int false "Page" default(1)
 // @Param limit query int false "Items per page, up to 100" default(20)
 // @Param search query string false "Part of the name"
+// @Param sort query string false "Sort field" Enums(name, created_at) default(name)
+// @Param order query string false "Sort direction" Enums(asc, desc) default(asc)
 // @Security BearerAuth
 // @Success 200 {object} object{items=[]roleDTO,pagination=mapper.PaginationDTO}
 // @Failure 400 {object} mapper.errorBody
@@ -110,6 +112,8 @@ func (h *Handler) List(c fiber.Ctx) error {
 	filter := domain.RoleFilter{
 		Page:   domain.NewPage(fiber.Query[int](c, "page"), fiber.Query[int](c, "limit")),
 		Search: c.Query("search"),
+		Sort:   c.Query("sort"),
+		Order:  c.Query("order"),
 	}
 	roles, total, err := h.svc.List(c.Context(), filter)
 	if err != nil {
@@ -346,7 +350,7 @@ func (h *Handler) RemoveMember(c fiber.Ctx) error {
 
 // @Summary Replace every role of a user
 // @Description Roles not listed are removed. Protected roles and users cannot be managed here.
-// @Tags Roles
+// @Tags Users
 // @Accept json
 // @Produce json
 // @Param id path string true "User ID"

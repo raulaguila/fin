@@ -17,4 +17,6 @@ type UserService interface {
 	// DisableMany and EnableMany change every listed user or none.
 	DisableMany(ctx context.Context, actorID string, ids []string) error
 	EnableMany(ctx context.Context, ids []string) error
+	// RevokeSessions ends every session of another user.
+	RevokeSessions(ctx context.Context, actorID, id string) error
 }

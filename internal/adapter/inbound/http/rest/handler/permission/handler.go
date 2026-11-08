@@ -28,7 +28,7 @@ type resourceDTO struct {
 }
 
 // @Summary List the resources that roles may be granted
-// @Tags Permissions
+// @Tags Roles
 // @Produce json
 // @Security BearerAuth
 // @Success 200 {object} object{items=[]resourceDTO}

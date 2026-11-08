@@ -10,7 +10,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
-import { TablePagination } from "@/components/table-pagination";
+import { TablePagination, emptyPageFallback } from "@/components/table-pagination";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -213,7 +213,7 @@ function RoleEditor({ role: saved, editable }: { role: Role | null; editable: bo
     ...(isDefault !== role.is_default && { is_default: isDefault }),
   };
   const permsDirty = !all && JSON.stringify(clean(draft)) !== JSON.stringify(clean(role.permissions));
-  const dirty = !saved || Object.keys(patch).length > 0 || permsDirty;
+  const dirty = (!saved && name.trim() !== "") || Object.keys(patch).length > 0 || permsDirty;
 
   const created = useRef(""); // set once the role exists, so a later failure knows where to go
   const save = useMutation({
@@ -263,7 +263,7 @@ function RoleEditor({ role: saved, editable }: { role: Role | null; editable: bo
         </div>
         <PermissionsCard all={all} draft={draft} editable={editable} onChange={setDraft} />
       </div>
-      {editable && dirty && (
+      {editable && (dirty || !saved) && (
         <div role="region" aria-label={t("roles.unsaved")} className="sticky bottom-4 z-10 flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-lg">
           <span className="flex-1 text-sm font-medium">{t(saved ? "roles.unsaved" : "roles.new")}</span>
           {error && <div className="basis-full"><FormError message={error} /></div>}
@@ -283,7 +283,7 @@ function AddMemberDialog({ roleId, onClose }: { roleId: string; onClose: () => v
   const client = useQueryClient();
   const [search, setSearch] = useState("");
   const q = useDebounced(search.trim());
-  const found = useQuery({ queryKey: ["users", "pick", q], queryFn: () => users.list({ page: 1, limit: 10, search: q }), enabled: q.length > 1 });
+  const found = useQuery({ queryKey: ["users", "pick", q], queryFn: ({ signal }) => users.list({ page: 1, limit: 10, search: q }, signal), enabled: q.length > 1 });
   const add = useMutation({
     mutationFn: (userId: string) => roles.addMember(roleId, userId),
     onSuccess: () => {
@@ -331,9 +331,11 @@ function MembersCard({ roleId, editable }: { roleId: string; editable: boolean }
   const [adding, setAdding] = useState(false);
   const members = useQuery({
     queryKey: ["roles", roleId, "members", page, limit, q],
-    queryFn: () => roles.members(roleId, page, limit, q),
+    queryFn: ({ signal }) => roles.members(roleId, page, limit, q, signal),
     placeholderData: keepPreviousData,
   });
+  const fallback = members.isPlaceholderData ? null : emptyPageFallback(page, limit, members.data);
+  if (fallback) setPage(fallback); // the last members of the last page went away
   const remove = useMutation({
     mutationFn: (userId: string) => roles.removeMember(roleId, userId),
     onSuccess: () => {
@@ -360,7 +362,7 @@ function MembersCard({ roleId, editable }: { roleId: string; editable: boolean }
         {members.isPending ? (
           <ListSkeleton rows={3} />
         ) : members.isError ? (
-          <QueryErrorState onRetry={() => void members.refetch()} />
+          <QueryErrorState error={members.error} onRetry={() => void members.refetch()} />
         ) : members.data.items.length === 0 ? (
           <div className="text-sm text-muted-foreground">
             <p>{t(q ? "users.empty" : "roles.no_members")}</p>
@@ -435,7 +437,7 @@ export default function RoleDetailPage() {
         ) : detail.error instanceof ApiError && detail.error.code === "NOT_FOUND" ? (
           <EmptyState title={t("error.not_found")} />
         ) : detail.isError || !role ? (
-          <QueryErrorState onRetry={() => void detail.refetch()} />
+          <QueryErrorState error={detail.error} onRetry={() => void detail.refetch()} />
         ) : (
           <RoleEditor key={role.id} role={role} editable={editable} />
         )}

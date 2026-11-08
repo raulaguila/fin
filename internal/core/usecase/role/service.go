@@ -48,6 +48,9 @@ func (s *Service) List(ctx context.Context, filter domain.RoleFilter) ([]domain.
 	if err := validate.Search(filter.Search, maxSearchBytes); err != nil {
 		return nil, 0, err
 	}
+	if err := validate.Sort(&filter.Sort, &filter.Order, []string{"name", "created_at"}, "name", "asc"); err != nil {
+		return nil, 0, err
+	}
 	return s.UOW.Roles().Page(ctx, filter)
 }
 

@@ -45,6 +45,7 @@ Fonte: `Routes` de cada handler em `internal/adapter/inbound/http/rest/`, montad
 | POST | `/v1/users` | `users:create`; convite: conta pendente + e-mail de ativação; e-mail já usado = 409 | global |
 | DELETE | `/v1/users/:id/sessions` | `users:update`; não a própria conta; não `is_superuser` | global |
 | GET | `/v1/audit` | `audit:read`; filtros `action` (prefixo), `user_id`, `from`, `to` | global |
+| GET | `/v1/audit/export` | `audit:read`; CSV com os mesmos filtros, até 10 000 registros (acima disso 400); células com cara de fórmula ganham `'` | global |
 
 `/v1/auth/refresh` responde `409` ao perdedor de dois refresh simultâneos: o cliente lê o token do vencedor e repete.
 

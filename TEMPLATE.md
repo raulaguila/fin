@@ -8,7 +8,7 @@ already in place, and grows its own modules next to `products`.
 
 ```bash
 git clone https://github.com/raulaguila/authenticity.git my-app
-cd my-app
+cd my-app/backend
 make rename MODULE=github.com/acme/my_app NAME=my_app
 make init
 ```
@@ -18,8 +18,9 @@ tracked file: imports, Docker images and containers, the database roles
 `<name>_app` and `<name>_mailer`, the pg_cron jobs and titles. `NAME` must be
 lowercase letters, digits and `_`, since it becomes Postgres role names. Then
 point the `origin` remote at the new repository and drop the `products`
-example once a real module replaces it. The web app follows: the visible name
-lives in `web/src/lib/brand.ts` and the mark in `web/src/components/brand-mark.tsx`.
+example once a real module replaces it. Backend paths below are relative to
+`backend/`. The frontend follows (`cd ../frontend && make init`): the visible name
+lives in `frontend/src/lib/brand.ts` and the mark in `frontend/src/components/brand-mark.tsx`.
 
 ## Add a module
 
@@ -39,8 +40,8 @@ GORM, Fiber or the config.
 | 8. Wiring | `internal/core/port/input/application.go`, `internal/composition/wire.go`, `internal/adapter/inbound/http/rest/server.go` | Field in `Application`, construction, and the route group behind `bearer`. |
 | 9. Tests | `service_test.go`, `handler_test.go`, `tests/integration/product_test.go` | Unit tests for rules and HTTP mapping; integration tests against Postgres. |
 | 10. Docs | `make swagger` | Regenerates the Swagger spec from the annotations. |
-| 11. Web types | `web/src/lib/api/types.ts`, `web/src/lib/api/endpoints.ts` | Response types and one function per route. |
-| 12. Web screen | `web/src/app/(app)/products/page.tsx`, `web/src/lib/navigation.ts`, `web/src/lib/i18n/messages.ts` | The page, a menu entry gated by `needs: [resource, action]`, and the texts in both languages. |
+| 11. Web types | `frontend/src/lib/api/types.ts`, `frontend/src/lib/api/endpoints.ts` | Response types and one function per route. |
+| 12. Web screen | `frontend/src/app/(app)/products/page.tsx`, `frontend/src/lib/navigation.ts`, `frontend/src/lib/i18n/messages.ts` | The page, a menu entry gated by `needs: [resource, action]`, and the texts in both languages. |
 
 The app role gets read and write rights on new tables in `usr`, `sys` and
 `app` by default privileges. A table in a new schema needs its own `GRANT`.

@@ -8,7 +8,7 @@ Derivado de `config/validate.go`, CHECKs SQL e comentários de tabela.
 
 - `CORS_ORIGINS` não pode ser vazio nem `*`
 - `AUTH_MANUAL_TOKEN_DELIVERY` não pode estar ligado
-- SMTP habilitado exige `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` reais (sem placeholder `example.com`)
+- SMTP habilitado exige `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` e `SMTP_APP_URL` (URL do front, usada nos links dos e-mails) reais (sem placeholder `example.com`)
 
 ## Auth
 

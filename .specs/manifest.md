@@ -2,7 +2,7 @@
 
 Specs do authenticity. Inventário e `existing/` descrevem o que corre. `ARCHITECTURE.md` / `PRODUCT.md` (Keel) são a visão de runtime/produto na raiz. Features e audits marcam gaps restantes.
 
-Versão do sistema: `0.0.1` (`config/version.txt`). Módulo: `github.com/raulaguila/authenticity`.
+Versão do sistema: `0.0.1` (`backend/config/version.txt`). Módulo: `github.com/raulaguila/authenticity` (`backend/go.mod`). Caminhos de código nas specs (`internal/`, `config/`, `deploy/`, `tests/`) são relativos a `backend/`; o front fica em `frontend/`.
 
 ## Árvore
 

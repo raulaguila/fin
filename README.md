@@ -1,10 +1,17 @@
 # Authenticity
 
-Identity service in Go: registration, login, sessions, role-based permissions and account data, with a products CRUD as an example of a protected resource. `cmd/backend` serves HTTP, `cmd/mailer` sends email from the outbox, `cmd/admin` is the operator CLI and `web/` is the Next.js frontend. See [ARCHITECTURE.md](ARCHITECTURE.md) for how it fits together, [PRODUCT.md](PRODUCT.md) for its constraints and [TEMPLATE.md](TEMPLATE.md) to start a new project from it or add a module.
+Identity service in Go: registration, login, sessions, role-based permissions and account data, with a products CRUD as an example of a protected resource. `cmd/backend` serves HTTP, `cmd/mailer` sends email from the outbox, `cmd/admin` is the operator CLI, all under `backend/`, and `frontend/` is the Next.js app. See [ARCHITECTURE.md](ARCHITECTURE.md) for how it fits together, [PRODUCT.md](PRODUCT.md) for its constraints and [TEMPLATE.md](TEMPLATE.md) to start a new project from it or add a module.
+
+## Layout
+
+- `backend/`: the Go service, with its own `go.mod`, `Makefile`, `config/`, migrations, Docker files and tests. Run every `make` target and `go` command from here.
+- `frontend/`: the Next.js app, with its own config, Docker files and Makefile.
+- At the root: documentation, `.specs/`, CI and `scripts/rename.sh`.
 
 ## Run with Docker
 
 ```bash
+cd backend
 make init            # creates config/.env with fresh secrets
 make compose-build   # builds and starts postgres, backend and mailer
 make migrate-up      # applies the schema and configures both database logins
@@ -18,6 +25,8 @@ The network has a fixed range (`DOCKER_SUBNET`, default `172.30.99.0/24`) and th
 `make migrate-down` reverses one migration.
 
 ## Develop
+
+From `backend/`:
 
 ```bash
 make dev-backend
@@ -39,9 +48,9 @@ Other targets: `make help`. After changing a handler annotation run `make swagge
 
 `config/env.sh` writes every option to `config/.env`, each with a comment. Any `SYS_ENVIRONMENT` other than development, dev, local or test gets the production rules, enforced at boot.
 
-## Web frontend
+## Frontend
 
-`web/` is a separate Next.js app with its own config, Docker files and Makefile. See [web/README.md](web/README.md).
+`frontend/` is a separate Next.js app with its own config, Docker files and Makefile. See [frontend/README.md](frontend/README.md).
 
 ## Diagnostics and pagination
 

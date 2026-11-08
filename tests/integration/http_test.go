@@ -75,16 +75,17 @@ func TestHTTPAccountOwnershipAndProductValidation(t *testing.T) {
 		}
 		return out
 	}
-	request("GET", "/v1/user/preferences", "", "", 401)
-	request("GET", "/v1/auth/sessions", "", pair.AccessToken, 200)
-	request("DELETE", "/v1/auth/sessions/"+otherClaims.SessionID, "", pair.AccessToken, 404)
-	request("GET", "/v1/user/preferences", "", pair.AccessToken, 200)
-	request("PUT", "/v1/user/preferences", `{"theme":"dark","language":"pt-BR"}`, pair.AccessToken, 200)
-	request("PUT", "/v1/user/preferences", `{"theme":"invalid","language":"pt-BR"}`, pair.AccessToken, 400)
-	request("PUT", "/v1/user/preferences", `{`, pair.AccessToken, 400)
-	request("GET", "/v1/user/notifications", "", pair.AccessToken, 200)
-	request("GET", "/v1/user/notifications/count", "", pair.AccessToken, 200)
-	request("PUT", "/v1/user/notifications/"+note.ID+"/read", "", pair.AccessToken, 404)
+	request("GET", "/v1/me/preferences", "", "", 401)
+	request("GET", "/v1/me/sessions", "", pair.AccessToken, 200)
+	request("DELETE", "/v1/me/sessions/"+otherClaims.SessionID, "", pair.AccessToken, 404)
+	request("GET", "/v1/me/preferences", "", pair.AccessToken, 200)
+	request("PUT", "/v1/me/preferences", `{"theme":"dark","language":"pt-BR"}`, pair.AccessToken, 200)
+	request("PUT", "/v1/me/preferences", `{"theme":"invalid","language":"pt-BR"}`, pair.AccessToken, 400)
+	request("PUT", "/v1/me/preferences", `{`, pair.AccessToken, 400)
+	request("GET", "/v1/me/notifications", "", pair.AccessToken, 200)
+	request("GET", "/v1/me/notifications/count", "", pair.AccessToken, 200)
+	request("PUT", "/v1/me/notifications/read", `{"ids":["`+note.ID+`"]}`, pair.AccessToken, 404)
+	request("PUT", "/v1/me/notifications/read", "", pair.AccessToken, 204)
 	request("POST", "/v1/products", `{"name":"HTTP test","price":"10.00"}`, pair.AccessToken, 403)
 	if err := admin.New(e.store, e.clock).Promote(ctx, addr); err != nil {
 		t.Fatal(err)
@@ -101,7 +102,7 @@ func TestHTTPAccountOwnershipAndProductValidation(t *testing.T) {
 	request("GET", "/v1/products?cursor=start&limit=2", "", pair.AccessToken, 200)
 	request("GET", "/v1/products?cursor=bad", "", pair.AccessToken, 400)
 	request("GET", "/v1/products?cursor=start&sort=price", "", pair.AccessToken, 400)
-	request("DELETE", "/v1/products/"+id, "", pair.AccessToken, 204)
+	request("POST", "/v1/products/delete", `{"ids":["`+id+`"]}`, pair.AccessToken, 204)
 	request("GET", "/v1/products/"+id, "", pair.AccessToken, 404)
 	if _, err := e.svc.Authenticate(ctx, foreign.AccessToken); err != nil {
 		t.Fatalf("other user's session was revoked: %v", err)

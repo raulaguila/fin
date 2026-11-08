@@ -115,7 +115,7 @@ export default function ProductPage() {
         ) : detail.error instanceof ApiError && detail.error.code === "NOT_FOUND" ? (
           <EmptyState title={t("error.not_found")} />
         ) : detail.isError || !product ? (
-          <QueryErrorState onRetry={() => void detail.refetch()} />
+          <QueryErrorState error={detail.error} onRetry={() => void detail.refetch()} />
         ) : (
           <ProductForm key={product.id} product={product} editable={editable} />
         )}
@@ -128,7 +128,7 @@ export default function ProductPage() {
         destructive
         confirmLabel={t("common.delete")}
         onConfirm={async () => {
-          await products.remove(id);
+          await products.remove([id]);
           router.push("/products");
           client.removeQueries({ queryKey: ["products", "detail", id] });
           void client.invalidateQueries({ queryKey: ["products"] });

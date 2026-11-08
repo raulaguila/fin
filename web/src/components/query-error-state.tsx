@@ -1,23 +1,31 @@
 "use client";
 
 import { AlertTriangle } from "lucide-react";
+import { ApiError } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/provider";
 
-/** Distinct from EmptyState: failed fetch, not “no rows yet”. */
+/** Distinct from EmptyState: failed fetch, not “no rows yet”. A 403 says so and offers no retry. */
 export function QueryErrorState({
   title,
   description,
+  error,
   onRetry,
   className,
 }: {
   title?: string;
   description?: string;
+  error?: unknown;
   onRetry?: () => void;
   className?: string;
 }) {
   const { t } = useI18n();
+  if (error instanceof ApiError && error.code === "FORBIDDEN") {
+    title ??= t("error.forbidden");
+    description ??= "";
+    onRetry = undefined;
+  }
   return (
     <div
       role="alert"
@@ -30,9 +38,11 @@ export function QueryErrorState({
         <AlertTriangle className="size-5" />
       </div>
       <p className="font-medium">{title ?? t("error.title")}</p>
-      <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-        {description ?? t("error.load_desc")}
-      </p>
+      {description !== "" && (
+        <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+          {description ?? t("error.load_desc")}
+        </p>
+      )}
       {onRetry && (
         <Button className="mt-4" variant="outline" onClick={onRetry}>
           {t("error.retry")}

@@ -1,17 +1,18 @@
 "use client";
 
-import { useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Bell, Info, OctagonAlert } from "lucide-react";
+import { AlertTriangle, Bell, CheckCheck, Info, OctagonAlert } from "lucide-react";
+import { UNREAD_KEY } from "@/components/app-shell";
 import { PageBody, PageHeader, useFormatDate } from "@/components/bits";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
-import { TablePagination } from "@/components/table-pagination";
+import { TablePagination, emptyPageFallback } from "@/components/table-pagination";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { notifications } from "@/lib/api/endpoints";
 import type { Notification } from "@/lib/api/types";
+import { useGoToPage, useListParams } from "@/lib/hooks/use-list-params";
 import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
 
@@ -25,13 +26,15 @@ export default function NotificationsPage() {
   const { t } = useI18n();
   const format = useFormatDate();
   const client = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(25);
+  const [{ page, limit }, set] = useListParams({ page: 1, limit: 25 });
   const list = useQuery({
     queryKey: ["notifications", page, limit],
-    queryFn: () => notifications.list(page, limit),
+    queryFn: ({ signal }) => notifications.list(page, limit, signal),
     placeholderData: keepPreviousData,
   });
+  const fallback = list.isPlaceholderData ? null : emptyPageFallback(page, limit, list.data);
+  useGoToPage(fallback, set); // the last rows of the last page went away
+  const unread = useQuery({ queryKey: UNREAD_KEY, queryFn: notifications.unread }); // shared with the bell
   const markRead = useMutation({
     mutationFn: notifications.markRead,
     onSuccess: () => void client.invalidateQueries({ queryKey: ["notifications"] }),
@@ -39,12 +42,20 @@ export default function NotificationsPage() {
 
   return (
     <>
-      <PageHeader title={t("nav.notifications")} description={t("notifications.subtitle")} />
+      <PageHeader
+        title={t("nav.notifications")}
+        description={t("notifications.subtitle")}
+        action={(unread.data?.unread ?? 0) > 0 && (
+          <Button variant="outline" disabled={markRead.isPending} onClick={() => markRead.mutate(undefined)}>
+            <CheckCheck className="size-4" />{t("notifications.mark_all_read")}
+          </Button>
+        )}
+      />
       <PageBody>
         {list.isPending ? (
           <ListSkeleton />
         ) : list.isError ? (
-          <QueryErrorState onRetry={() => void list.refetch()} />
+          <QueryErrorState error={list.error} onRetry={() => void list.refetch()} />
         ) : list.data.items.length === 0 ? (
           <EmptyState icon={Bell} title={t("notifications.empty")} description={t("notifications.empty_desc")} />
         ) : (
@@ -65,7 +76,7 @@ export default function NotificationsPage() {
                       <p className="mt-0.5 text-sm text-muted-foreground">{n.message}</p>
                     </div>
                     {!n.read_at && (
-                      <Button variant="ghost" size="sm" disabled={markRead.isPending} onClick={() => markRead.mutate(n.id)}>
+                      <Button variant="ghost" size="sm" disabled={markRead.isPending} onClick={() => markRead.mutate([n.id])}>
                         {t("notifications.mark_read")}
                       </Button>
                     )}
@@ -77,8 +88,8 @@ export default function NotificationsPage() {
               page={page}
               pageSize={limit}
               totalItems={list.data.pagination.total_items}
-              onPageChange={setPage}
-              onPageSizeChange={(n) => { setLimit(n); setPage(1); }}
+              onPageChange={(n) => set({ page: n })}
+              onPageSizeChange={(n) => set({ limit: n, page: 1 })}
             />
           </Card>
         )}

@@ -28,8 +28,7 @@ func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
 	r.Get("/", read, h.List)
 	r.Get("/:id", read, h.Get)
 	r.Post("/", middleware.Require(authz, domain.ResourceRoles, domain.ActionCreate), h.Create)
-	r.Post("/batch-delete", remove, h.DeleteMany)
-	r.Delete("/:id", remove, h.Delete)
+	r.Post("/delete", remove, h.Delete)
 	r.Patch("/:id", update, h.Update)
 	r.Put("/:id/permissions", update, h.SetPermissions)
 	r.Get("/:id/members", read, h.Members)
@@ -83,13 +82,9 @@ type memberDTO struct {
 }
 
 func toDTO(r domain.Role) roleDTO {
-	permissions := make(map[string][]string, len(r.Permissions))
-	for resource, actions := range r.Permissions {
-		permissions[resource] = domain.ActionNames(actions)
-	}
 	return roleDTO{
 		ID: r.ID, Name: r.Name, Enabled: r.Enabled, IsDefault: r.IsDefault,
-		Permissions: permissions, CreatedAt: r.CreatedAt, MemberCount: r.MemberCount,
+		Permissions: mapper.Permissions(r.Permissions), CreatedAt: r.CreatedAt, MemberCount: r.MemberCount,
 	}
 }
 
@@ -99,6 +94,8 @@ func toDTO(r domain.Role) roleDTO {
 // @Param page query int false "Page" default(1)
 // @Param limit query int false "Items per page, up to 100" default(20)
 // @Param search query string false "Part of the name"
+// @Param sort query string false "Sort field" Enums(name, created_at) default(name)
+// @Param order query string false "Sort direction" Enums(asc, desc) default(asc)
 // @Security BearerAuth
 // @Success 200 {object} object{items=[]roleDTO,pagination=mapper.PaginationDTO}
 // @Failure 400 {object} mapper.errorBody
@@ -110,6 +107,8 @@ func (h *Handler) List(c fiber.Ctx) error {
 	filter := domain.RoleFilter{
 		Page:   domain.NewPage(fiber.Query[int](c, "page"), fiber.Query[int](c, "limit")),
 		Search: c.Query("search"),
+		Sort:   c.Query("sort"),
+		Order:  c.Query("order"),
 	}
 	roles, total, err := h.svc.List(c.Context(), filter)
 	if err != nil {
@@ -142,7 +141,7 @@ func (h *Handler) Get(c fiber.Ctx) error {
 	return c.JSON(toDTO(*role))
 }
 
-// @Summary Delete several roles at once; all or none
+// @Summary Delete roles without members; all or none
 // @Tags Roles
 // @Accept json
 // @Produce json
@@ -155,8 +154,8 @@ func (h *Handler) Get(c fiber.Ctx) error {
 // @Failure 404 {object} mapper.errorBody
 // @Failure 409 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/roles/batch-delete [post]
-func (h *Handler) DeleteMany(c fiber.Ctx) error {
+// @Router /v1/roles/delete [post]
+func (h *Handler) Delete(c fiber.Ctx) error {
 	var body idsDTO
 	if err := c.Bind().Body(&body); err != nil {
 		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "invalid body"))
@@ -190,26 +189,6 @@ func (h *Handler) Create(c fiber.Ctx) error {
 		return mapper.WriteError(c, err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(toDTO(*role))
-}
-
-// @Summary Delete a role without members
-// @Tags Roles
-// @Produce json
-// @Param id path string true "Role ID"
-// @Security BearerAuth
-// @Success 204
-// @Failure 400 {object} mapper.errorBody
-// @Failure 401 {object} mapper.errorBody
-// @Failure 403 {object} mapper.errorBody
-// @Failure 404 {object} mapper.errorBody
-// @Failure 409 {object} mapper.errorBody
-// @Failure 429 {object} mapper.errorBody
-// @Router /v1/roles/{id} [delete]
-func (h *Handler) Delete(c fiber.Ctx) error {
-	if err := h.svc.Delete(c.Context(), c.Params("id")); err != nil {
-		return mapper.WriteError(c, err)
-	}
-	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // @Summary Update the name, the enabled flag or the default mark of a role
@@ -346,7 +325,7 @@ func (h *Handler) RemoveMember(c fiber.Ctx) error {
 
 // @Summary Replace every role of a user
 // @Description Roles not listed are removed. Protected roles and users cannot be managed here.
-// @Tags Roles
+// @Tags Users
 // @Accept json
 // @Produce json
 // @Param id path string true "User ID"

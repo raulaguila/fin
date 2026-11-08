@@ -1,6 +1,6 @@
 // Server-only session handling. The tokens live in an httpOnly cookie signed
 // with HMAC, so browser JavaScript never reads them. The user object is not
-// stored: permissions change at runtime and come from /v1/auth/me.
+// stored: permissions change at runtime and come from /v1/me.
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies, headers } from "next/headers";

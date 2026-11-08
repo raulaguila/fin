@@ -25,7 +25,7 @@ The container joins `authenticity_network` at `WEB_IP` (default `172.30.99.10`).
 
 ## How it works
 
-- The access and refresh tokens live in an httpOnly cookie signed with `SESSION_SECRET`; browser JavaScript never sees them. The user and permissions come from `/v1/auth/me`.
+- The access and refresh tokens live in an httpOnly cookie signed with `SESSION_SECRET`; browser JavaScript never sees them. The user and permissions come from `/v1/me`.
 - `/api/auth/*` handles login, logout, refresh and the public account routes; `/api/proxy/*` forwards everything else with the bearer and refreshes once on 401.
 - The client IP goes to the API as `X-Real-IP`, read from `CLIENT_IP_HEADER` (default `x-forwarded-for`). A client can forge that header, so in production put a reverse proxy in front that overwrites it.
 - Menus and buttons follow `permissions` and `is_superuser`, for display only: the API still checks every call.

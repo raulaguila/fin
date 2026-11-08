@@ -11,7 +11,6 @@ type RoleService interface {
 	List(ctx context.Context, filter domain.RoleFilter) ([]domain.Role, int64, error)
 	Get(ctx context.Context, id string) (*domain.Role, error)
 	Create(ctx context.Context, name string) (*domain.Role, error)
-	Delete(ctx context.Context, id string) error
 	// DeleteMany deletes every listed role or none.
 	DeleteMany(ctx context.Context, ids []string) error
 	Update(ctx context.Context, id string, patch domain.RolePatch) (*domain.Role, error)

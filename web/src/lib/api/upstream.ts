@@ -38,13 +38,18 @@ export function sessionFromTokens(pair: TokenPair): Session {
 export type RefreshOutcome = { ok: true; session: Session } | { ok: false; dead: boolean };
 
 const pending = new Map<string, Promise<RefreshOutcome>>();
+// A request sent with the old cookie can reach us just after the rotation ended,
+// before the browser stored the new cookie; it gets the same answer instead of a
+// 409 from the backend. Shorter than the backend's race window.
+const REUSE_MS = 5_000;
 
-/** Refresh tokens are single use: concurrent requests share one rotation. */
+/** Refresh tokens are single use: concurrent and just-late requests share one rotation. */
 export function refreshSession(s: Session, headers: Record<string, string>): Promise<RefreshOutcome> {
   const running = pending.get(s.refresh_token);
   if (running) return running;
-  const request = rotate(s, headers).finally(() => pending.delete(s.refresh_token));
+  const request = rotate(s, headers);
   pending.set(s.refresh_token, request);
+  void request.then((r) => setTimeout(() => pending.delete(s.refresh_token), r.ok ? REUSE_MS : 0));
   return request;
 }
 

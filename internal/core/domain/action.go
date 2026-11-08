@@ -49,6 +49,7 @@ func ParseActions(names []string) (Action, bool) {
 // Resource names are catalog codes (usr_resource) or the sentinel "*".
 const (
 	ResourceAll      = "*"
+	ResourceAudit    = "audit"
 	ResourceProducts = "products"
 	ResourceRoles    = "roles"
 	ResourceUsers    = "users"

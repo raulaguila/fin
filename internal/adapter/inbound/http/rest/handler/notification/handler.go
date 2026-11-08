@@ -9,6 +9,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
+	"github.com/raulaguila/authenticity/pkg/apperror"
 )
 
 type Handler struct {
@@ -23,7 +24,7 @@ func New(svc input.AccountService) *Handler {
 func (h *Handler) Routes(r fiber.Router) {
 	r.Get("/", h.List)
 	r.Get("/count", h.Count)
-	r.Put("/:id/read", h.MarkRead)
+	r.Put("/read", h.MarkRead)
 }
 
 type notificationDTO struct {
@@ -44,7 +45,7 @@ type notificationDTO struct {
 // @Success 200 {object} object{items=[]notificationDTO,pagination=mapper.PaginationDTO}
 // @Failure 401 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/user/notifications [get]
+// @Router /v1/me/notifications [get]
 func (h *Handler) List(c fiber.Ctx) error {
 	page := domain.NewPage(fiber.Query[int](c, "page"), fiber.Query[int](c, "limit"))
 	items, total, err := h.svc.Notifications(c.Context(), middleware.UserID(c), page)
@@ -67,7 +68,7 @@ func (h *Handler) List(c fiber.Ctx) error {
 // @Success 200 {object} object{unread=int}
 // @Failure 401 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/user/notifications/count [get]
+// @Router /v1/me/notifications/count [get]
 func (h *Handler) Count(c fiber.Ctx) error {
 	unread, err := h.svc.CountUnread(c.Context(), middleware.UserID(c))
 	if err != nil {
@@ -76,19 +77,30 @@ func (h *Handler) Count(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"unread": unread})
 }
 
-// @Summary Mark a notification as read
+type idsDTO struct {
+	IDs []string `json:"ids"`
+}
+
+// @Summary Mark notifications as read: the listed ones (all or none), or every one when the body is empty
 // @Tags Notifications
+// @Accept json
 // @Produce json
-// @Param id path string true "Notification ID"
+// @Param body body idsDTO false "Notification IDs, 1 to 100; leave out to mark all"
 // @Security BearerAuth
 // @Success 204
 // @Failure 400 {object} mapper.errorBody
 // @Failure 401 {object} mapper.errorBody
 // @Failure 404 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/user/notifications/{id}/read [put]
+// @Router /v1/me/notifications/read [put]
 func (h *Handler) MarkRead(c fiber.Ctx) error {
-	if err := h.svc.MarkRead(c.Context(), middleware.UserID(c), c.Params("id")); err != nil {
+	var body idsDTO // no body leaves IDs nil: every notification
+	if len(c.Body()) > 0 {
+		if err := c.Bind().Body(&body); err != nil {
+			return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "invalid body"))
+		}
+	}
+	if err := h.svc.MarkRead(c.Context(), middleware.UserID(c), body.IDs); err != nil {
 		return mapper.WriteError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)

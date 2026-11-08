@@ -2,6 +2,7 @@
 package validate
 
 import (
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -35,4 +36,22 @@ func Text(s string, max int) string {
 		s = s[:max]
 	}
 	return strings.ReplaceAll(strings.ToValidUTF8(s, ""), "\x00", "")
+}
+
+// Sort fills an empty sort or order with its default and refuses anything else
+// than an allowed column and asc or desc.
+func Sort(sort, order *string, allowed []string, defaultSort, defaultOrder string) error {
+	if *sort == "" {
+		*sort = defaultSort
+	}
+	if *order == "" {
+		*order = defaultOrder
+	}
+	if !slices.Contains(allowed, *sort) {
+		return apperror.New(apperror.CodeInvalidInput, "sort must be one of "+strings.Join(allowed, ", ")).WithField("sort")
+	}
+	if *order != "asc" && *order != "desc" {
+		return apperror.New(apperror.CodeInvalidInput, "order must be asc or desc").WithField("order")
+	}
+	return nil
 }

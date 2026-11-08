@@ -129,3 +129,40 @@ func activationTarget(ctx context.Context, uow output.UnitOfWork, hash []byte, n
 	}
 	return tok, user, nil
 }
+
+// Invite creates a pending account for someone and sends them the activation
+// email. Unlike Register it tells the administrator when the email is taken.
+func (s *Service) Invite(ctx context.Context, cmd input.RegisterCommand) (*input.RegisterResult, error) {
+	name, email, err := policy.ValidateIdentity(cmd.Name, cmd.Email)
+	if err != nil {
+		return nil, err
+	}
+	plain, err := tokenhash.RandomURLSafe()
+	if err != nil {
+		return nil, apperror.New(apperror.CodeInternal, "token generation failed").WithCause(err)
+	}
+	u := &domain.User{Name: name, Email: email, Status: domain.UserStatusPending}
+	err = s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
+		if err := uow.Users().Create(ctx, u); err != nil {
+			return err
+		}
+		if err := uow.Credentials().Create(ctx, u.ID); err != nil {
+			return err
+		}
+		if err := s.issueEmailToken(ctx, uow, u, domain.TokenPurposeActivation, plain, s.Cfg.RegistrationTokenTTL); err != nil {
+			return err
+		}
+		return policy.Audit(ctx, uow, "user.invite", u.ID, nil)
+	})
+	if apperror.IsCode(err, apperror.CodeAlreadyExists) {
+		return nil, apperror.New(apperror.CodeAlreadyExists, "an account with this email already exists").WithField("email")
+	}
+	if err != nil {
+		return nil, err
+	}
+	res := &input.RegisterResult{UserID: u.ID, Status: u.Status}
+	if s.Cfg.AllowManualTokenDelivery {
+		res.ActivationToken, res.ManualDelivery = plain, true
+	}
+	return res, nil
+}

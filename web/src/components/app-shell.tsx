@@ -7,7 +7,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Bell, ChevronRight, Menu } from "lucide-react";
 import { AppRail, useWideRail } from "@/components/app-rail";
 import { initials } from "@/components/bits";
+import { CommandPalette } from "@/components/command-palette";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { QueryErrorState } from "@/components/query-error-state";
 import { SessionKeepalive } from "@/components/session-keepalive";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -33,7 +35,7 @@ export const UNREAD_KEY = ["notifications", "unread"] as const;
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { t } = useI18n();
-  const { user } = useMe();
+  const { user, failed, retry } = useMe();
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const wide = useWideRail();
@@ -106,6 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               )}
             </div>
             <div className="ml-2 flex shrink-0 items-center gap-0.5 sm:gap-1">
+              <CommandPalette />
               <Link
                 href="/notifications"
                 aria-label={count ? `${t("nav.notifications")}: ${count}` : t("nav.notifications")}
@@ -142,7 +145,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </header>
 
           <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 overflow-auto bg-content outline-none">
-            <div className="app-page">{children}</div>
+            <div className="app-page">
+              {failed ? <div className="mx-auto max-w-6xl p-[var(--space-page)]"><QueryErrorState onRetry={retry} /></div> : children}
+            </div>
           </main>
         </div>
       </div>

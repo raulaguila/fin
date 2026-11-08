@@ -34,6 +34,8 @@ type RolePatch struct {
 type RoleFilter struct {
 	Page   Page
 	Search string
+	Sort   string // a column the repository allows; checked by the service
+	Order  string // asc or desc
 }
 
 // Protected reports whether the role is out of reach of the HTTP API: it holds
@@ -58,6 +60,9 @@ type UserFilter struct {
 	Page   Page
 	Search string
 	Status string
+	RoleID string // only holders of this role
+	Sort   string // a column the repository allows; checked by the service
+	Order  string // asc or desc
 }
 
 // UserDetails is a user with the roles it holds.

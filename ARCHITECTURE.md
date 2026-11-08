@@ -30,7 +30,7 @@ core/domain → stdlib only
 
 **Sacred (product + ADR):** JWT must not carry permission claims; authz loads live from the DB on each check. Plaintext passwords / refresh JTIs / email tokens must not be stored.
 
-**Authorization (confirmed):** Authorizer is applied on `/v1/products`, `/v1/permissions`, `/v1/roles` and `/v1/users`; own-account routes use Bearer and queries scoped to the authenticated user. Roles are managed at runtime under `/v1/roles`. Protected roles (`is_superuser` or a `*` grant) cannot be changed there and `GET /v1/roles` does not list them: full access changes only through `cmd/admin`, and the API never grants `*`. Holding `roles:update` lets someone change any unprotected role, including their own. Users with a protected role get the same treatment under `/v1/users`: not listed, 403 by id, changed only through `cmd/admin`. Nobody disables their own account. Enable puts an account back to `active`, or `pending` if it never set a password; sessions do not come back.
+**Authorization (confirmed):** Authorizer is applied on `/v1/products`, `/v1/permissions`, `/v1/roles`, `/v1/users` and `/v1/audit`; own-account routes live under `/v1/me`, use Bearer and queries scoped to the authenticated user; `/v1/auth` keeps only the token and sign-up flows. Roles are managed at runtime under `/v1/roles`. Protected roles (`is_superuser` or a `*` grant) cannot be changed there and `GET /v1/roles` does not list them: full access changes only through `cmd/admin`, and the API never grants `*`. Holding `roles:update` lets someone change any unprotected role, including their own. Users with a protected role get the same treatment under `/v1/users`: not listed, 403 by id, changed only through `cmd/admin`. Nobody disables their own account. Enable puts an account back to `active`, or `pending` if it never set a password; sessions do not come back.
 
 ## Data
 
@@ -61,43 +61,44 @@ core/domain → stdlib only
 | GET | `/health` |
 | POST | `/v1/auth/register`, `/v1/auth/activate`, `/v1/auth/login`, `/v1/auth/refresh`, `/v1/auth/logout` |
 | POST | `/v1/auth/password-reset/request`, `/v1/auth/password-reset/confirm` |
-| GET/PATCH | `/v1/auth/me` (Bearer; PATCH renames) |
-| POST | `/v1/auth/password` (Bearer; current password required, ends the other sessions) |
-| GET | `/v1/auth/sessions` (Bearer) |
-| DELETE | `/v1/auth/sessions/others`, `/v1/auth/sessions/:id` (Bearer) |
-| GET/PUT | `/v1/user/preferences` (Bearer) |
-| GET | `/v1/user/notifications`, `/v1/user/notifications/count` (Bearer) |
-| PUT | `/v1/user/notifications/:id/read` (Bearer) |
+| GET/PATCH | `/v1/me` (Bearer; PATCH renames) |
+| POST | `/v1/me/password` (Bearer; current password required, ends the other sessions) |
+| GET | `/v1/me/sessions` (Bearer) |
+| DELETE | `/v1/me/sessions/others`, `/v1/me/sessions/:id` (Bearer) |
+| GET/PUT | `/v1/me/preferences` (Bearer) |
+| GET | `/v1/me/notifications`, `/v1/me/notifications/count` (Bearer) |
+| PUT | `/v1/me/notifications/read`, body `{"ids": [...]}` (1 to 100, all or none) or no body for every one (Bearer) |
 | GET | `/v1/permissions/resources` (`roles:read`) |
-| GET/POST | `/v1/roles`, `search` and pagination (`roles:read`, `roles:create`) |
+| GET/POST | `/v1/roles`, `search`, `sort` (`name`, `created_at`), `order` and pagination (`roles:read`, `roles:create`) |
 | GET | `/v1/roles/:id` (`roles:read`) |
-| POST | `/v1/roles/batch-delete`, all or none (`roles:delete`) |
+| POST | `/v1/roles/delete`, body `{"ids": [...]}` (1 to 100), all or none; roles without members, not default (`roles:delete`) |
 | PATCH | `/v1/roles/:id`; `is_default` marks or unmarks a default role; several may be default (`roles:update`) |
-| DELETE | `/v1/roles/:id` (`roles:delete`) |
 | PUT | `/v1/roles/:id/permissions`, full map in one transaction (`roles:update`) |
 | GET | `/v1/roles/:id/members`, `search` and pagination (`roles:read`) |
 | PUT/DELETE | `/v1/roles/:id/members/:user_id` (`roles:update`) |
 | PUT | `/v1/users/:id/roles` (`roles:update`; replaces every role of the user) |
-| GET | `/v1/users`, `search`, `status` and pagination (`users:read`) |
+| GET | `/v1/users`, `search`, `status`, `role_id`, `sort` (`name`, `email`, `status`, `created_at`), `order` and pagination (`users:read`) |
+| POST | `/v1/users`, invite: creates a pending account and sends the activation email; a taken email is 409 (`users:create`) |
+| DELETE | `/v1/users/:id/sessions`, ends every session of another user (`users:update`) |
 | GET | `/v1/users/:id`, with roles (`users:read`) |
-| POST | `/v1/users/:id/disable`, `/v1/users/:id/enable` (`users:update`) |
-| POST | `/v1/users/batch-disable`, `/v1/users/batch-enable`, all or none (`users:update`) |
+| POST | `/v1/users/disable`, `/v1/users/enable`, body `{"ids": [...]}` (1 to 100), all or none (`users:update`) |
+| GET | `/v1/audit`, newest first; `action` prefix, `user_id` (actor or target), `from`/`to` (RFC 3339) and pagination (`audit:read`) |
 | GET/POST | `/v1/products` |
 | GET | `/v1/products/list` |
-| GET/PATCH/DELETE | `/v1/products/:id` |
-| POST | `/v1/products/batch-delete`, all or none |
+| GET/PATCH | `/v1/products/:id` |
+| POST | `/v1/products/delete`, body `{"ids": [...]}` (1 to 100), all or none |
 
 **Auth tokens:** RS256; access claims `sub`, `sid`, `jti`, `iat`, `exp`; refresh same with `jti` hashed at rest. Defaults: access 15m, refresh 60m.
 
 **Errors (confirmed):** `pkg/apperror` → JSON `{code,message,field?,details?}` via `rest/mapper`; errors raised by Fiber itself (404, 405, 413) use the same shape. Login failures are always `INVALID_CREDENTIALS`: pending, disabled, locked and unknown accounts answer identically, in the same time. Register answers `201` for known emails too; internal `failure_kind` not echoed.
 
-**User object:** login, refresh and `/v1/auth/me` return the same `user`: identity, `is_superuser`, `permissions` (resource → actions) and `preferences`, loaded live. They are response data for the interface to adapt; the server still decides each request from the database, and the JWT still carries none. If the profile fails to load, login and refresh answer the tokens without `user`, since a refresh has already spent the old token, and the request log records `Request degraded` with the cause.
+**User object:** login, refresh and `/v1/me` return the same `user`: identity, `is_superuser`, `permissions` (resource → actions) and `preferences`, loaded live. They are response data for the interface to adapt; the server still decides each request from the database, and the JWT still carries none. If the profile fails to load, login and refresh answer the tokens without `user`, since a refresh has already spent the old token, and the request log records `Request degraded` with the cause.
 
 **Session list:** `last_seen_at` is the time of the last login or refresh, not of the last request: it is not written per request.
 
 **Own-account routes:** the user id comes from the verified token, never from the request, and every query filters by it. Another user's session or notification answers `404`.
 
-**Pagination / idempotency:** `GET /v1/products`, `GET /v1/users`, `GET /v1/roles` and `GET /v1/user/notifications` return `{items, pagination{page,limit,total_items,total_pages}}`; limit defaults to 20, up to 100. Products also take `search`, `sort` (allowlist) and `order`. `GET /v1/products/list` returns enabled products as id and name, up to 1000. Register is idempotent on email: an unactivated account gets a fresh token, any other answers as new and sends nothing. Outbox rows are append-only inserts (no idempotency key column today).
+**Pagination / idempotency:** `GET /v1/products`, `GET /v1/users`, `GET /v1/roles` and `GET /v1/me/notifications` return `{items, pagination{page,limit,total_items,total_pages}}`; limit defaults to 20, up to 100. Products, users and roles also take `sort` (allowlist) and `order`. `GET /v1/products/list` returns enabled products as id and name, up to 1000. Register is idempotent on email: an unactivated account gets a fresh token, any other answers as new and sends nothing. Outbox rows are append-only inserts (no idempotency key column today).
 
 **Contracts (authz on wire):** Bearer middleware calls `input.Authenticator`, which validates the access JWT + live session; `Require(resource, action)` calls Authorizer (fail closed).
 
@@ -145,7 +146,7 @@ core/domain → stdlib only
 
 **Correlation id:** `RequestID` gives each request an id, returned in `X-Request-ID`. An incoming id is kept only from a trusted proxy. `pkg/reqctx` carries it, with the authenticated user, through the context: into the request log, `sys.outbox.request_id` (logged by the mailer) and the audit log.
 
-**Audit log:** `usr.usr_audit_log` records role, permission, membership and user status changes from the API and `cmd/admin`, through `policy.Audit` in the transaction of the change. A NULL actor means the CLI. The app role may only insert. There is no read endpoint and no cleanup.
+**Audit log:** `usr.usr_audit_log` records role, permission, membership, user status, invitation and session revocation changes from the API and `cmd/admin`, through `policy.Audit` in the transaction of the change. A NULL actor means the CLI. The app role may only insert. `GET /v1/audit` reads it (`audit:read`); there is no cleanup.
 
 **Diagnostics:** `DIAGNOSTICS_ADDRESS` defaults to `127.0.0.1:9091` inside each container. `/metrics` returns JSON with bounded HTTP latency buckets, server errors, hashing queue/active counts and wait time, `database/sql` pool statistics, outbox count/oldest age and runtime heap/GC counters. `/health` checks PostgreSQL and, for the mailer, a successful worker heartbeat within one minute. No public API route exposes these diagnostics. Compose uses healthchecks and stop grace periods of 40s (backend) and 60s (mailer).
 
@@ -179,7 +180,7 @@ Do not log refresh tokens, passwords, or email token plaintext (payload in outbo
 - Argon2id verify on every login (`time=3`, `memory=64MiB`, 4 threads in `pkg/password`)
 - Each permission check → one query, no cache
 - Login attempt inserts + rate-limit counts
-- Login, refresh and `/v1/auth/me` each run user + permissions + preferences queries
+- Login, refresh and `/v1/me` each run user + permissions + preferences queries
 - `search` is a leading-wildcard `ILIKE`, and lists use `OFFSET` plus a count: scans grow with the table
 
 ## ADR index
@@ -199,7 +200,7 @@ An icon-only theme toggle sits at the right of the API title, on the same line. 
 
 ## Known gaps vs intent
 
-1. **Observability thin** — correlation id and audit log, but no traces and no API to read the audit log.
+1. **Observability thin** — correlation id and audit log, but no traces.
 2. **Scale and SLOs unmeasured** — no measured throughput, latency or availability targets; the shared rate limiter costs one database write per request.
 
 ## Boundaries and verification

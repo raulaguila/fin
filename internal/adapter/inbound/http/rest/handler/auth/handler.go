@@ -24,6 +24,13 @@ func New(svc input.AuthService, account input.AccountService) *Handler {
 	return &Handler{svc: svc, account: account}
 }
 
+// MeRoutes mounts the profile of the current user; r is already behind Bearer.
+func (h *Handler) MeRoutes(r fiber.Router, passwordLimit fiber.Handler) {
+	r.Get("/", h.Me)
+	r.Patch("/", h.Rename)
+	r.Post("/password", passwordLimit, h.ChangePassword)
+}
+
 // Routes mounts the auth routes; each limiter runs on the routes that need it.
 func (h *Handler) Routes(r fiber.Router, bearer, authLimit, passwordLimit fiber.Handler) {
 	r.Post("/register", authLimit, h.Register)
@@ -31,9 +38,6 @@ func (h *Handler) Routes(r fiber.Router, bearer, authLimit, passwordLimit fiber.
 	r.Post("/login", authLimit, h.Login)
 	r.Post("/refresh", h.Refresh)
 	r.Post("/logout", bearer, h.Logout)
-	r.Get("/me", bearer, h.Me)
-	r.Patch("/me", bearer, h.Rename)
-	r.Post("/password", bearer, passwordLimit, h.ChangePassword)
 	r.Post("/password-reset/request", passwordLimit, h.RequestPasswordReset)
 	r.Post("/password-reset/confirm", passwordLimit, h.ConfirmPasswordReset)
 }
@@ -102,10 +106,6 @@ type meDTO struct {
 }
 
 func toUserDTO(p *domain.Profile) userDTO {
-	permissions := make(map[string][]string, len(p.Permissions))
-	for resource, actions := range p.Permissions {
-		permissions[resource] = domain.ActionNames(actions)
-	}
 	return userDTO{
 		ID:          p.User.ID,
 		Name:        p.User.Name,
@@ -113,7 +113,7 @@ func toUserDTO(p *domain.Profile) userDTO {
 		Status:      p.User.Status,
 		CreatedAt:   p.User.CreatedAt,
 		IsSuperuser: p.IsSuperuser,
-		Permissions: permissions,
+		Permissions: mapper.Permissions(p.Permissions),
 		Preferences: mapper.Preferences(p.Preferences),
 		Roles:       p.Roles,
 	}
@@ -253,13 +253,13 @@ func (h *Handler) Logout(c fiber.Ctx) error {
 }
 
 // @Summary Current user, with live permissions and preferences
-// @Tags Auth
+// @Tags Profile
 // @Produce json
 // @Security BearerAuth
 // @Success 200 {object} meDTO
 // @Failure 401 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/auth/me [get]
+// @Router /v1/me [get]
 func (h *Handler) Me(c fiber.Ctx) error {
 	profile, err := h.account.Profile(c.Context(), middleware.UserID(c))
 	if err != nil {
@@ -269,7 +269,7 @@ func (h *Handler) Me(c fiber.Ctx) error {
 }
 
 // @Summary Change the name of the current user
-// @Tags Account
+// @Tags Profile
 // @Produce json
 // @Accept json
 // @Security BearerAuth
@@ -277,7 +277,7 @@ func (h *Handler) Me(c fiber.Ctx) error {
 // @Success 200 {object} meDTO
 // @Failure 400 {object} mapper.errorBody
 // @Failure 401 {object} mapper.errorBody
-// @Router /v1/auth/me [patch]
+// @Router /v1/me [patch]
 func (h *Handler) Rename(c fiber.Ctx) error {
 	var body renameDTO
 	if err := c.Bind().Body(&body); err != nil {
@@ -291,7 +291,7 @@ func (h *Handler) Rename(c fiber.Ctx) error {
 }
 
 // @Summary Change the password and end the other sessions
-// @Tags Password
+// @Tags Profile
 // @Accept json
 // @Security BearerAuth
 // @Param body body changePasswordDTO true "Request"
@@ -299,7 +299,7 @@ func (h *Handler) Rename(c fiber.Ctx) error {
 // @Failure 400 {object} mapper.errorBody
 // @Failure 401 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
-// @Router /v1/auth/password [post]
+// @Router /v1/me/password [post]
 func (h *Handler) ChangePassword(c fiber.Ctx) error {
 	var body changePasswordDTO
 	if err := c.Bind().Body(&body); err != nil {
@@ -318,7 +318,7 @@ func (h *Handler) ChangePassword(c fiber.Ctx) error {
 }
 
 // @Summary Send a password reset email
-// @Tags Password
+// @Tags Password reset
 // @Produce json
 // @Accept json
 // @Param body body resetRequestDTO true "Request"
@@ -343,7 +343,7 @@ func (h *Handler) RequestPasswordReset(c fiber.Ctx) error {
 }
 
 // @Summary Set a new password with a reset token
-// @Tags Password
+// @Tags Password reset
 // @Produce json
 // @Accept json
 // @Param body body resetConfirmDTO true "Request"

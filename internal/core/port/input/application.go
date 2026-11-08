@@ -10,4 +10,5 @@ type Application struct {
 	Auth       AuthService
 	Account    AccountService
 	Products   ProductService
+	Audit      AuditService
 }

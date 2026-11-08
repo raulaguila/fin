@@ -13,3 +13,14 @@ func TestPaginationCountsPartialPages(t *testing.T) {
 		}
 	}
 }
+
+func TestPermissionsCollapsesToTheWildcard(t *testing.T) {
+	all := domain.ActionCreate | domain.ActionRead | domain.ActionUpdate | domain.ActionDelete
+	got := Permissions(map[string]domain.Action{domain.ResourceAll: all, "users": all, "roles": domain.ActionRead})
+	if len(got) != 1 || len(got["*"]) != 4 {
+		t.Fatalf("got %v, want only *", got)
+	}
+	if got := Permissions(map[string]domain.Action{"users": domain.ActionRead}); len(got) != 1 || got["users"][0] != "read" {
+		t.Fatalf("got %v", got)
+	}
+}

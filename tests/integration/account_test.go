@@ -122,18 +122,40 @@ func TestNotificationsStayWithTheirOwner(t *testing.T) {
 		t.Fatalf("page 2: %d of %d, %v", len(items), total, err)
 	}
 
-	wantCode(t, svc.MarkRead(ctx, strangerID, items[0].ID), apperror.CodeNotFound)
+	wantCode(t, svc.MarkRead(ctx, strangerID, []string{items[0].ID}), apperror.CodeNotFound)
+	wantCode(t, svc.MarkRead(ctx, id, []string{}), apperror.CodeInvalidInput)
 	for range 2 { // idempotent
-		if err := svc.MarkRead(ctx, id, items[0].ID); err != nil {
+		if err := svc.MarkRead(ctx, id, []string{items[0].ID}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if unread, err := svc.CountUnread(ctx, id); err != nil || unread != 2 {
-		t.Fatalf("unread %d, %v", unread, err)
+	unread := func(user string, want int64) {
+		t.Helper()
+		if n, err := svc.CountUnread(ctx, user); err != nil || n != want {
+			t.Fatalf("unread %d, want %d, %v", n, want, err)
+		}
 	}
-	if unread, err := svc.CountUnread(ctx, strangerID); err != nil || unread != 0 {
-		t.Fatalf("stranger unread %d, %v", unread, err)
+	unread(id, 2)
+	unread(strangerID, 0)
+
+	// A list with one foreign id changes nothing.
+	all, _, err := svc.Notifications(ctx, id, domain.NewPage(1, 10))
+	if err != nil {
+		t.Fatal(err)
 	}
+	stranger := &domain.Notification{UserID: strangerID, Level: domain.NotificationInfo, Title: "t", Message: "m"}
+	if err := e.store.Notifications().Create(ctx, stranger); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, svc.MarkRead(ctx, id, []string{all[0].ID, stranger.ID}), apperror.CodeNotFound)
+	unread(id, 2)
+
+	// nil marks every one of the user's, and only theirs.
+	if err := svc.MarkRead(ctx, id, nil); err != nil {
+		t.Fatal(err)
+	}
+	unread(id, 0)
+	unread(strangerID, 1)
 }
 
 func TestNewClientNoticeSurvivesSessionCleanup(t *testing.T) {

@@ -6,14 +6,18 @@ import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { ActiveBadge, PageBody, PageHeader, StatusBadge, useFormatDate } from "@/components/bits";
+import { ActiveBadge, FormError, PageBody, PageHeader, StatusBadge, useFormatDate } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ApiError } from "@/lib/api/client";
 import { roles, users } from "@/lib/api/endpoints";
 import type { UserDetails } from "@/lib/api/types";
 import { errorMessage } from "@/lib/errors";
@@ -65,7 +69,7 @@ function RolesCard({ user }: { user: UserDetails }) {
         ) : all.isPending ? (
           <ListSkeleton rows={3} />
         ) : all.isError ? (
-          <QueryErrorState onRetry={() => void all.refetch()} />
+          <QueryErrorState error={all.error} onRetry={() => void all.refetch()} />
         ) : (
           <>
             <ul className="divide-y overflow-hidden rounded-lg border">
@@ -74,7 +78,7 @@ function RolesCard({ user }: { user: UserDetails }) {
                   <label className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent">
                     <Checkbox checked={draft.includes(r.id)} disabled={save.isPending} onCheckedChange={(on) => toggle(r.id, on === true)} />
                     <span className="min-w-0 flex-1 truncate font-medium">{r.name}</span>
-                    {r.is_default && <Badge variant="outline">{t("roles.default")}</Badge>}
+                    {r.is_default && <Badge variant="outline" title={t("roles.default_hint")}>{t("roles.default")}</Badge>}
                     {!r.enabled && <ActiveBadge enabled={false} />}
                   </label>
                 </li>
@@ -94,14 +98,93 @@ function RolesCard({ user }: { user: UserDetails }) {
   );
 }
 
+/** Creates a pending account; the person gets the activation email. */
+function InviteForm() {
+  const { t } = useI18n();
+  const router = useRouter();
+  const client = useQueryClient();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [link, setLink] = useState<string | null>(null);
+  useUnsavedGuard(!link && (name.trim() !== "" || email.trim() !== ""), t("roles.leave_unsaved"));
+  const invite = useMutation({
+    mutationFn: () => users.invite(name.trim(), email.trim()),
+    onSuccess: (res) => {
+      void client.invalidateQueries({ queryKey: ["users"] });
+      toast.success(t("users.invited"));
+      // Only a development backend hands the token back (manual delivery).
+      if (res.activation_token) setLink(`${window.location.origin}/activate?token=${encodeURIComponent(res.activation_token)}`);
+      else router.push("/admin/users");
+    },
+    onError: (err) => setError(errorMessage(err, "common.save_failed", t)),
+  });
+
+  return (
+    <Card className="max-w-xl">
+      <CardHeader>
+        <CardTitle>{t("users.invite")}</CardTitle>
+        <CardDescription>{t("users.invite_desc")}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {link ? (
+          <div className="space-y-4 text-sm">
+            <p className="text-muted-foreground">{t("users.activation_link")}</p>
+            <Input readOnly value={link} className="font-mono text-xs" onFocus={(e) => e.target.select()} />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => void navigator.clipboard.writeText(link).then(() => toast.success(t("common.copied")))}>{t("common.copy")}</Button>
+              <Button onClick={() => router.push("/admin/users")}>{t("common.done")}</Button>
+            </div>
+          </div>
+        ) : (
+          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); invite.mutate(); }}>
+            <FormError message={error} />
+            <div className="space-y-2">
+              <Label htmlFor="i-name">{t("auth.name")}</Label>
+              <Input id="i-name" required autoFocus maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="i-email">{t("auth.email")}</Label>
+              <Input id="i-email" type="email" required maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" disabled={invite.isPending} onClick={() => router.push("/admin/users")}>{t("common.cancel")}</Button>
+              <Button type="submit" disabled={invite.isPending}>
+                {invite.isPending && <Loader2 className="size-4 animate-spin" />}
+                {t("users.send_invite")}
+              </Button>
+            </div>
+          </form>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function UserDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  return id === "new" ? <InvitePage /> : <UserDetail id={id} />;
+}
+
+function InvitePage() {
+  const { t } = useI18n();
+  useCrumb(t("users.invite"));
+  return (
+    <>
+      <PageHeader title={t("users.invite")} />
+      <PageBody><InviteForm /></PageBody>
+    </>
+  );
+}
+
+function UserDetail({ id }: { id: string }) {
   const { t } = useI18n();
   const format = useFormatDate();
   const { user: me } = useMe();
   const client = useQueryClient();
-  const { id } = useParams<{ id: string }>();
   const detail = useQuery({ queryKey: ["users", "detail", id], queryFn: () => users.get(id) });
   const [confirm, setConfirm] = useState(false);
+  const [revoking, setRevoking] = useState(false);
 
   const u = detail.data;
   useCrumb(u?.name);
@@ -114,17 +197,29 @@ export default function UserDetailPage() {
       <PageHeader
         title={u?.name ?? t("nav.users")}
         description={u?.email}
-        action={canToggle && (
-          <Button variant={disabled ? "default" : "destructive"} onClick={() => setConfirm(true)}>
-            {t(disabled ? "users.enable" : "users.disable")}
-          </Button>
+        action={u && (
+          <div className="flex flex-wrap gap-2">
+            {can(me, "audit", "read") && (
+              <Button variant="outline" nativeButton={false} render={<Link href={`/admin/audit?user=${u.id}`} />}>{t("users.view_audit")}</Button>
+            )}
+            {canToggle && !disabled && (
+              <Button variant="outline" onClick={() => setRevoking(true)}>{t("users.revoke_sessions")}</Button>
+            )}
+            {canToggle && (
+              <Button variant={disabled ? "default" : "destructive"} onClick={() => setConfirm(true)}>
+                {t(disabled ? "users.enable" : "users.disable")}
+              </Button>
+            )}
+          </div>
         )}
       />
       <PageBody>
         {detail.isPending ? (
           <ListSkeleton rows={3} />
+        ) : detail.error instanceof ApiError && detail.error.code === "NOT_FOUND" ? (
+          <EmptyState title={t("error.not_found")} />
         ) : detail.isError ? (
-          <QueryErrorState onRetry={() => void detail.refetch()} />
+          <QueryErrorState error={detail.error} onRetry={() => void detail.refetch()} />
         ) : (
           <div className="grid items-start gap-6 lg:grid-cols-2">
           <Card>
@@ -151,9 +246,20 @@ export default function UserDetailPage() {
         description={t(disabled ? "users.enable_desc" : "users.disable_desc")}
         destructive={!disabled}
         onConfirm={async () => {
-          await (disabled ? users.enable(id) : users.disable(id));
+          await (disabled ? users.enable : users.disable)([id]);
           await client.invalidateQueries({ queryKey: ["users"] });
           toast.success(t("common.saved"));
+        }}
+      />
+      <ConfirmDialog
+        open={revoking}
+        onOpenChange={setRevoking}
+        title={t("users.revoke_sessions")}
+        description={t("users.revoke_sessions_desc")}
+        destructive
+        onConfirm={async () => {
+          await users.revokeSessions(id);
+          toast.success(t("users.sessions_revoked"));
         }}
       />
     </>

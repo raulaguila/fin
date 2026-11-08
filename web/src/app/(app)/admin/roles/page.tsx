@@ -2,24 +2,28 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, KeyRound, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { ActiveBadge, IconAction, PageBody, PageHeader, useFormatDate } from "@/components/bits";
-import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
+import { SortHead } from "@/components/sort-head";
 import { SelectAllHead, SelectCell, SelectionBar, useSelection } from "@/components/selection";
 import { ListSkeleton } from "@/components/skeletons";
-import { TablePagination } from "@/components/table-pagination";
+import { TablePagination, emptyPageFallback } from "@/components/table-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { roles } from "@/lib/api/endpoints";
-import type { Action, Role } from "@/lib/api/types";
+import type { Action, Role, SortOrder } from "@/lib/api/types";
 import { useMe } from "@/lib/context/me";
 import { useDebounced } from "@/lib/hooks/use-debounced";
+import { useGoToPage, useListParams } from "@/lib/hooks/use-list-params";
+import { errorMessage } from "@/lib/errors";
+import { deleteWithUndo } from "@/lib/undo-delete";
 import { useI18n } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { can, resourceText } from "@/lib/permissions";
@@ -48,18 +52,39 @@ export default function RolesPage() {
   const client = useQueryClient();
   const canEdit = can(user, "roles", "update");
   const canDelete = can(user, "roles", "delete");
-  const [deleting, setDeleting] = useState(false);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(25);
-  const [search, setSearch] = useState("");
-  const q = useDebounced(search.trim());
+  const [params, set] = useListParams({ page: 1, limit: 25, q: "", sort: "name", order: "asc" });
+  const { page, limit } = params;
+  const sort = params.sort === "created_at" ? "created_at" : "name";
+  const order: SortOrder = params.order === "desc" ? "desc" : "asc";
+  const [search, setSearch] = useState(params.q);
+  const [hidden, setHidden] = useState<string[]>([]);
+  const q = useDebounced(params.q);
   const list = useQuery({
-    queryKey: ["roles", "list", page, limit, q],
-    queryFn: () => roles.list({ page, limit, search: q }),
+    queryKey: ["roles", "list", page, limit, q, sort, order],
+    queryFn: ({ signal }) => roles.list({ page, limit, search: q, sort, order }, signal),
     placeholderData: keepPreviousData,
   });
+  const fallback = list.isPlaceholderData ? null : emptyPageFallback(page, limit, list.data);
+  useGoToPage(fallback, set); // the last rows of the last page went away
+  const items = list.data?.items.filter((r) => !hidden.includes(r.id)) ?? [];
   // A default role cannot be deleted, so it is never ticked.
-  const selection = useSelection(list.data?.items.filter((r) => !r.is_default).map((r) => r.id) ?? []);
+  const selection = useSelection(items.filter((r) => !r.is_default).map((r) => r.id));
+  const sortProps = { sort, order, onSort: (s: string, o: SortOrder) => set({ sort: s, order: o, page: 1 }) };
+  const removeSelected = () => {
+    const ids = selection.ids;
+    selection.clear();
+    setHidden((h) => [...h, ...ids]);
+    deleteWithUndo({
+      message: t("common.deleted_n").replace("{n}", String(ids.length)),
+      undoLabel: t("common.undo"),
+      run: () => roles.remove(ids),
+      onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
+      onSettled: async () => {
+        await client.invalidateQueries({ queryKey: ["roles"] });
+        setHidden((h) => h.filter((id) => !ids.includes(id)));
+      },
+    });
+  };
   const open = (id: string) => router.push(`/admin/roles/${id}`);
 
   return (
@@ -72,30 +97,30 @@ export default function RolesPage() {
       <PageBody>
         <div className="relative max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input type="search" aria-label={t("common.search")} placeholder={t("roles.search")} className="pl-9" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+          <Input type="search" aria-label={t("common.search")} placeholder={t("roles.search")} className="pl-9" value={search} onChange={(e) => { setSearch(e.target.value); set({ q: e.target.value.trim(), page: 1 }); }} />
         </div>
         {list.isPending ? (
           <ListSkeleton />
         ) : list.isError ? (
-          <QueryErrorState onRetry={() => void list.refetch()} />
-        ) : list.data.items.length === 0 ? (
-          <EmptyState icon={KeyRound} title={t("roles.empty")} />
+          <QueryErrorState error={list.error} onRetry={() => void list.refetch()} />
+        ) : items.length === 0 ? (
+          <EmptyState icon={KeyRound} title={t(q ? "common.no_results" : "roles.empty")} />
         ) : (
           <Card className="gap-0 overflow-hidden p-0">
             <Table data-responsive>
               <TableHeader>
                 <TableRow>
                   {canDelete && <SelectAllHead selection={selection} />}
-                  <TableHead>{t("auth.name")}</TableHead>
+                  <SortHead field="name" label={t("auth.name")} {...sortProps} />
                   <TableHead>{t("roles.permissions")}</TableHead>
                   <TableHead className="w-24 text-right">{t("roles.members")}</TableHead>
                   <TableHead className="w-28">{t("roles.state")}</TableHead>
-                  <TableHead className="w-44">{t("common.created_at")}</TableHead>
+                  <SortHead field="created_at" label={t("common.created_at")} className="w-44" {...sortProps} />
                   <TableHead className="w-14"><span className="sr-only">{t("common.actions")}</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {list.data.items.map((r) => (
+                {items.map((r) => (
                   <TableRow key={r.id} className="cursor-pointer" onClick={() => open(r.id)}>
                     {canDelete && <SelectCell selection={selection} id={r.id} label={r.name} disabled={r.is_default} />}
                     <TableCell data-label={t("auth.name")}>
@@ -119,29 +144,16 @@ export default function RolesPage() {
               page={page}
               pageSize={limit}
               totalItems={list.data.pagination.total_items}
-              onPageChange={setPage}
-              onPageSizeChange={(n) => { setLimit(n); setPage(1); }}
+              onPageChange={(n) => set({ page: n })}
+              onPageSizeChange={(n) => set({ limit: n, page: 1 })}
             />
           </Card>
         )}
         <p className="text-xs text-muted-foreground">{t("roles.protected_note")}</p>
         <SelectionBar selection={selection}>
-          <Button variant="destructive" onClick={() => setDeleting(true)}><Trash2 className="size-4" />{t("common.delete_selected")}</Button>
+          <Button variant="destructive" onClick={removeSelected}><Trash2 className="size-4" />{t("common.delete_selected")}</Button>
         </SelectionBar>
       </PageBody>
-      <ConfirmDialog
-        open={deleting}
-        onOpenChange={setDeleting}
-        title={t("common.delete_selected")}
-        description={t("common.delete_selected_desc")}
-        destructive
-        confirmLabel={t("common.delete")}
-        onConfirm={async () => {
-          await roles.removeMany(selection.ids);
-          selection.clear();
-          await client.invalidateQueries({ queryKey: ["roles"] });
-        }}
-      />
     </>
   );
 }

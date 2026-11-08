@@ -11,7 +11,7 @@ import (
 )
 
 //	@title						Authenticity API
-//	@description				Identity service. To call protected routes, log in and paste "Bearer <access_token>" in Authorize.
+//	@description				Identity service. Logging in from this page fills Authorize with the access token.
 //	@BasePath					/
 //	@securityDefinitions.apikey	BearerAuth
 //	@in							header
@@ -23,26 +23,28 @@ import (
 //	@tag.name			Health
 //	@tag.description	Service status
 //	@tag.name			Auth
-//	@tag.description	Login and current user
+//	@tag.description	Log in, rotate tokens and log out
 //	@tag.name			Registration
 //	@tag.description	Account creation and activation
-//	@tag.name			Password
-//	@tag.description	Password reset
+//	@tag.name			Password reset
+//	@tag.description	Forgotten password, by email
+//	@tag.name			Profile
+//	@tag.description	The current user: identity, live permissions and password
 //	@tag.name			Sessions
-//	@tag.description	Devices logged in to the account
+//	@tag.description	Devices logged in to the current account
 //	@tag.name			Preferences
 //	@tag.description	Interface choices of the current user
 //	@tag.name			Notifications
 //	@tag.description	Security notices for the current user
-//	@tag.name			Permissions
-//	@tag.description	Resources that roles may be granted
-//	@tag.name			Roles
-//	@tag.description	Roles, their permissions and members. Protected roles cannot be changed
 //	@tag.name			Users
-//	@tag.description	Accounts of other people. Users with a protected role stay out of reach
+//	@tag.description	Accounts of other people, their roles and sessions. Users with a protected role stay out of reach
+//	@tag.name			Roles
+//	@tag.description	Roles, their permissions and members, and the resources they may be granted. Protected roles cannot be changed
+//	@tag.name			Audit
+//	@tag.description	Log of administrative changes
 //	@tag.name			Products
 //	@tag.description	Product catalog
-//	@x-tagGroups		[{"name":"System","tags":["Health"]},{"name":"Identity","tags":["Auth","Registration","Password","Sessions"]},{"name":"Account","tags":["Preferences","Notifications"]},{"name":"Access","tags":["Permissions","Roles","Users"]},{"name":"Catalog","tags":["Products"]}]
+//	@x-tagGroups		[{"name":"System","tags":["Health"]},{"name":"Authentication","tags":["Auth","Registration","Password reset"]},{"name":"Account","tags":["Profile","Sessions","Preferences","Notifications"]},{"name":"Administration","tags":["Users","Roles","Audit"]},{"name":"Catalog","tags":["Products"]}]
 
 var (
 	//go:embed docs/swagger.css
@@ -63,6 +65,7 @@ func mountSwagger(app *fiber.App, version string) {
 		DisplayRequestDuration: true,
 		CustomStyle:            template.CSS(swaggerCSS),
 		CustomScript:           template.JS(swaggerJS),
+		ResponseInterceptor:    "saveToken",
 		Plugins:                []template.JS{"SwaggerUIBundle.plugins.DownloadUrl", "TagGroups"},
 	}))
 }

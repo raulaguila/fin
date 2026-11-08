@@ -1,4 +1,4 @@
-import { Home, KeyRound, Package, Users, type LucideIcon } from "lucide-react";
+import { Home, KeyRound, Package, ScrollText, Users, type LucideIcon } from "lucide-react";
 import type { Action } from "@/lib/api/types";
 import type { MessageKey } from "@/lib/i18n/messages";
 
@@ -18,6 +18,7 @@ export const MAIN_NAV: NavItem[] = [
 export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/users", key: "nav.users", icon: Users, needs: ["users", "read"] },
   { href: "/admin/roles", key: "nav.roles", icon: KeyRound, needs: ["roles", "read"] },
+  { href: "/admin/audit", key: "nav.audit", icon: ScrollText, needs: ["audit", "read"] },
 ];
 
 export function isActive(pathname: string, href: string): boolean {

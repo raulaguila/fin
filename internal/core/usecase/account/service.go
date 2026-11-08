@@ -4,6 +4,7 @@ package account
 import (
 	"context"
 	"regexp"
+	"slices"
 
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/policy"
@@ -125,11 +126,20 @@ func (s *Service) CountUnread(ctx context.Context, userID string) (int64, error)
 	return s.UOW.Notifications().CountUnread(ctx, userID)
 }
 
-func (s *Service) MarkRead(ctx context.Context, userID, notificationID string) error {
-	if err := validate.ID(notificationID); err != nil {
-		return err
+// MarkRead takes nil for "all". An empty but present list is a mistake, not "all".
+func (s *Service) MarkRead(ctx context.Context, userID string, ids []string) error {
+	if ids != nil {
+		if len(ids) == 0 || len(ids) > 100 {
+			return apperror.New(apperror.CodeInvalidInput, "ids must hold 1 to 100 ids").WithField("ids")
+		}
+		ids = slices.Compact(slices.Sorted(slices.Values(ids))) // a repeated id would fail the count check
+		for _, id := range ids {
+			if err := validate.ID(id); err != nil {
+				return err
+			}
+		}
 	}
-	found, err := s.UOW.Notifications().MarkRead(ctx, notificationID, userID, s.Clock.Now())
+	found, err := s.UOW.Notifications().MarkRead(ctx, userID, ids, s.Clock.Now())
 	if err != nil {
 		return err
 	}

@@ -21,5 +21,6 @@ type AccountService interface {
 
 	Notifications(ctx context.Context, userID string, page domain.Page) ([]domain.Notification, int64, error)
 	CountUnread(ctx context.Context, userID string) (int64, error)
-	MarkRead(ctx context.Context, userID, notificationID string) error
+	// MarkRead marks the listed notifications as read, or all of them when ids is nil.
+	MarkRead(ctx context.Context, userID string, ids []string) error
 }

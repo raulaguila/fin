@@ -111,10 +111,10 @@ func TestDisableAndEnableThroughTheAPI(t *testing.T) {
 	}
 
 	actor := e.userID(t, e.activeUser(t))
-	if err := svc.Disable(ctx, actor, id); err != nil {
+	if err := svc.DisableMany(ctx, actor, []string{id}); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.Disable(ctx, actor, id); err != nil {
+	if err := svc.DisableMany(ctx, actor, []string{id}); err != nil {
 		t.Fatal(err)
 	}
 	if got := e.userStatus(t, addr); got != domain.UserStatusDisabled {
@@ -123,7 +123,7 @@ func TestDisableAndEnableThroughTheAPI(t *testing.T) {
 	_, err = e.svc.Authenticate(ctx, pair.AccessToken)
 	wantCode(t, err, apperror.CodeUnauthorized)
 
-	if err := svc.Enable(ctx, id); err != nil {
+	if err := svc.EnableMany(ctx, []string{id}); err != nil {
 		t.Fatal(err)
 	}
 	if got := e.userStatus(t, addr); got != domain.UserStatusActive {
@@ -134,7 +134,7 @@ func TestDisableAndEnableThroughTheAPI(t *testing.T) {
 	if _, err := e.login(addr, strongPassword); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.Enable(ctx, id); err != nil { // nothing to lift: still active
+	if err := svc.EnableMany(ctx, []string{id}); err != nil { // nothing to lift: still active
 		t.Fatal(err)
 	}
 	if got := e.userStatus(t, addr); got != domain.UserStatusActive {
@@ -147,8 +147,8 @@ func TestNobodyDisablesThemselves(t *testing.T) {
 	ctx := context.Background()
 	addr := e.activeUser(t)
 	id := e.userID(t, addr)
-	wantCode(t, e.users().Disable(ctx, id, id), apperror.CodeForbidden)
-	wantCode(t, e.users().Disable(ctx, id, strings.ToUpper(id)), apperror.CodeForbidden)
+	wantCode(t, e.users().DisableMany(ctx, id, []string{id}), apperror.CodeForbidden)
+	wantCode(t, e.users().DisableMany(ctx, id, []string{strings.ToUpper(id)}), apperror.CodeForbidden)
 	if got := e.userStatus(t, addr); got != domain.UserStatusActive {
 		t.Fatalf("status %s", got)
 	}
@@ -160,12 +160,12 @@ func TestEnablingAnUnactivatedAccountKeepsItUnactivated(t *testing.T) {
 	addr := email()
 	first := e.register(t, addr)
 	id := e.userID(t, addr)
-	if err := e.users().Disable(ctx, e.userID(t, e.activeUser(t)), id); err != nil {
+	if err := e.users().DisableMany(ctx, e.userID(t, e.activeUser(t)), []string{id}); err != nil {
 		t.Fatal(err)
 	}
 	wantCode(t, e.svc.Activate(ctx, input.ActivateCommand{Token: first.ActivationToken, Password: strongPassword}), apperror.CodeConflict)
 
-	if err := e.users().Enable(ctx, id); err != nil {
+	if err := e.users().EnableMany(ctx, []string{id}); err != nil {
 		t.Fatal(err)
 	}
 	if got := e.userStatus(t, addr); got != domain.UserStatusPending {
@@ -188,8 +188,8 @@ func TestProtectedUsersChangeOnlyThroughTheOperator(t *testing.T) {
 	}
 
 	actor := e.userID(t, e.activeUser(t))
-	wantCode(t, svc.Disable(ctx, actor, id), apperror.CodeForbidden)
-	wantCode(t, svc.Enable(ctx, id), apperror.CodeForbidden)
+	wantCode(t, svc.DisableMany(ctx, actor, []string{id}), apperror.CodeForbidden)
+	wantCode(t, svc.EnableMany(ctx, []string{id}), apperror.CodeForbidden)
 	if got := e.userStatus(t, addr); got != domain.UserStatusActive {
 		t.Fatalf("status %s", got)
 	}
@@ -197,7 +197,7 @@ func TestProtectedUsersChangeOnlyThroughTheOperator(t *testing.T) {
 	if err := operator.Disable(ctx, addr); err != nil {
 		t.Fatal(err)
 	}
-	wantCode(t, svc.Enable(ctx, id), apperror.CodeForbidden)
+	wantCode(t, svc.EnableMany(ctx, []string{id}), apperror.CodeForbidden)
 	if err := operator.Enable(ctx, addr); err != nil {
 		t.Fatal(err)
 	}

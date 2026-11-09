@@ -114,8 +114,13 @@ func TestRolePermissionsApplyAtOnce(t *testing.T) {
 	ctx := context.Background()
 	perms := rbac.NewRepository(testDB)
 	svc := role.New(e.store, e.store, perms)
-	authz := authorize.New(perms)
-	userID := e.userID(t, e.activeUser(t))
+	authz := authorize.New(perms, e.clock)
+	addr := e.activeUser(t)
+	userID := e.userID(t, addr)
+	p, err := e.svc.Authenticate(ctx, e.loginAt(t, addr, "203.0.113.9").AccessToken)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	created, err := svc.Create(ctx, "t"+uuid.NewString()[:8])
 	if err != nil {
@@ -127,7 +132,7 @@ func TestRolePermissionsApplyAtOnce(t *testing.T) {
 	_, err = svc.Create(ctx, "Not Valid")
 	wantCode(t, err, apperror.CodeInvalidInput)
 
-	wantCode(t, authz.Authorize(ctx, userID, domain.ResourceProducts, domain.ActionRead), apperror.CodeForbidden)
+	wantCode(t, authz.Authorize(ctx, *p, domain.ResourceProducts, domain.ActionRead), apperror.CodeForbidden)
 
 	updated, err := svc.SetPermissions(ctx, created.ID, map[string]domain.Action{
 		domain.ResourceProducts: domain.ActionRead | domain.ActionUpdate,
@@ -142,10 +147,10 @@ func TestRolePermissionsApplyAtOnce(t *testing.T) {
 	if err := svc.AddMember(ctx, created.ID, userID); err != nil {
 		t.Fatal(err)
 	}
-	if err := authz.Authorize(ctx, userID, domain.ResourceProducts, domain.ActionUpdate); err != nil {
+	if err := authz.Authorize(ctx, *p, domain.ResourceProducts, domain.ActionUpdate); err != nil {
 		t.Fatal(err)
 	}
-	wantCode(t, authz.Authorize(ctx, userID, domain.ResourceProducts, domain.ActionDelete), apperror.CodeForbidden)
+	wantCode(t, authz.Authorize(ctx, *p, domain.ResourceProducts, domain.ActionDelete), apperror.CodeForbidden)
 
 	members, total, err := svc.Members(ctx, created.ID, domain.UserFilter{Page: domain.NewPage(1, 20)})
 	if err != nil || total != 1 || len(members) != 1 || members[0].ID != userID {
@@ -157,7 +162,7 @@ func TestRolePermissionsApplyAtOnce(t *testing.T) {
 	if err != nil || len(updated.Permissions) != 0 {
 		t.Fatalf("permissions %+v %v", updated, err)
 	}
-	wantCode(t, authz.Authorize(ctx, userID, domain.ResourceProducts, domain.ActionRead), apperror.CodeForbidden)
+	wantCode(t, authz.Authorize(ctx, *p, domain.ResourceProducts, domain.ActionRead), apperror.CodeForbidden)
 
 	_, err = svc.SetPermissions(ctx, created.ID, map[string]domain.Action{"unknown": domain.ActionRead})
 	wantCode(t, err, apperror.CodeInvalidInput)
@@ -273,5 +278,59 @@ func TestUpdateChangesOnlyWhatItCarries(t *testing.T) {
 	_, err = svc.Update(ctx, created.ID, domain.RolePatch{Name: &taken})
 	wantCode(t, err, apperror.CodeAlreadyExists)
 	_, err = svc.Update(ctx, uuid.NewString(), domain.RolePatch{Name: &name})
+	wantCode(t, err, apperror.CodeNotFound)
+}
+
+func TestAccessFollowsRolesGrantsAndSuperuser(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	repo := rbac.NewRepository(testDB)
+	svc := role.New(e.store, e.store, repo)
+	addr := e.activeUser(t)
+	userID := e.userID(t, addr)
+	p, err := e.svc.Authenticate(ctx, e.loginAt(t, addr, "203.0.113.9").AccessToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := func(resource string, mask domain.Action) {
+		t.Helper()
+		sess, got, err := repo.Access(ctx, p.SessionID, resource)
+		if err != nil || got != mask || sess.UserID != userID || sess.RevokedAt != nil {
+			t.Fatalf("%s: got %d, want %d (%+v %v)", resource, got, mask, sess, err)
+		}
+	}
+	exec := func(sql string, args ...any) {
+		t.Helper()
+		if err := testDB.Exec(sql, args...).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	want("products", 0)
+
+	a, b := newRole(t, svc), newRole(t, svc)
+	t.Cleanup(func() { _ = testDB.Exec("DELETE FROM usr.usr_user_role WHERE user_id = ?", userID).Error })
+	exec(`INSERT INTO usr.usr_role_permission (role_id, resource, actions) VALUES (?, 'products', 6), (?, 'products', 1), (?, 'users', 2)`, a.ID, b.ID, b.ID)
+	exec(`INSERT INTO usr.usr_user_role (user_id, role_id) VALUES (?, ?), (?, ?)`, userID, a.ID, userID, b.ID)
+	want("products", 7)
+	want("users", 2)
+	want("roles", 0)
+
+	exec(`UPDATE usr.usr_role SET enabled = false WHERE id = ?`, b.ID)
+	want("products", 6)
+
+	exec(`INSERT INTO usr.usr_role_permission (role_id, resource, actions) VALUES (?, '*', 1)`, a.ID)
+	want("roles", 2147483647)
+
+	exec(`DELETE FROM usr.usr_role_permission WHERE role_id = ? AND resource = '*'`, a.ID)
+	exec(`INSERT INTO usr.usr_user_role (user_id, role_id) SELECT ?, id FROM usr.usr_role WHERE name = 'admin'`, userID)
+	want("audit", 2147483647)
+
+	if err := e.svc.Logout(ctx, p.SessionID); err != nil {
+		t.Fatal(err)
+	}
+	if sess, _, err := repo.Access(ctx, p.SessionID, "audit"); err != nil || sess.RevokedAt == nil {
+		t.Fatalf("logout not seen: %+v %v", sess, err)
+	}
+	_, _, err = repo.Access(ctx, "00000000-0000-0000-0000-000000000000", "audit")
 	wantCode(t, err, apperror.CodeNotFound)
 }

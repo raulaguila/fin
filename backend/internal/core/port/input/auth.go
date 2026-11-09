@@ -58,6 +58,7 @@ type ChangePasswordCommand struct {
 // Authenticator turns an access token into who is calling, refusing dead sessions.
 type Authenticator interface {
 	Authenticate(ctx context.Context, accessToken string) (*domain.Principal, error)
+	ParseAccess(accessToken string) (*domain.Principal, error)
 }
 
 // AuthService is the inbound port for identity flows.

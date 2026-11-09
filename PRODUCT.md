@@ -11,7 +11,7 @@
 - Language / runtime: Go (`go.mod` module `github.com/raulaguila/authenticity`, Go 1.26.x)
 - HTTP: Fiber v3
 - Datastore: PostgreSQL 17 (schemas `usr`, `sys`, `app`; golang-migrate)
-- Auth crypto: RSA JWT (access/refresh), Argon2id passwords (PHC), SHA-256 for refresh `jti` and email tokens
+- Auth crypto: Ed25519 JWT (access/refresh), Argon2id passwords (PHC), SHA-256 for refresh `jti` and email tokens
 - SMTP: configured through environment variables; email tokens sealed with AES-GCM (`pkg/aescrypt`); mailer consumes the Postgres outbox with fenced leases, retries and a restricted database role
 - Deploy: Docker Compose (`authenticity_backend`, `authenticity_mailer`, `authenticity_postgres`)
 

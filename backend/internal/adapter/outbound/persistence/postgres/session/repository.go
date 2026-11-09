@@ -178,7 +178,7 @@ func (r *Repository) KnownClient(ctx context.Context, userID, ip string) (bool, 
 			SELECT 1 FROM usr.usr_session
 			WHERE user_id = ? AND ip_address BETWEEN ?::inet AND ?::inet
 		)
-	`, userID, first, last).Scan(&known).Error
+	`, userID, first, last).Find(&known).Error
 	if err != nil {
 		return false, shared.WrapError(err, "session")
 	}

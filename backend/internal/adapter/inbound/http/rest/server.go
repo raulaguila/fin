@@ -75,6 +75,8 @@ func New(cfg *config.Environment, app *input.Application, hits middleware.Hits, 
 
 	fiberApp.Use(middleware.RateLimit("global", cfg.API.GlobalRateLimit, hits))
 	bearer := middleware.Bearer(app.Auth)
+	// Resource groups check the session inside Require, with the permission.
+	token := middleware.Token(app.Auth)
 
 	v1 := fiberApp.Group("/v1")
 
@@ -89,14 +91,14 @@ func New(cfg *config.Environment, app *input.Application, hits middleware.Hits, 
 	preferencehttp.New(app.Account).Routes(me.Group("/preferences"))
 	notificationhttp.New(app.Account).Routes(me.Group("/notifications"))
 
-	permissionhttp.New(app.Resources).Routes(v1.Group("/permissions", bearer), app.Authorizer)
+	permissionhttp.New(app.Resources).Routes(v1.Group("/permissions", token), app.Authorizer)
 	roles := rolehttp.New(app.Roles)
-	roles.Routes(v1.Group("/roles", bearer), app.Authorizer)
-	users := v1.Group("/users", bearer)
+	roles.Routes(v1.Group("/roles", token), app.Authorizer)
+	users := v1.Group("/users", token)
 	usershttp.New(app.Users, app.Auth).Routes(users, app.Authorizer)
 	roles.UserRoutes(users, app.Authorizer)
-	producthttp.New(app.Products).Routes(v1.Group("/products", bearer), app.Authorizer)
-	audithttp.New(app.Audit).Routes(v1.Group("/audit", bearer), app.Authorizer)
+	producthttp.New(app.Products).Routes(v1.Group("/products", token), app.Authorizer)
+	audithttp.New(app.Audit).Routes(v1.Group("/audit", token), app.Authorizer)
 
 	return fiberApp
 }

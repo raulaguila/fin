@@ -26,7 +26,7 @@ func (r *Repository) DefaultRoleIDs(ctx context.Context) ([]string, error) {
 	var ids []string
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT id::text FROM usr.usr_role WHERE is_default AND enabled ORDER BY name
-	`).Scan(&ids).Error
+	`).Find(&ids).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "role")
 	}
@@ -35,7 +35,7 @@ func (r *Repository) DefaultRoleIDs(ctx context.Context) ([]string, error) {
 
 func (r *Repository) FindIDByName(ctx context.Context, name string) (string, error) {
 	var id string
-	err := r.db.WithContext(ctx).Raw(`SELECT id::text FROM usr.usr_role WHERE name = ?`, name).Scan(&id).Error
+	err := r.db.WithContext(ctx).Raw(`SELECT id::text FROM usr.usr_role WHERE name = ?`, name).Find(&id).Error
 	if err != nil {
 		return "", shared.WrapError(err, "role")
 	}
@@ -49,7 +49,7 @@ func (r *Repository) HasMembers(ctx context.Context, roleID string) (bool, error
 	var found bool
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT EXISTS (SELECT 1 FROM usr.usr_user_role WHERE role_id = ?)
-	`, roleID).Scan(&found).Error
+	`, roleID).Find(&found).Error
 	if err != nil {
 		return false, shared.WrapError(err, "user_role")
 	}
@@ -91,7 +91,7 @@ func (r *Repository) load(ctx context.Context, members bool, source, order strin
 		FROM r
 		LEFT JOIN usr.usr_role_permission p ON p.role_id = r.id
 		ORDER BY `+order+`, r.id, p.resource
-	`, args...).Scan(&rows).Error
+	`, args...).Find(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "role")
 	}
@@ -123,7 +123,7 @@ func (r *Repository) Page(ctx context.Context, filter domain.RoleFilter) ([]doma
 		args = append(args, shared.Contains(filter.Search))
 	}
 	var total int64
-	if err := r.db.WithContext(ctx).Raw(`SELECT count(*) FROM usr.usr_role r0 WHERE `+where, args...).Scan(&total).Error; err != nil {
+	if err := r.db.WithContext(ctx).Raw(`SELECT count(*) FROM usr.usr_role r0 WHERE `+where, args...).Find(&total).Error; err != nil {
 		return nil, 0, shared.WrapError(err, "role")
 	}
 	args = append(args, filter.Page.Limit, filter.Page.Offset())
@@ -155,7 +155,7 @@ func (r *Repository) Create(ctx context.Context, name string) (*domain.Role, err
 	err := r.db.WithContext(ctx).Raw(`
 		INSERT INTO usr.usr_role (name) VALUES (?)
 		RETURNING id::text AS id, name, enabled, is_default, is_superuser, created_at
-	`, name).Scan(&row).Error
+	`, name).Find(&row).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "role")
 	}
@@ -221,7 +221,7 @@ func (r *Repository) Members(ctx context.Context, roleID string, filter domain.U
 	}
 	from := ` FROM usr.usr_user u JOIN usr.usr_user_role m ON m.user_id = u.id WHERE ` + where
 	var total int64
-	if err := r.db.WithContext(ctx).Raw(`SELECT count(*)`+from, args...).Scan(&total).Error; err != nil {
+	if err := r.db.WithContext(ctx).Raw(`SELECT count(*)`+from, args...).Find(&total).Error; err != nil {
 		return nil, 0, shared.WrapError(err, "user_role")
 	}
 	var users []domain.User
@@ -229,7 +229,7 @@ func (r *Repository) Members(ctx context.Context, roleID string, filter domain.U
 		SELECT u.id::text AS id, u.name, u.email::text AS email, u.status, u.created_at, u.updated_at`+from+`
 		ORDER BY u.name, u.id
 		LIMIT ? OFFSET ?
-	`, append(args, filter.Page.Limit, filter.Page.Offset())...).Scan(&users).Error
+	`, append(args, filter.Page.Limit, filter.Page.Offset())...).Find(&users).Error
 	if err != nil {
 		return nil, 0, shared.WrapError(err, "user_role")
 	}

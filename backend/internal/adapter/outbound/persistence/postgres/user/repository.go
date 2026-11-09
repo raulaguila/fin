@@ -157,7 +157,7 @@ func (r *Repository) Enable(ctx context.Context, id string) error {
 
 func (r *Repository) LockStatus(ctx context.Context, id string) (string, error) {
 	var status string
-	err := r.db.WithContext(ctx).Raw(`SELECT status FROM usr.usr_user WHERE id = ? FOR SHARE`, id).Scan(&status).Error
+	err := r.db.WithContext(ctx).Raw(`SELECT status FROM usr.usr_user WHERE id = ? FOR SHARE`, id).Find(&status).Error
 	if err != nil {
 		return "", shared.WrapError(err, "user")
 	}

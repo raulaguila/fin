@@ -61,7 +61,7 @@ func (r *Repository) CountRecentFailures(ctx context.Context, email string, ip *
 	`, email, emailSince,
 		email, emailSince, first, last,
 		first, last, ipSince,
-		email, emailSince, first, last, ipSince).Scan(&out).Error
+		email, emailSince, first, last, ipSince).Find(&out).Error
 	if err != nil {
 		return output.FailureCounts{}, shared.WrapError(err, "login_attempt")
 	}

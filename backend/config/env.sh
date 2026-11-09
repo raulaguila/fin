@@ -1,8 +1,9 @@
 #!/bin/bash
 
 release_version=$(cat config/version.txt | tr -d "[:space:]")
-access_token=$(openssl genrsa 2048 | base64 | tr -d \\n)
-refresh_token=$(openssl genrsa 2048 | base64 | tr -d \\n)
+# Ed25519 keys sign the JWTs; access and refresh must differ.
+access_token=$(openssl genpkey -algorithm ed25519 | base64 | tr -d \\n)
+refresh_token=$(openssl genpkey -algorithm ed25519 | base64 | tr -d \\n)
 # 32 bytes (AES-256) as 64-char hex. Seals email tokens in sys.outbox.
 smtp_master_key=$(openssl rand -hex 32)
 postgres_pass=$(openssl rand -hex 12)
@@ -32,8 +33,8 @@ API_SHUTDOWN_TIMEOUT='30s'                      # Wait for requests in flight at
 ACCESS_TOKEN_EXPIRE='50m'                       # Access token expiration (m=min, s=seg, h=hour, default=15m)
 REFRESH_TOKEN_EXPIRE='3h'                       # Refresh token expiration (m=min, s=seg, h=hour, default=60m)
 
-ACCESS_TOKEN='${access_token}'                  # Token to encode access token - PRIVATE TOKEN
-REFRESH_TOKEN='${refresh_token}'                # Token to encode refresh token - PRIVATE TOKEN
+ACCESS_TOKEN='${access_token}'                  # Ed25519 key signing access tokens, base64 PEM (openssl genpkey -algorithm ed25519 | base64 -w0) - PRIVATE
+REFRESH_TOKEN='${refresh_token}'                # Ed25519 key signing refresh tokens, must differ from ACCESS_TOKEN - PRIVATE
 
 POSTGRES_HOST='postgres'                        # Postgres Container HOST
 POSTGRES_PORT='5444'                            # Postgres Container PORT

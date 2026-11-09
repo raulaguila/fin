@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/authenticity/internal/core/policy"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
 	"github.com/raulaguila/authenticity/pkg/apperror"
@@ -13,6 +14,7 @@ import (
 // Service loads effective permissions and checks CRUD bits.
 type Service struct {
 	Reader output.PermissionReader
+	Clock  output.Clock
 }
 
 var (
@@ -20,8 +22,8 @@ var (
 	_ input.ResourceCatalog = (*Service)(nil)
 )
 
-func New(reader output.PermissionReader) *Service {
-	return &Service{Reader: reader}
+func New(reader output.PermissionReader, clock output.Clock) *Service {
+	return &Service{Reader: reader, Clock: clock}
 }
 
 func (s *Service) LoadEffective(ctx context.Context, userID string) (*domain.EffectivePermissions, error) {
@@ -32,28 +34,27 @@ func (s *Service) LoadEffective(ctx context.Context, userID string) (*domain.Eff
 	return s.Reader.LoadEffective(ctx, userID)
 }
 
-func (s *Service) Authorize(ctx context.Context, userID, resource string, need domain.Action) error {
+func (s *Service) Authorize(ctx context.Context, p domain.Principal, resource string, need domain.Action) error {
 	if resource == "" {
 		return apperror.New(apperror.CodeInvalidInput, "resource required")
 	}
 	if need == 0 {
 		return apperror.New(apperror.CodeInvalidInput, "action required")
 	}
-
-	eff, err := s.LoadEffective(ctx, userID)
+	if p.UserID == "" || p.SessionID == "" {
+		return apperror.New(apperror.CodeUnauthorized, "unauthenticated")
+	}
+	sess, have, err := s.Reader.Access(ctx, p.SessionID, resource)
+	if apperror.IsNotFound(err) {
+		return apperror.New(apperror.CodeUnauthorized, "session not found")
+	}
 	if err != nil {
 		return err
 	}
-	if eff == nil {
-		return apperror.New(apperror.CodeForbidden, "forbidden")
+	if err := policy.CheckSession(sess, p.UserID, s.Clock.Now()); err != nil {
+		return err
 	}
-	if eff.IsSuperuser {
-		return nil
-	}
-	if _, ok := eff.ByResource[domain.ResourceAll]; ok {
-		return nil
-	}
-	if have, ok := eff.ByResource[resource]; ok && domain.Allows(have, need) {
+	if domain.Allows(have, need) {
 		return nil
 	}
 	return apperror.New(apperror.CodeForbidden, fmt.Sprintf("missing %s permission on %s", needLabel(need), resource))

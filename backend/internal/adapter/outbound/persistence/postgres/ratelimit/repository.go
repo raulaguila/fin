@@ -25,6 +25,6 @@ func (r *Repository) Hit(ctx context.Context, key string) (int64, error) {
 		INSERT INTO sys.rate_limit AS l (key, window_start) VALUES (?, date_trunc('minute', now()))
 		ON CONFLICT (key, window_start) DO UPDATE SET hits = l.hits + 1
 		RETURNING hits
-	`, key).Scan(&hits).Error
+	`, key).Find(&hits).Error
 	return hits, shared.WrapError(err, "rate limit")
 }

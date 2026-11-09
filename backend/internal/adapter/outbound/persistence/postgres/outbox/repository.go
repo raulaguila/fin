@@ -80,7 +80,7 @@ func (r *Repository) ClaimPending(ctx context.Context, limit int, now time.Time,
 		FROM cte
 		WHERE o.id = cte.id
 		RETURNING o.id, o.claim_id, COALESCE(o.request_id, '') AS request_id, o.purpose, o.payload, o.status, o.attempts, o.available_at, o.created_at, o.processed_at, o.last_error
-	`, now, limit, now.Add(lease), uuid.New()).Scan(&rows).Error
+	`, now, limit, now.Add(lease), uuid.New()).Find(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "outbox")
 	}

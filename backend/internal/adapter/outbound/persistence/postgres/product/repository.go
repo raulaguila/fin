@@ -84,7 +84,7 @@ func (r *Repository) List(ctx context.Context, filter domain.ProductFilter) ([]d
 		q = q.Offset(filter.Page.Offset())
 	}
 	var rows []row
-	err := q.Select("id, name, price::text AS price, enabled, created_at, updated_at").Order(order).Limit(filter.Page.Limit).Scan(&rows).Error
+	err := q.Select("id, name, price::text AS price, enabled, created_at, updated_at").Order(order).Limit(filter.Page.Limit).Find(&rows).Error
 	if err != nil {
 		return nil, 0, shared.WrapError(err, "product")
 	}
@@ -99,7 +99,7 @@ func (r *Repository) ListOptions(ctx context.Context, limit int) ([]domain.Produ
 	var rows []row
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT id, name FROM app.product WHERE enabled ORDER BY name, id LIMIT ?
-	`, limit).Scan(&rows).Error
+	`, limit).Find(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "product")
 	}
@@ -149,7 +149,7 @@ func (r *Repository) Update(ctx context.Context, id string, patch domain.Product
 		    updated_at = now()
 		WHERE id = ?
 		RETURNING id, name, price::text AS price, enabled, created_at, updated_at
-	`, patch.Name, patch.Price, patch.Enabled, id).Scan(&rows).Error
+	`, patch.Name, patch.Price, patch.Enabled, id).Find(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "product")
 	}

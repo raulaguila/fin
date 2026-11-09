@@ -1,7 +1,7 @@
 package tokens
 
 import (
-	"crypto/rsa"
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"time"
@@ -22,10 +22,11 @@ type refreshClaims struct {
 	jwt.RegisteredClaims
 }
 
-// Issuer signs and parses RSA JWTs.
+// Issuer signs and parses EdDSA (Ed25519) JWTs: small signatures and a cheap
+// verification, which runs on every authenticated request.
 type Issuer struct {
-	AccessKey     *rsa.PrivateKey
-	RefreshKey    *rsa.PrivateKey
+	AccessKey     ed25519.PrivateKey
+	RefreshKey    ed25519.PrivateKey
 	AccessExpire  time.Duration
 	RefreshExpire time.Duration
 }
@@ -45,7 +46,7 @@ func (i *Issuer) IssueAccess(userID, sessionID string, now time.Time) (string, e
 			ExpiresAt: jwt.NewNumericDate(now.Add(i.AccessExpire)),
 		},
 	}
-	t := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	t := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims)
 	return t.SignedString(i.AccessKey)
 }
 
@@ -60,17 +61,17 @@ func (i *Issuer) IssueRefresh(userID, sessionID string, now time.Time) (token st
 			ExpiresAt: jwt.NewNumericDate(now.Add(i.RefreshExpire)),
 		},
 	}
-	t := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	t := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims)
 	token, err = t.SignedString(i.RefreshKey)
 	return token, jti, err
 }
 
 func (i *Issuer) ParseAccess(token string) (*output.AccessClaims, error) {
 	parsed, err := jwt.ParseWithClaims(token, &accessClaims{}, func(t *jwt.Token) (any, error) {
-		if t.Method != jwt.SigningMethodRS256 {
+		if t.Method != jwt.SigningMethodEdDSA {
 			return nil, fmt.Errorf("unexpected method")
 		}
-		return &i.AccessKey.PublicKey, nil
+		return i.AccessKey.Public(), nil
 	})
 	if err != nil {
 		return nil, err
@@ -88,10 +89,10 @@ func (i *Issuer) ParseAccess(token string) (*output.AccessClaims, error) {
 
 func (i *Issuer) ParseRefresh(token string) (*output.RefreshClaims, error) {
 	parsed, err := jwt.ParseWithClaims(token, &refreshClaims{}, func(t *jwt.Token) (any, error) {
-		if t.Method != jwt.SigningMethodRS256 {
+		if t.Method != jwt.SigningMethodEdDSA {
 			return nil, fmt.Errorf("unexpected method")
 		}
-		return &i.RefreshKey.PublicKey, nil
+		return i.RefreshKey.Public(), nil
 	})
 	if err != nil {
 		return nil, err

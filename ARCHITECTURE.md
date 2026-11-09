@@ -62,7 +62,9 @@ Every query reads only what its caller uses. A hot path pays for each extra colu
 - **Expensive values stay opt-in.** Aggregates that visit many rows (`member_count` on roles) are computed only for the screen that shows them (`FindByID(ctx, id, members)`). `ForUser`, permission checks and batch loops never pay for them.
 - **One round trip where one statement can answer.** Several counts over one table use `count(*) FILTER (...)` in one query (`CountRecentFailures`). This matters most inside a transaction that holds locks.
 - **Check the cheap thing before the expensive one.** Refuse on a count before loading the rows (audit CSV export).
-- **Filters must match the indexes.** A partial index is used only when the query repeats its predicate literally (`countedFailure`).
+- **Filters must match the indexes.** A partial index is used only when the query repeats its predicate literally (`shared.CountedFailure`).
+- **Read raw SQL with `Find`, `Take` or `Row().Scan`, never `Raw(...).Scan`.** GORM's `Scan` swaps in a recorder logger that formats the full SQL with regular expressions on every call, even with logging off.
+- **Request checks share one query.** Routes behind `Require` read the session and the permission bits for that one resource together (`rbac.Access`); the token group middleware (`Token`) only verifies the JWT. Every route in those groups must run `Require` (`TestEveryTokenRouteChecksTheSession`).
 - **Bounded caches only.** GORM `PrepareStmt` stays off: its cache has no size limit, and every `IN` list length is a new statement. pgx already caches 512 statements per connection.
 - **Every list has a limit.** OFFSET pages and leading-wildcard `ILIKE` are accepted shortcuts, marked `shortcut:` with the size where they stop being enough.
 
@@ -104,7 +106,7 @@ Every query reads only what its caller uses. A hot path pays for each extra colu
 | GET/PATCH | `/v1/products/:id` |
 | POST | `/v1/products/delete`, body `{"ids": [...]}` (1 to 100), all or none |
 
-**Auth tokens:** RS256; access claims `sub`, `sid`, `jti`, `iat`, `exp`; refresh same with `jti` hashed at rest. Defaults: access 15m, refresh 60m.
+**Auth tokens:** EdDSA (Ed25519), a base64 PEM from `openssl genpkey -algorithm ed25519`; access claims `sub`, `sid`, `jti`, `iat`, `exp`; refresh same with `jti` hashed at rest. Defaults: access 15m, refresh 60m.
 
 **Errors (confirmed):** `pkg/apperror` → JSON `{code,message,field?,details?}` via `rest/mapper`; errors raised by Fiber itself (404, 405, 413) use the same shape. Login failures are always `INVALID_CREDENTIALS`: pending, disabled, locked and unknown accounts answer identically, in the same time. Register answers `201` for known emails too; internal `failure_kind` not echoed.
 
@@ -116,7 +118,7 @@ Every query reads only what its caller uses. A hot path pays for each extra colu
 
 **Pagination / idempotency:** `GET /v1/products`, `GET /v1/users`, `GET /v1/roles` and `GET /v1/me/notifications` return `{items, pagination{page,limit,total_items,total_pages}}`; limit defaults to 20, up to 100. Products, users and roles also take `sort` (allowlist) and `order`. `GET /v1/products/list` returns enabled products as id and name, up to 1000. Register is idempotent on email: an unactivated account gets a fresh token, any other answers as new and sends nothing. Outbox rows are append-only inserts (no idempotency key column today).
 
-**Contracts (authz on wire):** Bearer middleware calls `input.Authenticator`, which validates the access JWT + live session; `Require(resource, action)` calls Authorizer (fail closed).
+**Contracts (authz on wire):** Bearer middleware (`/v1/me`, logout) calls `input.Authenticator`, which validates the access JWT + live session. Resource groups use `Token`, which validates the JWT alone; their `Require(resource, action)` calls Authorizer, which checks the live session and the permission in one query (fail closed).
 
 ## Control flow
 

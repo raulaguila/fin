@@ -79,7 +79,7 @@ func NewApplication(cfg *config.Environment, res *infra.Resources, log *logger.L
 
 	authSvc.Log = log
 
-	authorizer := authorize.New(permReader)
+	authorizer := authorize.New(permReader, output.RealClock{})
 
 	return &input.Application{
 		Health:     health.New(pgHealth),

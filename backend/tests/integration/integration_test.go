@@ -2,8 +2,8 @@ package integration_test
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,7 +33,7 @@ const strongPassword = "correct horse battery"
 var (
 	testDB  *gorm.DB
 	testKey = []byte(strings.Repeat("k", 32))
-	keyPair *rsa.PrivateKey
+	keyPair ed25519.PrivateKey
 )
 
 // TestMain needs TEST_POSTGRES_URL pointing at an empty database; CI provides one.
@@ -52,7 +52,7 @@ func TestMain(m *testing.M) {
 		fmt.Println("connect:", err)
 		os.Exit(1)
 	}
-	if keyPair, err = rsa.GenerateKey(rand.Reader, 2048); err != nil {
+	if _, keyPair, err = ed25519.GenerateKey(rand.Reader); err != nil {
 		os.Exit(1)
 	}
 	os.Exit(m.Run())

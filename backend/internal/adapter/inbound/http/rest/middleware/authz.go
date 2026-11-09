@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
@@ -17,8 +18,20 @@ const (
 	LocalSessionID = "auth.session_id"
 )
 
-// Bearer authenticates the request's access token.
+// Bearer authenticates the request's access token and its session.
 func Bearer(authn input.Authenticator) fiber.Handler {
+	return bearer(func(ctx context.Context, token string) (*domain.Principal, error) {
+		return authn.Authenticate(ctx, token)
+	})
+}
+
+// Token checks the access token alone. Only for groups whose every route runs
+// Require, which checks the session with the permission in one query.
+func Token(authn input.Authenticator) fiber.Handler {
+	return bearer(func(_ context.Context, token string) (*domain.Principal, error) { return authn.ParseAccess(token) })
+}
+
+func bearer(check func(context.Context, string) (*domain.Principal, error)) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		const prefix = "Bearer "
 		header := c.Get("Authorization")
@@ -26,7 +39,7 @@ func Bearer(authn input.Authenticator) fiber.Handler {
 		if !strings.HasPrefix(header, prefix) || token == "" {
 			return mapper.WriteError(c, apperror.New(apperror.CodeUnauthorized, "missing bearer token"))
 		}
-		principal, err := authn.Authenticate(c.Context(), token)
+		principal, err := check(c.Context(), token)
 		if err != nil {
 			return mapper.WriteError(c, err)
 		}
@@ -37,14 +50,15 @@ func Bearer(authn input.Authenticator) fiber.Handler {
 	}
 }
 
-// Require enforces a CRUD action on a resource type (ADR-004). Must run after Bearer.
+// Require checks the session and enforces a CRUD action on a resource type
+// (ADR-004). Must run after Token or Bearer.
 func Require(authz input.Authorizer, resource string, need domain.Action) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		userID, _ := c.Locals(LocalUserID).(string)
-		if userID == "" {
+		p := domain.Principal{UserID: UserID(c), SessionID: SessionID(c)}
+		if p.UserID == "" {
 			return mapper.WriteError(c, apperror.New(apperror.CodeUnauthorized, "unauthenticated"))
 		}
-		if err := authz.Authorize(c.Context(), userID, resource, need); err != nil {
+		if err := authz.Authorize(c.Context(), p, resource, need); err != nil {
 			return mapper.WriteError(c, err)
 		}
 		return c.Next()

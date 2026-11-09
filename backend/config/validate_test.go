@@ -1,8 +1,8 @@
 package config
 
 import (
+	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
 	"strings"
 	"testing"
 
@@ -27,9 +27,9 @@ func productionEnv(t *testing.T) *Environment {
 	}
 }
 
-func testKey(t *testing.T) *rsa.PrivateKey {
+func testKey(t *testing.T) ed25519.PrivateKey {
 	t.Helper()
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	_, key, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}

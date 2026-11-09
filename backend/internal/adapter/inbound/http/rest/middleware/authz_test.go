@@ -17,7 +17,7 @@ type stubAuthz struct {
 	deny bool
 }
 
-func (s stubAuthz) Authorize(ctx context.Context, userID, resource string, need domain.Action) error {
+func (s stubAuthz) Authorize(_ context.Context, _ domain.Principal, _ string, _ domain.Action) error {
 	if s.deny {
 		return apperror.New(apperror.CodeForbidden, "forbidden")
 	}
@@ -71,6 +71,10 @@ func (s stubAuthn) Authenticate(_ context.Context, token string) (*domain.Princi
 		return nil, s.err
 	}
 	return &domain.Principal{UserID: "u1", SessionID: "s1"}, nil
+}
+
+func (s stubAuthn) ParseAccess(token string) (*domain.Principal, error) {
+	return s.Authenticate(context.Background(), token)
 }
 
 func TestBearer(t *testing.T) {

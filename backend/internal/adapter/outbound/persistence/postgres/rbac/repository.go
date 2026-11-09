@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"context"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -26,11 +27,40 @@ func (r *Repository) ListResources(ctx context.Context) ([]domain.Resource, erro
 	var rows []domain.Resource
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT code, description FROM usr.usr_resource ORDER BY code
-	`).Scan(&rows).Error
+	`).Find(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "resources")
 	}
 	return rows, nil
+}
+
+type accessRow struct {
+	UserID    string     `gorm:"column:user_id"`
+	ExpiresAt time.Time  `gorm:"column:expires_at"`
+	RevokedAt *time.Time `gorm:"column:revoked_at"`
+	Actions   int32      `gorm:"column:actions"`
+}
+
+// Access runs on every request behind Require: one row with the session and the
+// grants for this resource and '*' only. 2147483647 is every bit, as in the admin seed.
+func (r *Repository) Access(ctx context.Context, sessionID, resource string) (*domain.Session, domain.Action, error) {
+	var m accessRow
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT s.user_id, s.expires_at, s.revoked_at, (
+			SELECT CASE WHEN bool_or(role.is_superuser OR p.resource = '*') THEN 2147483647
+			            ELSE COALESCE(bit_or(p.actions) FILTER (WHERE p.resource = ?), 0) END
+			FROM usr.usr_user_role ur
+			JOIN usr.usr_role role ON role.id = ur.role_id AND role.enabled
+			LEFT JOIN usr.usr_role_permission p ON p.role_id = role.id AND p.resource IN (?, '*')
+			WHERE ur.user_id = s.user_id
+		) AS actions
+		FROM usr.usr_session s
+		WHERE s.id = ?
+	`, resource, resource, sessionID).Take(&m).Error
+	if err != nil {
+		return nil, 0, shared.WrapError(err, "session")
+	}
+	return &domain.Session{ID: sessionID, UserID: m.UserID, ExpiresAt: m.ExpiresAt, RevokedAt: m.RevokedAt}, domain.Action(m.Actions), nil
 }
 
 type effectiveRow struct {
@@ -54,7 +84,7 @@ func (r *Repository) LoadEffective(ctx context.Context, userID string) (*domain.
 			) AS superuser
 		) flag
 		LEFT JOIN usr.vw_user_effective_permissions p ON p.user_id = ?
-	`, userID, userID).Scan(&rows).Error
+	`, userID, userID).Find(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "permissions")
 	}

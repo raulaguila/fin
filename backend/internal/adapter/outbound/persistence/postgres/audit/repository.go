@@ -69,7 +69,7 @@ func (r *Repository) List(ctx context.Context, filter domain.AuditFilter) ([]dom
 		args = append(args, *filter.To)
 	}
 	var total int64
-	if err := r.db.WithContext(ctx).Raw(`SELECT count(*) FROM usr.usr_audit_log a WHERE `+where, args...).Scan(&total).Error; err != nil {
+	if err := r.db.WithContext(ctx).Raw(`SELECT count(*) FROM usr.usr_audit_log a WHERE `+where, args...).Find(&total).Error; err != nil {
 		return nil, 0, shared.WrapError(err, "audit log")
 	}
 	var rows []recordRow
@@ -85,7 +85,7 @@ func (r *Repository) List(ctx context.Context, filter domain.AuditFilter) ([]dom
 		WHERE `+where+`
 		ORDER BY a.created_at DESC, a.id
 		LIMIT ? OFFSET ?
-	`, append(args, filter.Page.Limit, filter.Page.Offset())...).Scan(&rows).Error
+	`, append(args, filter.Page.Limit, filter.Page.Offset())...).Find(&rows).Error
 	if err != nil {
 		return nil, 0, shared.WrapError(err, "audit log")
 	}

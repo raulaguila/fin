@@ -22,7 +22,7 @@ type stubAuthz struct {
 	resource, action *string
 }
 
-func (s stubAuthz) Authorize(_ context.Context, _, resource string, need domain.Action) error {
+func (s stubAuthz) Authorize(_ context.Context, _ domain.Principal, resource string, need domain.Action) error {
 	*s.resource, *s.action = resource, strings.Join(domain.ActionNames(need), ",")
 	return s.err
 }

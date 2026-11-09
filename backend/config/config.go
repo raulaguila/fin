@@ -1,8 +1,8 @@
 package config
 
 import (
+	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -49,23 +49,23 @@ type APIConfig struct {
 }
 
 type AuthConfig struct {
-	AccessPrivateKey             *rsa.PrivateKey `env:"ACCESS_TOKEN" default:"new"`
-	AccessExpiration             time.Duration   `env:"ACCESS_TOKEN_EXPIRE" default:"15m"`
-	RefreshPrivateKey            *rsa.PrivateKey `env:"REFRESH_TOKEN" default:"new"`
-	RefreshExpiration            time.Duration   `env:"REFRESH_TOKEN_EXPIRE" default:"60m"`
-	SessionMaxLifetime           time.Duration   `env:"AUTH_SESSION_MAX_LIFETIME" default:"720h"`
-	RegistrationTokenTTL         time.Duration   `env:"REGISTRATION_TOKEN_TTL" default:"24h"`
-	PasswordResetTokenTTL        time.Duration   `env:"PASSWORD_RESET_TOKEN_TTL" default:"2h"`
-	MaxFailedLoginAttempts       int             `env:"AUTH_MAX_FAILED_LOGIN_ATTEMPTS" default:"50"`
-	AccountLockDuration          time.Duration   `env:"AUTH_ACCOUNT_LOCK_DURATION" default:"15m"`
-	AllowManualTokenDelivery     bool            `env:"AUTH_MANUAL_TOKEN_DELIVERY" default:"0"`
-	LoginAttemptEmailWindow      time.Duration   `env:"AUTH_LOGIN_ATTEMPT_EMAIL_WINDOW" default:"15m"`
-	LoginAttemptEmailMaxFailures int             `env:"AUTH_LOGIN_ATTEMPT_EMAIL_MAX" default:"50"`
-	LoginAttemptPairMaxFailures  int             `env:"AUTH_LOGIN_ATTEMPT_PAIR_MAX" default:"5"`
-	LoginAttemptIPWindow         time.Duration   `env:"AUTH_LOGIN_ATTEMPT_IP_WINDOW" default:"1m"`
-	LoginAttemptIPMaxFailures    int             `env:"AUTH_LOGIN_ATTEMPT_IP_MAX" default:"20"`
-	EmailTokenCooldown           time.Duration   `env:"AUTH_EMAIL_TOKEN_COOLDOWN" default:"60s"`
-	EmailTokenHourlyMax          int             `env:"AUTH_EMAIL_TOKEN_HOURLY_MAX" default:"5"`
+	AccessPrivateKey             ed25519.PrivateKey `env:"ACCESS_TOKEN" default:"new"`
+	AccessExpiration             time.Duration      `env:"ACCESS_TOKEN_EXPIRE" default:"15m"`
+	RefreshPrivateKey            ed25519.PrivateKey `env:"REFRESH_TOKEN" default:"new"`
+	RefreshExpiration            time.Duration      `env:"REFRESH_TOKEN_EXPIRE" default:"60m"`
+	SessionMaxLifetime           time.Duration      `env:"AUTH_SESSION_MAX_LIFETIME" default:"720h"`
+	RegistrationTokenTTL         time.Duration      `env:"REGISTRATION_TOKEN_TTL" default:"24h"`
+	PasswordResetTokenTTL        time.Duration      `env:"PASSWORD_RESET_TOKEN_TTL" default:"2h"`
+	MaxFailedLoginAttempts       int                `env:"AUTH_MAX_FAILED_LOGIN_ATTEMPTS" default:"50"`
+	AccountLockDuration          time.Duration      `env:"AUTH_ACCOUNT_LOCK_DURATION" default:"15m"`
+	AllowManualTokenDelivery     bool               `env:"AUTH_MANUAL_TOKEN_DELIVERY" default:"0"`
+	LoginAttemptEmailWindow      time.Duration      `env:"AUTH_LOGIN_ATTEMPT_EMAIL_WINDOW" default:"15m"`
+	LoginAttemptEmailMaxFailures int                `env:"AUTH_LOGIN_ATTEMPT_EMAIL_MAX" default:"50"`
+	LoginAttemptPairMaxFailures  int                `env:"AUTH_LOGIN_ATTEMPT_PAIR_MAX" default:"5"`
+	LoginAttemptIPWindow         time.Duration      `env:"AUTH_LOGIN_ATTEMPT_IP_WINDOW" default:"1m"`
+	LoginAttemptIPMaxFailures    int                `env:"AUTH_LOGIN_ATTEMPT_IP_MAX" default:"20"`
+	EmailTokenCooldown           time.Duration      `env:"AUTH_EMAIL_TOKEN_COOLDOWN" default:"60s"`
+	EmailTokenHourlyMax          int                `env:"AUTH_EMAIL_TOKEN_HOURLY_MAX" default:"5"`
 }
 
 type PostgresConfig struct {
@@ -129,19 +129,21 @@ func init() {
 		return strings.TrimSpace(s), nil
 	})
 
-	dotenvgo.RegisterParser(func(s string) (*rsa.PrivateKey, error) {
+	// A base64 PEM from `openssl genpkey -algorithm ed25519`, or "new" for a per-process key.
+	dotenvgo.RegisterParser(func(s string) (ed25519.PrivateKey, error) {
 		if s == "new" {
-			return rsa.GenerateKey(rand.Reader, 2048)
+			_, key, err := ed25519.GenerateKey(rand.Reader)
+			return key, err
 		}
 		decoded, err := base64.StdEncoding.DecodeString(s)
 		if err != nil {
 			return nil, err
 		}
-		t, err := jwt.ParseRSAPrivateKeyFromPEM(decoded)
+		key, err := jwt.ParseEdPrivateKeyFromPEM(decoded)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("want an Ed25519 key (openssl genpkey -algorithm ed25519 | base64 -w0): %w", err)
 		}
-		return t, nil
+		return key.(ed25519.PrivateKey), nil
 	})
 }
 

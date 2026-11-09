@@ -1,19 +1,19 @@
 package tokens
 
 import (
+	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
 	"testing"
 	"time"
 )
 
 func issuer(t *testing.T) *Issuer {
 	t.Helper()
-	access, err := rsa.GenerateKey(rand.Reader, 2048)
+	_, access, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	refresh, err := rsa.GenerateKey(rand.Reader, 2048)
+	_, refresh, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -20,7 +20,7 @@ import (
 )
 
 func (e *env) httpApp() *fiber.App {
-	cfg := &config.Environment{Environment: "production", API: config.APIConfig{CorsOrigins: "https://app.acme.io", RequestTimeout: 10 * time.Second, GlobalRateLimit: 100000, AuthRateLimit: 100000, PasswordRateLimit: 100000}}
+	cfg := &config.Environment{Environment: "production", API: config.APIConfig{CorsOrigins: "https://app.acme.io", RequestTimeout: 10 * time.Second, GlobalRateLimit: 1 << 30, AuthRateLimit: 100000, PasswordRateLimit: 100000}}
 	log := logger.New(logger.Config{Format: "json", Out: io.Discard})
 	app := composition.NewApplication(cfg, &infra.Resources{PostgresDB: testDB}, log)
 	app.Auth = e.svc

@@ -20,7 +20,7 @@ import (
 // stubAuthz denies everything and records what the route asked for.
 type stubAuthz struct{ resource, action *string }
 
-func (s stubAuthz) Authorize(_ context.Context, _, resource string, need domain.Action) error {
+func (s stubAuthz) Authorize(_ context.Context, _ domain.Principal, resource string, need domain.Action) error {
 	*s.resource, *s.action = resource, strings.Join(domain.ActionNames(need), ",")
 	return apperror.New(apperror.CodeForbidden, "forbidden")
 }
@@ -68,7 +68,7 @@ func TestEveryRouteNeedsItsPermission(t *testing.T) {
 
 type allowAll struct{}
 
-func (allowAll) Authorize(context.Context, string, string, domain.Action) error { return nil }
+func (allowAll) Authorize(context.Context, domain.Principal, string, domain.Action) error { return nil }
 
 func (allowAll) LoadEffective(context.Context, string) (*domain.EffectivePermissions, error) {
 	return nil, nil

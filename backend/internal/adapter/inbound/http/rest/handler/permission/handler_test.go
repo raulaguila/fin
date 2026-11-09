@@ -17,7 +17,7 @@ import (
 
 type stubAuthz struct{ allow string }
 
-func (s stubAuthz) Authorize(_ context.Context, _, resource string, need domain.Action) error {
+func (s stubAuthz) Authorize(_ context.Context, _ domain.Principal, resource string, need domain.Action) error {
 	if resource == s.allow && need == domain.ActionRead {
 		return nil
 	}

@@ -95,7 +95,7 @@ func (r *Repository) RecordFailure(ctx context.Context, userID string, maxAttemp
 			END
 		WHERE user_id = ?
 		RETURNING locked_until
-	`, now, now, maxAttempts, lockUntil, now, userID).Scan(&out).Error
+	`, now, now, maxAttempts, lockUntil, now, userID).Find(&out).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "credential")
 	}

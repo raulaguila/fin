@@ -37,7 +37,7 @@ CREATE TABLE usr.usr_session (
     created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_seen_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT chk_usr_session_revocation_reason CHECK (
-        revocation_reason IN ('user_logout', 'token_reuse', 'password_changed', 'expired', 'account_disabled')
+        revocation_reason IN ('user_logout', 'token_reuse', 'password_changed', 'expired', 'account_disabled', 'admin_revoked')
     ),
     CONSTRAINT chk_usr_session_revocation_consistency CHECK ((revoked_at IS NULL) = (revocation_reason IS NULL))
 );
@@ -109,8 +109,7 @@ CREATE TABLE usr.usr_role (
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT chk_usr_role_name CHECK (name ~ '^[a-z0-9_-]{2,40}$')
 );
-
-CREATE UNIQUE INDEX uni_usr_role_one_default ON usr.usr_role (is_default) WHERE is_default;
+-- Several roles may be default: activation gives a new account every enabled one.
 
 CREATE TABLE usr.usr_role_permission (
     role_id      UUID         NOT NULL REFERENCES usr.usr_role (id) ON DELETE CASCADE,
@@ -155,6 +154,10 @@ CREATE TABLE usr.usr_notification (
     level      VARCHAR(10)  NOT NULL,
     title      VARCHAR(120) NOT NULL,
     message    TEXT         NOT NULL,
+    -- kind and params let each client write the notice in the user's language;
+    -- title and message stay as the English fallback.
+    kind       TEXT         NULL,
+    params     JSONB        NOT NULL DEFAULT '{}',
     read_at    TIMESTAMPTZ  NULL,
     created_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
     CONSTRAINT chk_usr_notification_level CHECK (level IN ('info', 'warning', 'critical'))
@@ -162,8 +165,8 @@ CREATE TABLE usr.usr_notification (
 
 CREATE INDEX idx_usr_notification_user_created ON usr.usr_notification (user_id, created_at DESC);
 
--- Administrative changes, written in the transaction of the change. No FK: the
--- record outlives the user. A NULL actor is the operator CLI. The app may only
+-- Administrative changes, written in the transaction of the change and readable
+-- through the API (audit:read). No FK: the record outlives the user. A NULL actor is the operator CLI. The app may only
 -- append; nothing in the schema cleans it up.
 CREATE TABLE usr.usr_audit_log (
     id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -177,6 +180,7 @@ CREATE TABLE usr.usr_audit_log (
 
 CREATE INDEX idx_usr_audit_log_created ON usr.usr_audit_log (created_at);
 CREATE INDEX idx_usr_audit_log_target ON usr.usr_audit_log (target_id, created_at);
+CREATE INDEX idx_usr_audit_log_actor ON usr.usr_audit_log (actor_id, created_at);
 REVOKE UPDATE, DELETE ON usr.usr_audit_log FROM authenticity_app;
 
 CREATE TRIGGER trg_usr_user_set_updated_at BEFORE UPDATE ON usr.usr_user
@@ -189,9 +193,9 @@ CREATE TRIGGER trg_usr_preference_set_updated_at BEFORE UPDATE ON usr.usr_prefer
     FOR EACH ROW EXECUTE FUNCTION public.fn_set_updated_at();
 
 INSERT INTO usr.usr_resource (code, description) VALUES
-    ('users',       'Accounts and profile'),
-    ('roles',       'RBAC roles'),
-    ('permissions', 'Resources and action masks');
+    ('users', 'Accounts and profile'),
+    ('roles', 'RBAC roles'),  -- reading the catalog is part of roles:read
+    ('audit', 'Audit log of administrative changes');
 
 INSERT INTO usr.usr_role (name, is_default, is_superuser) VALUES
     ('user',  true,  false),

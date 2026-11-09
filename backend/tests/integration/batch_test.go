@@ -5,6 +5,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres"
+
 	"github.com/google/uuid"
 
 	productrepo "github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/product"
@@ -120,7 +122,7 @@ func TestRoleBatchDeleteIsAllOrNothing(t *testing.T) {
 
 func TestProductBatchDeleteIsAllOrNothing(t *testing.T) {
 	ctx := context.Background()
-	svc := product.New(productrepo.NewRepository(testDB))
+	svc := product.New(productrepo.NewRepository(testDB), postgres.NewStore(testDB))
 	var ids []string
 	for _, name := range []string{"Batch A", "Batch B"} {
 		p, err := svc.Create(ctx, input.CreateProductCommand{Name: name, Price: "1"})

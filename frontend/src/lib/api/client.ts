@@ -10,18 +10,22 @@ export class ApiError extends Error {
   status: number;
   code: string;
   field?: string;
-  constructor(status: number, body: Partial<ApiErrorBody>) {
+  /** Seconds to wait before trying again, from Retry-After. */
+  retryAfter?: number;
+  constructor(status: number, body: Partial<ApiErrorBody>, retryAfter?: number) {
     super(body.message ?? `HTTP ${status}`);
     this.name = "ApiError";
     this.status = status;
     this.code = body.code ?? "UNKNOWN";
     this.field = body.field;
+    this.retryAfter = retryAfter;
   }
 }
 
 export async function errorFrom(res: Response): Promise<ApiError> {
   const body = (await res.json().catch(() => ({}))) as Partial<ApiErrorBody>;
-  return new ApiError(res.status, body);
+  const retry = Number(res.headers.get("retry-after"));
+  return new ApiError(res.status, body, Number.isFinite(retry) && retry > 0 ? retry : undefined);
 }
 
 export interface FetchOpts {

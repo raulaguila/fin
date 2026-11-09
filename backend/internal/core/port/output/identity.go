@@ -10,6 +10,8 @@ import (
 // UserRepository persists usr.usr_user.
 type UserRepository interface {
 	FindByID(ctx context.Context, id string) (*domain.User, error)
+	// Access reads the sign-in state of a user: failures since failuresSince, sessions live at now.
+	Access(ctx context.Context, id string, failuresSince, now time.Time) (*domain.UserAccess, error)
 	FindByEmail(ctx context.Context, email string) (*domain.User, error)
 	// LockStatus reads the status and holds off any change to it until the
 	// transaction ends. Inside a transaction only.
@@ -31,6 +33,8 @@ type CredentialRepository interface {
 	FindByUserID(ctx context.Context, userID string) (*domain.Credential, error)
 	// Create inserts the empty credential of a new user.
 	Create(ctx context.Context, userID string) error
+	// ClearLock lifts the account lock and its failure count, keeping the password.
+	ClearLock(ctx context.Context, userID string) error
 	// SetPassword stores a new hash and clears the lockout.
 	SetPassword(ctx context.Context, userID, hash string) error
 	// RecordFailure atomically counts a bad password, restarting the count after

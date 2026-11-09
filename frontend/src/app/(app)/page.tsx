@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { UserRoundPlus, type LucideIcon } from "lucide-react";
-import { PageBody, PageHeader } from "@/components/bits";
+import { Lock, UserRoundPlus, type LucideIcon } from "lucide-react";
+import { PageBody, PageHeader, useFormatDate } from "@/components/bits";
 import { Card } from "@/components/ui/card";
-import { products, roles, users } from "@/lib/api/endpoints";
+import { audit, products, roles, users } from "@/lib/api/endpoints";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { useMe } from "@/lib/context/me";
 import { useI18n } from "@/lib/i18n/provider";
 import { ADMIN_NAV, MAIN_NAV } from "@/lib/navigation";
@@ -20,8 +21,8 @@ const totals: Record<string, Total> = {
   "/admin/roles": { key: ["roles", "list", "total"], fn: () => roles.list({ page: 1, limit: 1 }) },
 };
 
-function StatCard({ href, label, icon: Icon, total }: { href: string; label: string; icon: LucideIcon; total?: Total }) {
-  const count = useQuery({ queryKey: total?.key ?? ["none"], queryFn: () => total!.fn(), enabled: !!total });
+function StatCard({ href, label, icon: Icon, total }: { href: string; label: string; icon: LucideIcon; total: Total }) {
+  const count = useQuery({ queryKey: total.key, queryFn: total.fn });
   return (
     <Link href={href} className="group rounded-lg focus-visible:outline-2 focus-visible:outline-ring">
       <Card className="h-full gap-2 p-4 transition-colors group-hover:bg-muted">
@@ -29,19 +30,55 @@ function StatCard({ href, label, icon: Icon, total }: { href: string; label: str
           <span className="text-sm text-muted-foreground">{label}</span>
           <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
         </div>
-        <span className="text-2xl font-semibold tabular-nums">{total ? (count.data?.pagination.total_items ?? "—") : "→"}</span>
+        <span className="text-2xl font-semibold tabular-nums">{count.data?.pagination.total_items ?? "—"}</span>
       </Card>
     </Link>
+  );
+}
+
+/** The latest audit records, so a returning admin sees what changed. */
+function RecentActivity() {
+  const { t } = useI18n();
+  const format = useFormatDate();
+  const recent = useQuery({ queryKey: ["audit", "recent"], queryFn: ({ signal }) => audit.list({ page: 1, limit: 5 }, signal) });
+  const label = (a: string) => {
+    const text = t(`audit.action.${a}` as MessageKey);
+    return text.startsWith("audit.action.") ? a : text;
+  };
+  return (
+    <Card className="gap-3 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-medium">{t("home.recent")}</h2>
+        <Link href="/admin/audit" className="text-sm text-muted-foreground hover:underline">{t("home.see_all")}</Link>
+      </div>
+      {recent.data?.items.length === 0 && <p className="text-sm text-muted-foreground">{t("home.no_activity")}</p>}
+      <ul className="divide-y">
+        {recent.data?.items.map((r) => (
+          <li key={r.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2 text-sm">
+            <span className="min-w-0 truncate">
+              <span className="font-medium">{r.actor_name || r.actor_email || t("audit.system")}</span>{" "}
+              <span className="text-muted-foreground">{label(r.action)}</span>{" "}
+              {r.target_label}
+            </span>
+            <span className="text-xs text-muted-foreground tabular-nums">{format(r.created_at)}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 
 export default function HomePage() {
   const { t } = useI18n();
   const { user } = useMe();
-  const items = [...MAIN_NAV, ...ADMIN_NAV].filter((item) => item.href !== "/" && (!item.needs || can(user, ...item.needs)));
+  const items = [...MAIN_NAV, ...ADMIN_NAV].filter((item) => totals[item.href] && (!item.needs || can(user, ...item.needs)));
   const pending: Total = {
     key: ["users", "total", "pending"],
     fn: () => users.list({ page: 1, limit: 1, status: "pending" }),
+  };
+  const locked: Total = {
+    key: ["users", "total", "locked"],
+    fn: () => users.list({ page: 1, limit: 1, status: "locked" }),
   };
   return (
     <>
@@ -50,7 +87,9 @@ export default function HomePage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => <StatCard key={item.href} href={item.href} label={t(item.key)} icon={item.icon} total={totals[item.href]} />)}
           {can(user, "users", "read") && <StatCard href="/admin/users?status=pending" label={t("home.pending")} icon={UserRoundPlus} total={pending} />}
+          {can(user, "users", "read") && <StatCard href="/admin/users?status=locked" label={t("home.locked")} icon={Lock} total={locked} />}
         </div>
+        {can(user, "audit", "read") && <div className="mt-6"><RecentActivity /></div>}
       </PageBody>
     </>
   );

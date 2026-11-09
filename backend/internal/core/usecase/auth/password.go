@@ -100,6 +100,7 @@ func (s *Service) ConfirmPasswordReset(ctx context.Context, cmd input.ConfirmPas
 		if err := uow.Notifications().Create(ctx, &domain.Notification{
 			UserID:  tok.UserID,
 			Level:   domain.NotificationWarning,
+			Kind:    domain.NotifyPasswordReset,
 			Title:   "Password changed",
 			Message: "Your password was changed and every session was ended.",
 		}); err != nil {
@@ -145,6 +146,7 @@ func (s *Service) ChangePassword(ctx context.Context, cmd input.ChangePasswordCo
 		return uow.Notifications().Create(ctx, &domain.Notification{
 			UserID:  cmd.UserID,
 			Level:   domain.NotificationWarning,
+			Kind:    domain.NotifyPasswordChanged,
 			Title:   "Password changed",
 			Message: "Your password was changed and your other sessions were ended.",
 		})

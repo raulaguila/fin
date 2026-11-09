@@ -2,7 +2,10 @@ package integration_test
 
 import (
 	"context"
+	"slices"
 	"testing"
+
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres"
 
 	productrepo "github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/product"
 	"github.com/raulaguila/authenticity/internal/core/domain"
@@ -16,7 +19,7 @@ func TestProductListPagesSearchesAndSorts(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	svc := product.New(productrepo.NewRepository(testDB))
+	svc := product.New(productrepo.NewRepository(testDB), postgres.NewStore(testDB))
 	for _, p := range []struct {
 		name, price string
 		enabled     bool
@@ -72,7 +75,7 @@ func TestProductListPagesSearchesAndSorts(t *testing.T) {
 
 func TestProductUpdateReturnsNewTimestamp(t *testing.T) {
 	ctx := context.Background()
-	svc := product.New(productrepo.NewRepository(testDB))
+	svc := product.New(productrepo.NewRepository(testDB), postgres.NewStore(testDB))
 	p, err := svc.Create(ctx, input.CreateProductCommand{Name: "Stamp", Price: "1"})
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +92,7 @@ func TestProductUpdateReturnsNewTimestamp(t *testing.T) {
 
 func TestProductUpdateKeepsFieldsItDoesNotCarry(t *testing.T) {
 	ctx := context.Background()
-	svc := product.New(productrepo.NewRepository(testDB))
+	svc := product.New(productrepo.NewRepository(testDB), postgres.NewStore(testDB))
 	p, err := svc.Create(ctx, input.CreateProductCommand{Name: "Patch", Price: "5"})
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +115,7 @@ func TestProductUpdateKeepsFieldsItDoesNotCarry(t *testing.T) {
 
 func TestProductPriceSortUsesNumericColumn(t *testing.T) {
 	ctx := context.Background()
-	svc := product.New(productrepo.NewRepository(testDB))
+	svc := product.New(productrepo.NewRepository(testDB), postgres.NewStore(testDB))
 	for _, p := range []struct{ name, price string }{{"Sort audit two", "2"}, {"Sort audit ten", "10"}, {"Sort audit hundred", "100"}} {
 		if _, err := svc.Create(ctx, input.CreateProductCommand{Name: p.name, Price: p.price}); err != nil {
 			t.Fatal(err)
@@ -140,7 +143,7 @@ func TestProductPriceSortUsesNumericColumn(t *testing.T) {
 
 func TestProductCursorTraversesTiesWithoutCounting(t *testing.T) {
 	ctx := context.Background()
-	svc := product.New(productrepo.NewRepository(testDB))
+	svc := product.New(productrepo.NewRepository(testDB), postgres.NewStore(testDB))
 	if err := testDB.Exec("DELETE FROM app.product").Error; err != nil {
 		t.Fatal(err)
 	}
@@ -180,5 +183,35 @@ func TestProductCursorTraversesTiesWithoutCounting(t *testing.T) {
 	filter.Sort = "price"
 	if _, _, err := svc.List(ctx, filter); !apperror.IsCode(err, apperror.CodeInvalidInput) {
 		t.Fatalf("unsupported cursor sort: %v", err)
+	}
+}
+
+func TestProductChangesAreAudited(t *testing.T) {
+	ctx := context.Background()
+	store := postgres.NewStore(testDB)
+	svc := product.New(productrepo.NewRepository(testDB), store)
+	p, err := svc.Create(ctx, input.CreateProductCommand{Name: "Audited " + t.Name(), Price: "9.5"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	price := "10"
+	if _, err := svc.Update(ctx, input.UpdateProductCommand{ID: p.ID, Price: &price}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.DeleteMany(ctx, []string{p.ID}); err != nil {
+		t.Fatal(err)
+	}
+	records, _, err := store.Audit().List(ctx, domain.AuditFilter{Action: "product.", Page: domain.NewPage(1, 100)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, r := range records {
+		if r.TargetID == p.ID {
+			got = append(got, r.Action)
+		}
+	}
+	if want := []string{"product.delete", "product.update", "product.create"}; !slices.Equal(got, want) {
+		t.Fatalf("audit %v, want %v", got, want)
 	}
 }

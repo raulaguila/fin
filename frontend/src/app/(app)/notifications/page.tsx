@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { notifications } from "@/lib/api/endpoints";
 import type { Notification } from "@/lib/api/types";
 import { useGoToPage, useListParams } from "@/lib/hooks/use-list-params";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
 
@@ -22,9 +23,22 @@ const ICON: Record<Notification["level"], { icon: typeof Info; cls: string }> = 
   critical: { icon: OctagonAlert, cls: "bg-destructive/10 text-destructive" },
 };
 
+/** The text in the user's language when the kind is known; the server's English otherwise. */
+function useNotificationText() {
+  const { t } = useI18n();
+  const format = useFormatDate();
+  return (n: Notification) => {
+    if (!n.kind) return { title: n.title, message: n.message };
+    const params: Record<string, string> = { ...n.params, until: n.params?.until ? format(n.params.until) : "" };
+    const fill = (key: string) => t(key as MessageKey).replace(/\{(\w+)\}/g, (_, k: string) => params[k] ?? "");
+    return { title: fill(`notifications.kind.${n.kind}.title`), message: fill(`notifications.kind.${n.kind}.message`) };
+  };
+}
+
 export default function NotificationsPage() {
   const { t } = useI18n();
   const format = useFormatDate();
+  const text = useNotificationText();
   const client = useQueryClient();
   const [{ page, limit }, set] = useListParams({ page: 1, limit: 25 });
   const list = useQuery({
@@ -63,17 +77,19 @@ export default function NotificationsPage() {
             <ul className="divide-y">
               {list.data.items.map((n) => {
                 const { icon: Icon, cls } = ICON[n.level];
+                const { title, message } = text(n);
                 return (
-                  <li key={n.id} className={cn("flex gap-3 px-4 py-3", !n.read_at && "bg-primary/[0.03]")}>
+                  <li key={n.id} className={cn("flex gap-3 border-l-2 border-transparent px-4 py-3", !n.read_at && "border-l-primary bg-primary/[0.05]")}>
                     <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-full", cls)}>
                       <Icon className="size-4" />
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-baseline gap-x-2">
-                        <span className={cn("text-sm", !n.read_at && "font-semibold")}>{n.title}</span>
+                        {!n.read_at && <span className="size-2 self-center rounded-full bg-primary" role="img" aria-label={t("notifications.unread")} />}
+                        <span className={cn("text-sm", !n.read_at && "font-semibold")}>{title}</span>
                         <span className="text-xs text-muted-foreground">{format(n.created_at)}</span>
                       </div>
-                      <p className="mt-0.5 text-sm text-muted-foreground">{n.message}</p>
+                      <p className="mt-0.5 text-sm text-muted-foreground">{message}</p>
                     </div>
                     {!n.read_at && (
                       <Button variant="ghost" size="sm" disabled={markRead.isPending} onClick={() => markRead.mutate([n.id])}>

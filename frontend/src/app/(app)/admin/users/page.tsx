@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, Pencil, Search, UserCheck, UserPlus, UserX, Users } from "lucide-react";
@@ -107,7 +108,7 @@ export default function UsersPage() {
           <EmptyState icon={Users} title={t(q || status || role ? "common.no_results" : "users.empty")} />
         ) : (
           <Card className="gap-0 overflow-hidden p-0">
-            <Table data-responsive>
+            <Table data-responsive data-compact>
               <TableHeader>
                 <TableRow>
                   {canBulk && <SelectAllHead selection={selection} />}
@@ -122,13 +123,14 @@ export default function UsersPage() {
                 {list.data.items.map((u) => (
                   <TableRow key={u.id} className="cursor-pointer" onClick={() => router.push(`/admin/users/${u.id}`)}>
                     {canBulk && <SelectCell selection={selection} id={u.id} label={u.name} disabled={u.id === user?.id} />}
-                    <TableCell data-label={t("auth.name")}>
-                      <span className="font-medium">{u.name}</span>
+                    <TableCell data-label={t("auth.name")} data-cell="name">
+                      {/* the keyboard way into the record on phones, where the action button is hidden */}
+                      <Link href={`/admin/users/${u.id}`} className="font-medium hover:underline" onClick={(e) => e.stopPropagation()}>{u.name}</Link>
                     </TableCell>
-                    <TableCell data-label={t("auth.email")}>{u.email}</TableCell>
-                    <TableCell data-label={t("users.status")}><StatusBadge status={u.status} /></TableCell>
-                    <TableCell data-label={t("common.created_at")} className="text-muted-foreground">{format(u.created_at)}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell data-label={t("auth.email")} data-cell="email" className="text-muted-foreground lg:text-foreground">{u.email}</TableCell>
+                    <TableCell data-label={t("users.status")} data-cell="status"><StatusBadge status={u.status} /></TableCell>
+                    <TableCell data-label={t("common.created_at")} data-cell="date" className="text-muted-foreground">{format(u.created_at)}</TableCell>
+                    <TableCell data-cell="action" className="text-right">
                       <IconAction label={t(canEdit ? "common.edit" : "common.view")} target={u.name} onClick={() => router.push(`/admin/users/${u.id}`)}>
                         {canEdit ? <Pencil className="size-4" /> : <Eye className="size-4" />}
                       </IconAction>

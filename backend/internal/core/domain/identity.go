@@ -68,7 +68,17 @@ type UserFilter struct {
 // UserDetails is a user with the roles it holds.
 type UserDetails struct {
 	User
-	Roles []Role
+	Roles  []Role
+	Access *UserAccess // only the detail screen loads it
+}
+
+// UserAccess says why a user may fail to sign in.
+type UserAccess struct {
+	LastLoginAt    *time.Time
+	FailedLogins   int        // bad passwords toward the account lock
+	LockedUntil    *time.Time // account lock; nil or past means none
+	RecentFailures int        // counted failures inside the email window, from any client
+	ActiveSessions int
 }
 
 // Credential is 1:1 with User.

@@ -36,7 +36,7 @@ export function AuthCard({
               <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>
             )}
             {/* Auth field / button sizing — Dolphin-like controls */}
-            <div className="mt-6 space-y-5 lg:mt-2 [&_[data-slot=button]]:h-11 [&_[data-slot=button]]:rounded-md [&_[data-slot=input]]:h-11 [&_[data-slot=input]]:rounded-md [&_[data-slot=input]]:px-3 [&_[data-slot=input]]:text-base [&_[data-slot=input]]:md:text-sm [&_[data-slot=input]]:shadow-none [&_[data-slot=input]]:focus-visible:ring-1 [&_[data-slot=input]]:focus-visible:ring-ring/40">
+            <div className="mt-6 space-y-5 [&_[data-slot=button]]:h-11 [&_[data-slot=button]]:rounded-md [&_[data-slot=input]]:h-11 [&_[data-slot=input]]:rounded-md [&_[data-slot=input]]:px-3 [&_[data-slot=input]]:text-base [&_[data-slot=input]]:md:text-sm [&_[data-slot=input]]:shadow-none [&_[data-slot=input]]:focus-visible:ring-1 [&_[data-slot=input]]:focus-visible:ring-ring/40">
               {children}
             </div>
           </div>

@@ -36,6 +36,7 @@ func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
 	r.Get("/:id", read, h.Get)
 	r.Post("/disable", update, h.Disable)
 	r.Post("/enable", update, h.Enable)
+	r.Post("/unlock", update, h.Unlock)
 	r.Delete("/:id/sessions", update, h.RevokeSessions)
 }
 
@@ -55,7 +56,16 @@ type roleDTO struct {
 
 type detailsDTO struct {
 	userDTO
-	Roles []roleDTO `json:"roles"`
+	Roles  []roleDTO  `json:"roles"`
+	Access *accessDTO `json:"access,omitempty"`
+}
+
+type accessDTO struct {
+	LastLoginAt    *time.Time `json:"last_login_at"`
+	FailedLogins   int        `json:"failed_logins"`   // toward the account lock
+	LockedUntil    *time.Time `json:"locked_until"`    // past or null: not locked
+	RecentFailures int        `json:"recent_failures"` // inside the login email window
+	ActiveSessions int        `json:"active_sessions" example:"2"`
 }
 
 func toDTO(u domain.User) userDTO {
@@ -120,6 +130,9 @@ func (h *Handler) Get(c fiber.Ctx) error {
 	for _, r := range user.Roles {
 		out.Roles = append(out.Roles, roleDTO{ID: r.ID, Name: r.Name})
 	}
+	if a := user.Access; a != nil {
+		out.Access = &accessDTO{a.LastLoginAt, a.FailedLogins, a.LockedUntil, a.RecentFailures, a.ActiveSessions}
+	}
 	return c.JSON(out)
 }
 
@@ -176,6 +189,30 @@ func (h *Handler) Enable(c fiber.Ctx) error {
 	ids, err := h.bindIDs(c)
 	if err == nil {
 		err = h.svc.EnableMany(c.Context(), ids)
+	}
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// @Summary Let users sign in again: lift the account lock and forget recent failed logins. All or none
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param body body idsDTO true "User IDs, 1 to 100"
+// @Security BearerAuth
+// @Success 204
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Failure 403 {object} mapper.errorBody
+// @Failure 404 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
+// @Router /v1/users/unlock [post]
+func (h *Handler) Unlock(c fiber.Ctx) error {
+	ids, err := h.bindIDs(c)
+	if err == nil {
+		err = h.svc.UnlockMany(c.Context(), ids)
 	}
 	if err != nil {
 		return mapper.WriteError(c, err)

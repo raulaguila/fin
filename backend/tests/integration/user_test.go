@@ -16,7 +16,9 @@ import (
 	"github.com/raulaguila/authenticity/pkg/apperror"
 )
 
-func (e *env) users() *user.Service { return user.New(e.store, e.store, e.clock) }
+func (e *env) users() *user.Service {
+	return user.New(e.store, e.store, e.clock, e.svc.Cfg.LoginAttemptEmailWindow)
+}
 
 func listed(t *testing.T, svc *user.Service, filter domain.UserFilter) map[string]bool {
 	t.Helper()
@@ -254,4 +256,52 @@ func TestSentinelGrantProtectsItsMembers(t *testing.T) {
 		t.Fatalf("members %d %v", total, members)
 	}
 	wantCode(t, roles.RemoveMember(ctx, plain.ID, e.userID(t, addr)), apperror.CodeForbidden)
+}
+
+func TestUnlockLetsALockedUserBackIn(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	addr := e.activeUser(t)
+	id := e.userID(t, addr)
+	for range 3 { // the account lock
+		_, _ = e.login(addr, "wrong password")
+	}
+	_, err := e.login(addr, strongPassword)
+	wantCode(t, err, apperror.CodeInvalidCredentials)
+
+	details, err := e.users().Get(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a := details.Access; a == nil || a.LockedUntil == nil || a.RecentFailures < 3 || details.Status != domain.UserStatusLocked {
+		t.Fatalf("access before unlock: %+v %s", details.Access, details.Status)
+	}
+
+	if err := e.users().UnlockMany(ctx, []string{id}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.login(addr, strongPassword); err != nil {
+		t.Fatalf("login after unlock: %v", err)
+	}
+	details, err = e.users().Get(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a := details.Access; a.LockedUntil != nil || a.RecentFailures != 0 || a.ActiveSessions != 1 || a.LastLoginAt == nil {
+		t.Fatalf("access after unlock: %+v", a)
+	}
+}
+
+func TestUnlockKeepsAPendingUserPending(t *testing.T) {
+	e := newEnv(t)
+	addr := "pending-" + uuid.NewString()[:8] + "@example.test"
+	if _, err := e.svc.Register(context.Background(), input.RegisterCommand{Name: "Pending", Email: addr}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.users().UnlockMany(context.Background(), []string{e.userID(t, addr)}); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.userStatus(t, addr); got != domain.UserStatusPending {
+		t.Fatalf("status %s", got)
+	}
 }

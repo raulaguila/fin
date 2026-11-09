@@ -92,3 +92,17 @@ export function IconAction({ label, target, className, onClick, children }: { la
     </Tooltip>
   );
 }
+
+/** The page's destructive action, kept apart at the bottom so it is never the first button in sight. */
+export function DangerZone({ description, label, onClick }: { description: string; label: string; onClick: () => void }) {
+  const { t } = useI18n();
+  return (
+    <section aria-labelledby="danger-zone" className="mt-8 flex max-w-xl flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 p-4">
+      <div className="min-w-0 flex-1 space-y-1">
+        <h2 id="danger-zone" className="text-sm font-medium text-destructive">{t("common.danger_zone")}</h2>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
+      <Button variant="destructive" onClick={onClick}>{label}</Button>
+    </section>
+  );
+}

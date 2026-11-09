@@ -78,8 +78,10 @@ func (s *Service) revokeForReuse(ctx context.Context, sess *domain.Session, now 
 	if err := s.UOW.Sessions().Revoke(ctx, sess.ID, now, domain.RevokeTokenReuse); err != nil {
 		return err
 	}
-	s.notify(ctx, sess.UserID, domain.NotificationCritical, "Session ended",
-		"An old refresh token was used again, so that session was ended. If it was not you, change your password.")
+	s.notify(ctx, domain.Notification{
+		UserID: sess.UserID, Level: domain.NotificationCritical, Kind: domain.NotifySessionReused, Title: "Session ended",
+		Message: "An old refresh token was used again, so that session was ended. If it was not you, change your password.",
+	})
 	return apperror.New(apperror.CodeUnauthorized, "refresh token reuse detected")
 }
 

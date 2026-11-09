@@ -47,6 +47,7 @@ func TestEveryRouteNeedsItsPermission(t *testing.T) {
 		{"GET", "/users/u1", "read"},
 		{"POST", "/users/disable", "update"},
 		{"POST", "/users/enable", "update"},
+		{"POST", "/users/unlock", "update"},
 		{"DELETE", "/users/u1/sessions", "update"},
 		{"POST", "/users", "create"},
 	} {

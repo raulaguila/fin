@@ -65,6 +65,8 @@
     oklch(0.514480 0.176592 265.697500),
     oklch(0.514480 0.176592 265.697500)
   );
+  --brand-foreground: oklch(0.99 0 0);
+  --brand-panel: var(--gradient-brand);
 
   /* Semantic neutral ladder: chrome → canvas → cards → interaction states.
      Opaque levels make hover/selection readable on every surface. */
@@ -137,6 +139,9 @@
     oklch(0.747312 0.129614 272.266084),
     oklch(0.747312 0.129614 272.266084)
   );
+  /* The brand panel stays deep in dark mode: the light primary would glare. Buttons keep --gradient-brand. */
+  --brand-panel: linear-gradient(135deg, oklch(0.36 0.12 268), oklch(0.28 0.09 270));
+  --brand-foreground: oklch(0.96 0.01 270);
   --background: oklch(.18 0 0);
   --content: oklch(.18 0 0);
   --foreground: oklch(.94 0 0);

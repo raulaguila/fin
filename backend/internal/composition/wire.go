@@ -6,7 +6,6 @@ import (
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/emailpayload"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/outbox"
-	productrepo "github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/product"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/ratelimit"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/rbac"
 	smtpmail "github.com/raulaguila/authenticity/internal/adapter/outbound/smtp"
@@ -87,10 +86,10 @@ func NewApplication(cfg *config.Environment, res *infra.Resources, log *logger.L
 		Authorizer: authorizer,
 		Resources:  authorizer,
 		Roles:      rolesvc.New(store, store, permReader),
-		Users:      usersvc.New(store, store, output.RealClock{}),
+		Users:      usersvc.New(store, store, output.RealClock{}, cfg.Auth.LoginAttemptEmailWindow),
 		Auth:       authSvc,
 		Account:    account.New(store, permReader, output.RealClock{}),
-		Products:   product.New(productrepo.NewRepository(res.PostgresDB)),
+		Products:   product.New(store.Products(), store),
 		Audit:      auditsvc.New(store.Audit()),
 	}
 }

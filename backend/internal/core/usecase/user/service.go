@@ -6,6 +6,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/raulaguila/authenticity/internal/core/policy"
 
@@ -29,12 +30,14 @@ type Service struct {
 	UOW   output.IdentityStore
 	Tx    output.TxManager
 	Clock output.Clock
+	// FailureWindow is the login email window: the failures Unlock forgets and Get counts.
+	FailureWindow time.Duration
 }
 
 var _ input.UserService = (*Service)(nil)
 
-func New(uow output.IdentityStore, tx output.TxManager, clock output.Clock) *Service {
-	return &Service{UOW: uow, Tx: tx, Clock: clock}
+func New(uow output.IdentityStore, tx output.TxManager, clock output.Clock, failureWindow time.Duration) *Service {
+	return &Service{UOW: uow, Tx: tx, Clock: clock, FailureWindow: failureWindow}
 }
 
 func (s *Service) List(ctx context.Context, filter domain.UserFilter) ([]domain.User, int64, error) {
@@ -57,7 +60,34 @@ func (s *Service) List(ctx context.Context, filter domain.UserFilter) ([]domain.
 }
 
 func (s *Service) Get(ctx context.Context, id string) (*domain.UserDetails, error) {
-	return policy.Reachable(ctx, s.UOW, id)
+	details, err := policy.Reachable(ctx, s.UOW, id)
+	if err != nil {
+		return nil, err
+	}
+	now := s.Clock.Now()
+	if details.Access, err = s.UOW.Users().Access(ctx, details.ID, now.Add(-s.FailureWindow), now); err != nil {
+		return nil, err
+	}
+	return details, nil
+}
+
+// UnlockMany lets users sign in again: it lifts the account lock and forgets the
+// recent failures counted against their email. A pending or disabled user stays so.
+func (s *Service) UnlockMany(ctx context.Context, ids []string) error {
+	return s.each(ctx, ids, func(ctx context.Context, uow output.UnitOfWork, target *domain.UserDetails) error {
+		if err := uow.Credentials().ClearLock(ctx, target.ID); err != nil {
+			return err
+		}
+		if target.Status == domain.UserStatusLocked {
+			if err := uow.Users().UpdateStatus(ctx, target.ID, domain.UserStatusActive); err != nil {
+				return err
+			}
+		}
+		if err := uow.Attempts().ClearFailures(ctx, target.Email, s.Clock.Now().Add(-s.FailureWindow)); err != nil {
+			return err
+		}
+		return policy.Audit(ctx, uow, "user.unlock", target.ID, nil)
+	})
 }
 
 // DisableMany refuses the caller's own account, compared on the stored id: the

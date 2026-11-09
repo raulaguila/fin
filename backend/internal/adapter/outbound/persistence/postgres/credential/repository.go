@@ -59,6 +59,13 @@ func (r *Repository) Create(ctx context.Context, userID string) error {
 	return shared.WrapError(err, "credential")
 }
 
+func (r *Repository) ClearLock(ctx context.Context, userID string) error {
+	err := r.db.WithContext(ctx).Exec(`
+		UPDATE usr.usr_credential SET failed_login_attempts = 0, locked_until = NULL WHERE user_id = ?
+	`, userID).Error
+	return shared.WrapError(err, "credential")
+}
+
 func (r *Repository) SetPassword(ctx context.Context, userID, hash string) error {
 	res := r.db.WithContext(ctx).Exec(`
 		UPDATE usr.usr_credential

@@ -2549,6 +2549,71 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/users/unlock": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Let users sign in again: lift the account lock and forget recent failed logins. All or none",
+                "parameters": [
+                    {
+                        "description": "User IDs, 1 to 100",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.idsDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/users/{id}": {
             "get": {
                 "security": [
@@ -3022,12 +3087,23 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "kind": {
+                    "description": "translate by this; title and message are the English fallback",
+                    "type": "string",
+                    "example": "account_locked"
+                },
                 "level": {
                     "type": "string",
                     "example": "warning"
                 },
                 "message": {
                     "type": "string"
+                },
+                "params": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 },
                 "read_at": {
                     "type": "string"
@@ -3282,9 +3358,36 @@ const docTemplate = `{
                 }
             }
         },
+        "user.accessDTO": {
+            "type": "object",
+            "properties": {
+                "active_sessions": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "failed_logins": {
+                    "description": "toward the account lock",
+                    "type": "integer"
+                },
+                "last_login_at": {
+                    "type": "string"
+                },
+                "locked_until": {
+                    "description": "past or null: not locked",
+                    "type": "string"
+                },
+                "recent_failures": {
+                    "description": "inside the login email window",
+                    "type": "integer"
+                }
+            }
+        },
         "user.detailsDTO": {
             "type": "object",
             "properties": {
+                "access": {
+                    "$ref": "#/definitions/user.accessDTO"
+                },
                 "created_at": {
                     "type": "string"
                 },

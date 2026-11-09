@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { FormError, PageBody, PageHeader } from "@/components/bits";
+import { DangerZone, FormError, PageBody, PageHeader } from "@/components/bits";
+import { CURRENCY } from "@/lib/brand";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
@@ -27,20 +28,24 @@ import { useCrumb } from "@/lib/store/crumb";
 
 /** Create when `product` is null, edit otherwise. Price stays a decimal string end to end. */
 function ProductForm({ product, editable }: { product: Product | null; editable: boolean }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const router = useRouter();
   const client = useQueryClient();
+  // Shown with the language's decimal mark; sent with a dot.
+  const comma = (1.5).toLocaleString(locale).includes(",");
+  const symbol = new Intl.NumberFormat(locale, { style: "currency", currency: CURRENCY }).formatToParts(0).find((p) => p.type === "currency")?.value;
   const [name, setName] = useState(product?.name ?? "");
-  const [price, setPrice] = useState(product?.price ?? "");
+  const [price, setPrice] = useState(product ? (comma ? product.price.replace(".", ",") : product.price) : "");
+  const sentPrice = price.trim().replace(",", ".");
   const [enabled, setEnabled] = useState(product?.enabled ?? true);
   const [error, setError] = useState<string | null>(null);
   const dirty = product
-    ? name.trim() !== product.name || price.trim() !== product.price || enabled !== product.enabled
+    ? name.trim() !== product.name || sentPrice !== product.price || enabled !== product.enabled
     : name.trim() !== "" || price.trim() !== "";
   useUnsavedGuard(editable && dirty, t("roles.leave_unsaved"));
   const save = useMutation({
     mutationFn: () => {
-      const input = { name: name.trim(), price: price.trim().replace(",", "."), enabled };
+      const input = { name: name.trim(), price: sentPrice, enabled };
       return product ? products.update(product.id, input) : products.create(input);
     },
     onSuccess: (saved) => {
@@ -65,7 +70,10 @@ function ProductForm({ product, editable }: { product: Product | null; editable:
           </div>
           <div className="space-y-2">
             <Label htmlFor="p-price">{t("products.price")}</Label>
-            <Input id="p-price" required inputMode="decimal" pattern={"\\d+([.,]\\d{1,2})?"} placeholder="0.00" disabled={!editable} value={price} onChange={(e) => setPrice(e.target.value)} className="font-mono" />
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground" aria-hidden="true">{symbol}</span>
+              <Input id="p-price" required inputMode="decimal" pattern={"\\d+([.,]\\d{1,2})?"} placeholder={comma ? "0,00" : "0.00"} disabled={!editable} value={price} onChange={(e) => setPrice(e.target.value)} className="pl-10 font-mono" />
+            </div>
           </div>
           <label className="flex items-center gap-3 text-sm">
             <Switch checked={enabled} disabled={!editable} onCheckedChange={setEnabled} aria-label={t("products.enabled")} />
@@ -103,9 +111,6 @@ export default function ProductPage() {
     <>
       <PageHeader
         title={creating ? t("products.new") : (product?.name ?? t("nav.products"))}
-        action={product && can(user, "products", "delete") && (
-          <Button variant="destructive" onClick={() => setConfirmDelete(true)}>{t("common.delete")}</Button>
-        )}
       />
       <PageBody>
         {creating ? (
@@ -118,6 +123,9 @@ export default function ProductPage() {
           <QueryErrorState error={detail.error} onRetry={() => void detail.refetch()} />
         ) : (
           <ProductForm key={product.id} product={product} editable={editable} />
+        )}
+        {product && can(user, "products", "delete") && (
+          <DangerZone description={t("products.delete_hint")} label={t("products.delete")} onClick={() => setConfirmDelete(true)} />
         )}
       </PageBody>
       <ConfirmDialog

@@ -42,6 +42,7 @@ Fonte: `Routes` de cada handler em `internal/adapter/inbound/http/rest/`, montad
 | POST | `/v1/products/delete` | `products:delete`; `{"ids": [...]}` (1 a 100); tudo ou nada | global |
 | POST | `/v1/users/disable` | `users:update`; `{"ids": [...]}` (1 a 100); tudo ou nada; não a própria conta | global |
 | POST | `/v1/users/enable` | `users:update`; `{"ids": [...]}` (1 a 100); tudo ou nada | global |
+| POST | `/v1/users/unlock` | `users:update`; `{"ids": [...]}` (1 a 100); tudo ou nada; encerra o bloqueio, `locked` volta a `active`, zera as falhas da janela | global |
 | POST | `/v1/users` | `users:create`; convite: conta pendente + e-mail de ativação; e-mail já usado = 409 | global |
 | DELETE | `/v1/users/:id/sessions` | `users:update`; não a própria conta; não `is_superuser` | global |
 | GET | `/v1/audit` | `audit:read`; filtros `action` (prefixo), `user_id`, `from`, `to` | global |
@@ -50,3 +51,5 @@ Fonte: `Routes` de cada handler em `internal/adapter/inbound/http/rest/`, montad
 `/v1/auth/refresh` responde `409` ao perdedor de dois refresh simultâneos: o cliente lê o token do vencedor e repete.
 
 Login, refresh e `/v1/me` devolvem o mesmo objeto `user`, com `is_superuser`, `permissions` e `preferences`. Listas paginadas: `{items, pagination{page,limit,total_items,total_pages}}`.
+
+`GET /v1/users/:id` traz `access` (último login, falhas na janela, fim do bloqueio, sessões vivas). Login acima de um limite de tentativas responde `429` com `Retry-After`. Notificações trazem `kind` e `params` para o front traduzir.

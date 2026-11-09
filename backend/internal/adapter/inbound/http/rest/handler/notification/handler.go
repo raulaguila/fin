@@ -28,12 +28,14 @@ func (h *Handler) Routes(r fiber.Router) {
 }
 
 type notificationDTO struct {
-	ID        string     `json:"id"`
-	Level     string     `json:"level" example:"warning"`
-	Title     string     `json:"title"`
-	Message   string     `json:"message"`
-	ReadAt    *time.Time `json:"read_at"`
-	CreatedAt time.Time  `json:"created_at"`
+	ID        string            `json:"id"`
+	Level     string            `json:"level" example:"warning"`
+	Kind      string            `json:"kind,omitempty" example:"account_locked"` // translate by this; title and message are the English fallback
+	Params    map[string]string `json:"params,omitempty"`
+	Title     string            `json:"title"`
+	Message   string            `json:"message"`
+	ReadAt    *time.Time        `json:"read_at"`
+	CreatedAt time.Time         `json:"created_at"`
 }
 
 // @Summary List the notifications of the current user, newest first
@@ -55,7 +57,7 @@ func (h *Handler) List(c fiber.Ctx) error {
 	out := make([]notificationDTO, 0, len(items))
 	for _, n := range items {
 		out = append(out, notificationDTO{
-			ID: n.ID, Level: n.Level, Title: n.Title, Message: n.Message, ReadAt: n.ReadAt, CreatedAt: n.CreatedAt,
+			ID: n.ID, Level: n.Level, Kind: n.Kind, Params: n.Params, Title: n.Title, Message: n.Message, ReadAt: n.ReadAt, CreatedAt: n.CreatedAt,
 		})
 	}
 	return c.JSON(fiber.Map{"items": out, "pagination": mapper.Pagination(page, total)})

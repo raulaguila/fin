@@ -9,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/mapper"
+	"github.com/raulaguila/authenticity/pkg/apperror"
 )
 
 func TestFiberErrorsAnswerJSON(t *testing.T) {
@@ -35,5 +36,19 @@ func TestFiberErrorsAnswerJSON(t *testing.T) {
 		if resp.StatusCode != c.status || body.Code != c.code {
 			t.Fatalf("%s: %d %s", name, resp.StatusCode, body.Code)
 		}
+	}
+}
+
+func TestRetryAfterDetailBecomesAHeader(t *testing.T) {
+	app := fiber.New()
+	app.Get("/", func(c fiber.Ctx) error {
+		return mapper.WriteError(c, apperror.New(apperror.CodeTooManyRequests, "slow down").WithDetails(apperror.DetailRetryAfter, 900))
+	})
+	resp, err := app.Test(httptest.NewRequest("GET", "/", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != fiber.StatusTooManyRequests || resp.Header.Get("Retry-After") != "900" {
+		t.Fatalf("%d %q", resp.StatusCode, resp.Header.Get("Retry-After"))
 	}
 }

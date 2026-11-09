@@ -68,6 +68,9 @@ export interface Session {
 export interface Notification {
   id: string;
   level: "info" | "warning" | "critical";
+  /** Translate by this; title and message are the English fallback. */
+  kind?: "new_login" | "account_locked" | "session_reused" | "password_reset" | "password_changed";
+  params?: Record<string, string>;
   title: string;
   message: string;
   read_at: string | null;
@@ -85,6 +88,13 @@ export interface User {
 
 export interface UserDetails extends User {
   roles: { id: string; name: string }[];
+  access?: {
+    last_login_at: string | null;
+    failed_logins: number;
+    locked_until: string | null;
+    recent_failures: number;
+    active_sessions: number;
+  };
 }
 
 export interface Role {

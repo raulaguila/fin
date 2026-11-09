@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
-import { FormError, PageBody, PageHeader, StatusBadge, useFormatDate } from "@/components/bits";
+import { DangerZone, FormError, PageBody, PageHeader, StatusBadge, useFormatDate } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
@@ -121,7 +121,44 @@ function PermissionsCard({ all, draft, editable, onChange }: { all: boolean; dra
           ) : resources.isError ? (
             <QueryErrorState onRetry={() => void resources.refetch()} />
           ) : (
-            <div className="overflow-x-auto rounded-lg border">
+            <>
+            {/* Phones: one block per resource, its actions in a row, so nothing scrolls sideways. */}
+            <div className="space-y-3 sm:hidden">
+              <label className="flex items-center gap-3 rounded-lg border bg-muted/40 p-3 text-sm font-medium">
+                <AllBox label={t("common.select_all")} on={count(cells(codes, ACTIONS))} total={codes.length * ACTIONS.length} disabled={!editable} onChange={(on) => set(cells(codes, ACTIONS), on)} />
+                {t("roles.all_permissions")}
+              </label>
+              {resources.data.items.map((r) => {
+                const text = resourceText(t, r.code, r.description);
+                const row = cells([r.code], ACTIONS);
+                return (
+                  <fieldset key={r.code} className="rounded-lg border p-3">
+                    <legend className="sr-only">{text.label}</legend>
+                    <div className="flex items-start gap-3">
+                      <AllBox label={`${t("common.select_all")}: ${text.label}`} on={count(row)} total={row.length} disabled={!editable} onChange={(on) => set(row, on)} />
+                      <div className="min-w-0">
+                        <span className="block text-sm font-medium">{text.label}</span>
+                        <span className="block text-xs text-muted-foreground">{text.description}</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 pl-7">
+                      {ACTIONS.map((a) => (
+                        <label key={a} className="flex items-center gap-2 text-sm">
+                          <Checkbox
+                            aria-label={`${text.label}: ${actionLabel(a)}`}
+                            disabled={!editable}
+                            checked={has(r.code, a)}
+                            onCheckedChange={(on) => set([[r.code, a]], on === true)}
+                          />
+                          {actionLabel(a)}
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                );
+              })}
+            </div>
+            <div className="hidden overflow-x-auto rounded-lg border sm:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -186,6 +223,7 @@ function PermissionsCard({ all, draft, editable, onChange }: { all: boolean; dra
                 </TableBody>
               </Table>
             </div>
+            </>
           )}
         </CardContent>
       )}
@@ -425,9 +463,6 @@ export default function RoleDetailPage() {
       <PageHeader
         title={creating ? t("roles.new") : (role?.name ?? t("nav.roles"))}
         description={subtitle || undefined}
-        action={role && !role.is_default && can(user, "roles", "delete") && (
-          <Button variant="destructive" onClick={() => setConfirmDelete(true)}>{t("common.delete")}</Button>
-        )}
       />
       <PageBody>
         {creating ? (
@@ -440,6 +475,9 @@ export default function RoleDetailPage() {
           <QueryErrorState error={detail.error} onRetry={() => void detail.refetch()} />
         ) : (
           <RoleEditor key={role.id} role={role} editable={editable} />
+        )}
+        {role && !role.is_default && can(user, "roles", "delete") && (
+          <DangerZone description={t("roles.delete_desc")} label={t("roles.delete")} onClick={() => setConfirmDelete(true)} />
         )}
       </PageBody>
       <ConfirmDialog

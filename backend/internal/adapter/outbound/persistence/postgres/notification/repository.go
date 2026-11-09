@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,6 +27,8 @@ type row struct {
 	ID        uuid.UUID  `gorm:"column:id"`
 	UserID    uuid.UUID  `gorm:"column:user_id"`
 	Level     string     `gorm:"column:level"`
+	Kind      *string    `gorm:"column:kind"`
+	Params    []byte     `gorm:"column:params"`
 	Title     string     `gorm:"column:title"`
 	Message   string     `gorm:"column:message"`
 	ReadAt    *time.Time `gorm:"column:read_at"`
@@ -34,10 +37,17 @@ type row struct {
 
 func (r *Repository) Create(ctx context.Context, n *domain.Notification) error {
 	id, now := uuid.New(), time.Now()
+	params := []byte("{}")
+	if len(n.Params) > 0 {
+		var err error
+		if params, err = json.Marshal(n.Params); err != nil {
+			return err
+		}
+	}
 	err := r.db.WithContext(ctx).Exec(`
-		INSERT INTO usr.usr_notification (id, user_id, level, title, message, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, id, n.UserID, n.Level, n.Title, n.Message, now).Error
+		INSERT INTO usr.usr_notification (id, user_id, level, kind, params, title, message, created_at)
+		VALUES (?, ?, ?, NULLIF(?, ''), ?::jsonb, ?, ?, ?)
+	`, id, n.UserID, n.Level, n.Kind, string(params), n.Title, n.Message, now).Error
 	if err != nil {
 		return shared.WrapError(err, "notification")
 	}
@@ -55,16 +65,24 @@ func (r *Repository) List(ctx context.Context, userID string, page domain.Page) 
 		return nil, 0, shared.WrapError(err, "notification")
 	}
 	var rows []row
-	err := owned().Order("created_at DESC, id").Limit(page.Limit).Offset(page.Offset()).Find(&rows).Error
+	err := owned().Select("id, user_id, level, kind, params, title, message, read_at, created_at").
+		Order("created_at DESC, id").Limit(page.Limit).Offset(page.Offset()).Find(&rows).Error
 	if err != nil {
 		return nil, 0, shared.WrapError(err, "notification")
 	}
 	out := make([]domain.Notification, 0, len(rows))
 	for _, m := range rows {
-		out = append(out, domain.Notification{
+		n := domain.Notification{
 			ID: m.ID.String(), UserID: m.UserID.String(), Level: m.Level, Title: m.Title,
 			Message: m.Message, ReadAt: m.ReadAt, CreatedAt: m.CreatedAt,
-		})
+		}
+		if m.Kind != nil {
+			n.Kind = *m.Kind
+		}
+		if err := json.Unmarshal(m.Params, &n.Params); err != nil {
+			return nil, 0, shared.WrapError(err, "notification")
+		}
+		out = append(out, n)
 	}
 	return out, total, nil
 }

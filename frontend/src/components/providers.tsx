@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
+import { NativeValidationMessages } from "@/components/native-validation";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ApiError } from "@/lib/api/client";
@@ -26,6 +27,7 @@ export function Providers({ children, initialLocale }: { children: React.ReactNo
         <AppearanceProvider>
           <QueryClientProvider client={client}>
             <TooltipProvider>{children}</TooltipProvider>
+            <NativeValidationMessages />
             <Toaster richColors position="bottom-right" />
           </QueryClientProvider>
         </AppearanceProvider>

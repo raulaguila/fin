@@ -47,7 +47,13 @@ func (s *Service) reserveAttempt(ctx context.Context, email string, ip, ua *stri
 		return "", err
 	}
 	if limited != "" {
-		return "", apperror.New(apperror.CodeTooManyRequests, "too many failed attempts")
+		// The window is an upper bound: older failures may leave it sooner.
+		wait := s.Cfg.LoginAttemptEmailWindow
+		if limited == domain.FailureRateLimitedIP {
+			wait = s.Cfg.LoginAttemptIPWindow
+		}
+		return "", apperror.New(apperror.CodeTooManyRequests, "too many failed attempts").
+			WithDetails(apperror.DetailRetryAfter, int(wait.Seconds()))
 	}
 	return id, nil
 }

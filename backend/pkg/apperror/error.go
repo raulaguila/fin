@@ -71,6 +71,9 @@ func (e *Error) WithField(field string) *Error {
 	return e
 }
 
+// DetailRetryAfter holds whole seconds; the HTTP layer also sends it as Retry-After.
+const DetailRetryAfter = "retry_after"
+
 // WithDetails adds details to the error
 func (e *Error) WithDetails(key string, value any) *Error {
 	if e.Details == nil {

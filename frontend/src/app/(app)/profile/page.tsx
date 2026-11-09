@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
-import { Loader2, Monitor } from "lucide-react";
+import { Loader2, Monitor, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { FormError, PageBody, PageHeader, initials, useFormatDate } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -23,6 +23,7 @@ import { ME_KEY, useMe } from "@/lib/context/me";
 import { errorMessage } from "@/lib/errors";
 import { LOCALES } from "@/lib/i18n/messages";
 import type { MessageKey } from "@/lib/i18n/messages";
+import { describeDevice } from "@/lib/device";
 import { useI18n } from "@/lib/i18n/provider";
 import { passwordScore } from "@/lib/password";
 import { cn } from "@/lib/utils";
@@ -245,13 +246,21 @@ function SessionsCard() {
           <ul className="divide-y rounded-lg border">
             {sessions.data.items.map((s) => (
               <li key={s.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <Monitor className="size-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium" title={s.user_agent ?? undefined}>{s.user_agent || t("profile.unknown_device")}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {s.ip_address ?? "-"} · {t("profile.last_seen")} {format(s.last_seen_at)}
-                  </div>
-                </div>
+                {(() => {
+                  const device = describeDevice(s.user_agent);
+                  const Icon = device.mobile ? Smartphone : Monitor;
+                  return (
+                    <>
+                      <Icon className="size-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium" title={s.user_agent ?? undefined}>{device.label ?? t("profile.unknown_device")}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {s.ip_address ?? "-"} · {t("profile.last_seen")} {format(s.last_seen_at)}
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
                 {s.current ? (
                   <Badge variant="secondary">{t("profile.this_device")}</Badge>
                 ) : (

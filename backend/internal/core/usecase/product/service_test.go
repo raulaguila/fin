@@ -9,7 +9,7 @@ import (
 )
 
 func TestCreateValidation(t *testing.T) {
-	_, err := New(nil).Create(context.Background(), input.CreateProductCommand{Name: "", Price: "1"})
+	_, err := New(nil, nil).Create(context.Background(), input.CreateProductCommand{Name: "", Price: "1"})
 	if !apperror.IsCode(err, apperror.CodeInvalidInput) {
 		t.Fatalf("expected invalid input, got %v", err)
 	}
@@ -29,7 +29,7 @@ func TestNormalizePrice(t *testing.T) {
 }
 
 func TestMalformedIDIsInvalidInput(t *testing.T) {
-	svc := New(nil) // a nil repo proves the bad id never reaches the database
+	svc := New(nil, nil) // a nil repo proves the bad id never reaches the database
 	if _, err := svc.Get(context.Background(), "abc"); !apperror.IsCode(err, apperror.CodeInvalidInput) {
 		t.Fatalf("get: %v", err)
 	}

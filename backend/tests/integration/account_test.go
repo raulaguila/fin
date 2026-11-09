@@ -93,6 +93,10 @@ func TestNotificationsReportSecurityEvents(t *testing.T) {
 	if got := e.titles(t, id); len(got) != 3 || got[0] != "Account locked" {
 		t.Fatalf("lock: %v", got)
 	}
+	items, _, err := e.account().Notifications(ctx, id, domain.NewPage(1, 1))
+	if err != nil || items[0].Kind != domain.NotifyAccountLocked || items[0].Params["until"] == "" {
+		t.Fatalf("lock kind: %+v %v", items, err)
+	}
 
 	reset, err := e.svc.RequestPasswordReset(ctx, input.RequestPasswordResetCommand{Email: addr})
 	if err != nil {

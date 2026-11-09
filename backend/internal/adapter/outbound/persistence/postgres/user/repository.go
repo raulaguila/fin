@@ -51,6 +51,30 @@ func (r *Repository) FindByID(ctx context.Context, id string) (*domain.User, err
 	return m.toDomain(), nil
 }
 
+func (r *Repository) Access(ctx context.Context, id string, failuresSince, now time.Time) (*domain.UserAccess, error) {
+	var out struct {
+		LastLoginAt    *time.Time `gorm:"column:last_login_at"`
+		FailedLogins   int        `gorm:"column:failed_login_attempts"`
+		LockedUntil    *time.Time `gorm:"column:locked_until"`
+		RecentFailures int        `gorm:"column:recent_failures"`
+		ActiveSessions int        `gorm:"column:active_sessions"`
+	}
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT c.last_login_at, c.failed_login_attempts, c.locked_until,
+		       (SELECT count(*) FROM usr.usr_login_attempt a
+		         WHERE a.email = u.email AND a.created_at >= ? AND `+shared.CountedFailure+`) AS recent_failures,
+		       (SELECT count(*) FROM usr.usr_session s
+		         WHERE s.user_id = u.id AND s.revoked_at IS NULL AND s.expires_at > ?) AS active_sessions
+		FROM usr.usr_user u JOIN usr.usr_credential c ON c.user_id = u.id
+		WHERE u.id = ?
+	`, failuresSince, now, id).Take(&out).Error
+	if err != nil {
+		return nil, shared.WrapError(err, "user")
+	}
+	a := domain.UserAccess(out)
+	return &a, nil
+}
+
 func (r *Repository) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
 	var m row
 	err := r.db.WithContext(ctx).Table("usr.usr_user").Where("email = ?", email).Take(&m).Error

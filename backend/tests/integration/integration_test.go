@@ -191,6 +191,9 @@ func (e *env) titles(t testing.TB, userID string) []string {
 	}
 	out := make([]string, 0, len(items))
 	for _, n := range items {
+		if n.Kind == "" {
+			t.Fatalf("notification %q has no kind", n.Title)
+		}
 		out = append(out, n.Title)
 	}
 	sort.Strings(out)

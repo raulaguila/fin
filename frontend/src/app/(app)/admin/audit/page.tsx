@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -15,14 +16,17 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { audit } from "@/lib/api/endpoints";
+import { audit, users } from "@/lib/api/endpoints";
+import { useMe } from "@/lib/context/me";
+import { useDebounced } from "@/lib/hooks/use-debounced";
+import { can } from "@/lib/permissions";
 import type { AuditRecord } from "@/lib/api/types";
 import { errorMessage } from "@/lib/errors";
 import { useGoToPage, useListParams } from "@/lib/hooks/use-list-params";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/provider";
 
-const KINDS = ["user.", "role.", "admin."];
+const KINDS = ["user.", "role.", "product.", "admin."];
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Start of a local calendar day as an RFC 3339 time; plusDays moves it. */
@@ -37,14 +41,48 @@ function targetHref(r: AuditRecord): string | undefined {
   if (!r.target_id) return undefined;
   if (r.action.startsWith("user.") || r.action.startsWith("admin.")) return `/admin/users/${r.target_id}`;
   if (r.action.startsWith("role.")) return `/admin/roles/${r.target_id}`;
+  if (r.action.startsWith("product.") && r.action !== "product.delete") return `/products/${r.target_id}`;
 }
 
 function details(d: Record<string, unknown>): string {
   return Object.entries(d).map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`).join(" · ");
 }
 
+/** Picks a user by email from the matches the API returns; the list is native, so it needs no popup code. */
+function UserFilter({ onPick }: { onPick: (id: string) => void }) {
+  const { t } = useI18n();
+  const [text, setText] = useState("");
+  const q = useDebounced(text.trim());
+  const found = useQuery({
+    queryKey: ["users", "pick", q],
+    queryFn: ({ signal }) => users.list({ page: 1, limit: 10, search: q }, signal),
+    enabled: q.length >= 2,
+  });
+  // A full email picks the user, whether typed or chosen from the list, once its match arrives.
+  const hit = found.data?.items.find((u) => u.email.toLowerCase() === text.trim().toLowerCase());
+  useEffect(() => { if (hit) onPick(hit.id); }, [hit, onPick]);
+  const listId = "audit-users";
+  return (
+    <>
+      <Input
+        type="search"
+        className="w-56"
+        list={listId}
+        placeholder={t("audit.user_filter")}
+        aria-label={t("audit.user_filter")}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <datalist id={listId}>
+        {found.data?.items.map((u) => <option key={u.id} value={u.email}>{u.name}</option>)}
+      </datalist>
+    </>
+  );
+}
+
 export default function AuditPage() {
   const { t } = useI18n();
+  const { user: me } = useMe();
   const format = useFormatDate();
   const [params, set] = useListParams({ page: 1, limit: 25, action: "", user: "", from: "", to: "" });
   const { page, limit, user, from, to } = params;
@@ -55,6 +93,8 @@ export default function AuditPage() {
     queryFn: ({ signal }) => audit.list({ page, limit, ...filters }, signal),
     placeholderData: keepPreviousData,
   });
+  const pickable = can(me, "users", "read");
+  const picked = useQuery({ queryKey: ["users", "detail", user], queryFn: () => users.get(user), enabled: !!user && pickable });
   const download = useMutation({
     mutationFn: () => audit.export(filters),
     onError: (err) => toast.error(errorMessage(err, "audit.export_failed", t)),
@@ -94,9 +134,10 @@ export default function AuditPage() {
             {t("audit.to")}
             <Input type="date" className="w-40" value={to} min={from || undefined} onChange={(e) => set({ to: e.target.value, page: 1 })} />
           </label>
+          {!user && pickable && <UserFilter onPick={(id) => set({ user: id, page: 1 })} />}
           {user && (
             <Badge variant="secondary" className="gap-1">
-              {t("audit.filtered_user")}
+              {picked.data ? picked.data.email : t("audit.filtered_user")}
               <button type="button" aria-label={t("audit.clear_user")} className="rounded-sm hover:text-foreground" onClick={() => set({ user: "", page: 1 })}>
                 <X className="size-3" />
               </button>

@@ -20,6 +20,9 @@ const BY_CODE: Record<string, MessageKey> = {
 export function errorMessage(err: unknown, fallback: MessageKey, t: (key: MessageKey) => string): string {
   if (!(err instanceof ApiError)) return t("error.network");
   if (err.code === "INVALID_INPUT" || err.code === "VALIDATION_FAILED") return err.message;
+  if (err.code === "TOO_MANY_REQUESTS" && err.retryAfter) {
+    return t("error.too_many_requests_wait").replace("{n}", String(Math.max(1, Math.ceil(err.retryAfter / 60))));
+  }
   const key = BY_CODE[err.code];
   return key ? t(key) : t(fallback);
 }

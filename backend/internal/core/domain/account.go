@@ -34,12 +34,23 @@ const (
 	NotificationCritical = "critical"
 )
 
+// Notification kinds: the codes clients translate.
+const (
+	NotifyNewLogin        = "new_login"        // params: ip
+	NotifyAccountLocked   = "account_locked"   // params: until (RFC 3339)
+	NotifySessionReused   = "session_reused"   // no params
+	NotifyPasswordReset   = "password_reset"   // no params
+	NotifyPasswordChanged = "password_changed" // no params
+)
+
 // Notification is a notice shown to one user.
 type Notification struct {
 	ID        string
 	UserID    string
 	Level     string
-	Title     string
+	Kind      string            // stable code a client translates; empty for free text
+	Params    map[string]string // values the translated text needs, such as ip or until
+	Title     string            // English fallback
 	Message   string
 	ReadAt    *time.Time
 	CreatedAt time.Time

@@ -19,6 +19,15 @@ const subscribeWide = (listener: () => void) => {
   media.addEventListener("change", listener);
   return () => media.removeEventListener("change", listener);
 };
+const ADMIN_OPEN_KEY = "rail-admin-open";
+function readAdminOpen(): boolean {
+  try { return localStorage.getItem(ADMIN_OPEN_KEY) === "1"; } catch { return false; }
+}
+function subscribeStorage(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
 export const useWideRail = () => useSyncExternalStore(subscribeWide, () => window.matchMedia(WIDE).matches, () => true);
 
 /** Floating sidebar: main links, then an administration group shown only to who may use it. */
@@ -48,15 +57,21 @@ export function AppRail({ collapsed, onToggle, mobile = false, onNavigate }: { c
     );
   };
   const adminActive = admin.some((item) => isActive(pathname, item.href));
-  // Each navigation opens the group on admin pages and closes it elsewhere; the toggle still works in between.
+  // Each navigation opens the group on admin pages, or where the user last left it open; the toggle still works in between.
   // adminActive also flips once the permissions load after a direct visit to an admin page.
+  const savedOpen = useSyncExternalStore(subscribeStorage, readAdminOpen, () => false);
   const seen = `${pathname}|${adminActive}`;
-  const [adminOpen, setAdminOpen] = useState(adminActive);
+  const [toggled, setToggled] = useState<boolean | null>(null);
   const [seenKey, setSeenKey] = useState(seen);
   if (seen !== seenKey) {
     setSeenKey(seen);
-    setAdminOpen(adminActive);
+    setToggled(null);
   }
+  const adminOpen = toggled ?? (adminActive || savedOpen);
+  const toggleAdmin = () => {
+    setToggled(!adminOpen);
+    try { localStorage.setItem(ADMIN_OPEN_KEY, adminOpen ? "0" : "1"); } catch { /* private mode: the choice lasts until the next navigation */ }
+  };
   const adminNavId = useId();
   const adminLabel = t("nav.administration");
 
@@ -75,7 +90,7 @@ export function AppRail({ collapsed, onToggle, mobile = false, onNavigate }: { c
             <div className="rail-admin-group" data-open={adminOpen ? "" : undefined}>
               {tooltip(adminLabel, (
                 <button type="button" className="rail-item rail-administration" aria-label={adminLabel} aria-expanded={adminOpen} aria-controls={adminNavId}
-                  data-active={adminActive ? "" : undefined} onClick={() => setAdminOpen((open) => !open)}>
+                  data-active={adminActive ? "" : undefined} onClick={toggleAdmin}>
                   <ShieldCheck className="size-5" aria-hidden />
                   {!compact && <><span>{adminLabel}</span><ChevronDown className="rail-admin-chevron size-4" aria-hidden /></>}
                 </button>

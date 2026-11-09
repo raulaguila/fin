@@ -7,8 +7,8 @@ import (
 )
 
 // notify is best effort: a lost notice must not cost the login or refresh it reports on.
-func (s *Service) notify(ctx context.Context, userID, level, title, message string) {
-	s.warn("Notification lost", s.UOW.Notifications().Create(ctx, &domain.Notification{UserID: userID, Level: level, Title: title, Message: message}))
+func (s *Service) notify(ctx context.Context, n domain.Notification) {
+	s.warn("Notification lost", s.UOW.Notifications().Create(ctx, &n))
 }
 
 // noticeNewClient warns about a login from a client this account never used.
@@ -22,6 +22,9 @@ func (s *Service) noticeNewClient(ctx context.Context, userID string, ip *string
 		return
 	}
 	if !known {
-		s.notify(ctx, userID, domain.NotificationInfo, "New login", "New login from "+*ip+".")
+		s.notify(ctx, domain.Notification{
+			UserID: userID, Level: domain.NotificationInfo, Kind: domain.NotifyNewLogin, Params: map[string]string{"ip": *ip},
+			Title: "New login", Message: "New login from " + *ip + ".",
+		})
 	}
 }

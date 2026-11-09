@@ -142,8 +142,11 @@ func (s *Service) failedPassword(ctx context.Context, userID string, now time.Ti
 		if err := s.UOW.Users().UpdateStatus(ctx, userID, domain.UserStatusLocked); err != nil {
 			return nil, domain.FailureBadPassword, err
 		}
-		s.notify(ctx, userID, domain.NotificationWarning, "Account locked",
-			"Too many failed logins. Login stays blocked until "+lockedUntil.UTC().Format(time.RFC3339)+".")
+		until := lockedUntil.UTC().Format(time.RFC3339)
+		s.notify(ctx, domain.Notification{
+			UserID: userID, Level: domain.NotificationWarning, Kind: domain.NotifyAccountLocked, Params: map[string]string{"until": until},
+			Title: "Account locked", Message: "Too many failed logins. Login stays blocked until " + until + ".",
+		})
 	}
 	return nil, domain.FailureBadPassword, invalidCredentials()
 }

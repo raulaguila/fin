@@ -595,6 +595,16 @@ html.sidebar-collapsed [data-ui-workspace-rail]:not([data-mobile]) .rail-item { 
   table[data-responsive] td::before { content: attr(data-label); display: block; margin-bottom: 3px; font-size: 13px; color: var(--muted-foreground); }
   table[data-responsive] td:not([data-label])::before { display: none; }
   table[data-responsive] td .truncate { white-space: normal; overflow-wrap: anywhere; }
+  /* Compact cards: name and status on top, then email and date, no repeated labels; the whole card opens the record. */
+  table[data-compact] tbody tr { grid-template-columns: minmax(0,1fr) auto; gap: 2px 12px; }
+  table[data-compact] tbody tr:has(> td:first-child [role=checkbox]) { grid-template-columns: auto minmax(0,1fr) auto; }
+  table[data-compact] td::before { display: none; }
+  table[data-compact] td:first-child:has([role=checkbox]) { grid-row: 1 / 4; grid-column: 1; align-self: center; }
+  table[data-compact] td[data-cell=name] { grid-row: 1; grid-column: -3 / -2; }
+  table[data-compact] td[data-cell=status] { grid-row: 1; grid-column: -2 / -1; }
+  table[data-compact] td[data-cell=email] { grid-row: 2; grid-column: -3 / -1; font-size: 13px; }
+  table[data-compact] td[data-cell=date] { grid-row: 3; grid-column: -3 / -1; font-size: 12px; }
+  table[data-compact] td[data-cell=action] { display: none; }
 }
 
 /* The first group sits under the brand, which already draws a divider. */

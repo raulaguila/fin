@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { ActiveBadge, FormError, PageBody, PageHeader, StatusBadge, useFormatDate } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -185,12 +185,16 @@ function UserDetail({ id }: { id: string }) {
   const detail = useQuery({ queryKey: ["users", "detail", id], queryFn: () => users.get(id) });
   const [confirm, setConfirm] = useState(false);
   const [revoking, setRevoking] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
 
   const u = detail.data;
   useCrumb(u?.name);
   const disabled = u?.status === "disabled";
   // The API refuses changing yourself; hide the button instead of showing an error.
   const canToggle = u && can(me, "users", "update") && u.id !== me?.id;
+  const a = u?.access;
+  const locked = !!a?.locked_until && new Date(a.locked_until) > new Date();
+  const blocked = u?.status === "locked" || locked || (a?.recent_failures ?? 0) > 0;
 
   return (
     <>
@@ -201,6 +205,9 @@ function UserDetail({ id }: { id: string }) {
           <div className="flex flex-wrap gap-2">
             {can(me, "audit", "read") && (
               <Button variant="outline" nativeButton={false} render={<Link href={`/admin/audit?user=${u.id}`} />}>{t("users.view_audit")}</Button>
+            )}
+            {canToggle && blocked && (
+              <Button variant="outline" onClick={() => setUnlocking(true)}>{t("users.unlock")}</Button>
             )}
             {canToggle && !disabled && (
               <Button variant="outline" onClick={() => setRevoking(true)}>{t("users.revoke_sessions")}</Button>
@@ -222,6 +229,12 @@ function UserDetail({ id }: { id: string }) {
           <QueryErrorState error={detail.error} onRetry={() => void detail.refetch()} />
         ) : (
           <div className="grid items-start gap-6 lg:grid-cols-2">
+          {blocked && (
+            <div role="status" className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 lg:col-span-2 dark:text-amber-200">
+              <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+              <span>{t("users.login_blocked")}</span>
+            </div>
+          )}
           <Card>
             <CardHeader><CardTitle>{t("users.details")}</CardTitle></CardHeader>
             <CardContent>
@@ -233,6 +246,25 @@ function UserDetail({ id }: { id: string }) {
                 <dt className="text-muted-foreground">{t("common.updated_at")}</dt>
                 <dd>{format(detail.data.updated_at)}</dd>
               </dl>
+              {a && (
+                <>
+                  <h3 className="mt-6 mb-3 text-sm font-semibold">{t("users.access")}</h3>
+                  <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-[8rem_1fr]">
+                    <dt className="text-muted-foreground">{t("users.last_login")}</dt>
+                    <dd>{a.last_login_at ? format(a.last_login_at) : t("users.never")}</dd>
+                    <dt className="text-muted-foreground">{t("users.active_sessions")}</dt>
+                    <dd className="tabular-nums">{a.active_sessions}</dd>
+                    <dt className="text-muted-foreground">{t("users.recent_failures")}</dt>
+                    <dd className="tabular-nums" title={t("users.recent_failures_hint")}>{a.recent_failures}</dd>
+                    {locked && (
+                      <>
+                        <dt className="text-muted-foreground">{t("users.locked_until")}</dt>
+                        <dd>{format(a.locked_until!)}</dd>
+                      </>
+                    )}
+                  </dl>
+                </>
+              )}
             </CardContent>
           </Card>
           <RolesCard user={detail.data} />
@@ -249,6 +281,17 @@ function UserDetail({ id }: { id: string }) {
           await (disabled ? users.enable : users.disable)([id]);
           await client.invalidateQueries({ queryKey: ["users"] });
           toast.success(t("common.saved"));
+        }}
+      />
+      <ConfirmDialog
+        open={unlocking}
+        onOpenChange={setUnlocking}
+        title={t("users.unlock")}
+        description={t("users.unlock_desc")}
+        onConfirm={async () => {
+          await users.unlock([id]);
+          await client.invalidateQueries({ queryKey: ["users"] });
+          toast.success(t("users.unlocked"));
         }}
       />
       <ConfirmDialog

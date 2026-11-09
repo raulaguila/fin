@@ -2,6 +2,7 @@ package mapper
 
 import (
 	"errors"
+	"strconv"
 
 	"github.com/gofiber/fiber/v3"
 
@@ -27,6 +28,9 @@ func WriteError(c fiber.Ctx, err error) error {
 	}
 
 	status := statusFor(appErr.Code)
+	if seconds, ok := appErr.Details[apperror.DetailRetryAfter].(int); ok && seconds > 0 {
+		c.Set(fiber.HeaderRetryAfter, strconv.Itoa(seconds))
+	}
 	if status >= fiber.StatusInternalServerError {
 		c.Locals(LocalCause, err)
 	}

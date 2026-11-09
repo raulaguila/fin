@@ -11,6 +11,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/notification"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/outbox"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/preference"
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/product"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/role"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/session"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/shared"
@@ -37,6 +38,7 @@ func (s *Store) Roles() output.RoleRepository             { return role.NewRepos
 func (s *Store) Outbox() output.OutboxRepository          { return outbox.NewRepository(s.db) }
 func (s *Store) Preferences() output.PreferenceRepository { return preference.NewRepository(s.db) }
 func (s *Store) Audit() output.AuditRepository            { return audit.NewRepository(s.db) }
+func (s *Store) Products() output.ProductRepository       { return product.NewRepository(s.db) }
 func (s *Store) Notifications() output.NotificationRepository {
 	return notification.NewRepository(s.db)
 }

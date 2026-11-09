@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/authenticity/internal/core/policy"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
 	"github.com/raulaguila/authenticity/pkg/apperror"
@@ -26,14 +27,17 @@ var sortable = []string{"name", "price", "created_at", "updated_at"}
 // Fits NUMERIC(12,2). Strict on purpose: floats accept NaN, Inf and hex.
 var priceFormat = regexp.MustCompile(`^[0-9]{1,10}(\.[0-9]{1,2})?$`)
 
+// Service reads through Repo. Every change runs in Tx with its audit record, so
+// a module copied from this one is audited from the start.
 type Service struct {
 	Repo output.ProductRepository
+	Tx   output.TxManager
 }
 
 var _ input.ProductService = (*Service)(nil)
 
-func New(repo output.ProductRepository) *Service {
-	return &Service{Repo: repo}
+func New(repo output.ProductRepository, tx output.TxManager) *Service {
+	return &Service{Repo: repo, Tx: tx}
 }
 
 func (s *Service) List(ctx context.Context, filter domain.ProductFilter) ([]domain.Product, int64, error) {
@@ -82,7 +86,13 @@ func (s *Service) Create(ctx context.Context, cmd input.CreateProductCommand) (*
 		enabled = *cmd.Enabled
 	}
 	p := &domain.Product{Name: name, Price: price, Enabled: enabled}
-	if err := s.Repo.Create(ctx, p); err != nil {
+	err = s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
+		if err := uow.Products().Create(ctx, p); err != nil {
+			return err
+		}
+		return policy.Audit(ctx, uow, "product.create", p.ID, map[string]any{"name": p.Name, "price": p.Price, "enabled": p.Enabled})
+	})
+	if err != nil {
 		return nil, err
 	}
 	return p, nil
@@ -107,7 +117,28 @@ func (s *Service) Update(ctx context.Context, cmd input.UpdateProductCommand) (*
 		}
 		patch.Price = &price
 	}
-	return s.Repo.Update(ctx, cmd.ID, patch)
+	var updated *domain.Product
+	err := s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
+		var err error
+		if updated, err = uow.Products().Update(ctx, cmd.ID, patch); err != nil {
+			return err
+		}
+		changes := map[string]any{}
+		if patch.Name != nil {
+			changes["name"] = *patch.Name
+		}
+		if patch.Price != nil {
+			changes["price"] = *patch.Price
+		}
+		if patch.Enabled != nil {
+			changes["enabled"] = *patch.Enabled
+		}
+		return policy.Audit(ctx, uow, "product.update", updated.ID, changes)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return updated, nil
 }
 
 const maxBatch = 100 // ids in one batch request; a page holds at most 100 rows
@@ -122,7 +153,17 @@ func (s *Service) DeleteMany(ctx context.Context, ids []string) error {
 			return err
 		}
 	}
-	return s.Repo.DeleteMany(ctx, ids)
+	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
+		if err := uow.Products().DeleteMany(ctx, ids); err != nil {
+			return err
+		}
+		for _, id := range ids {
+			if err := policy.Audit(ctx, uow, "product.delete", id, nil); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func validateNamePrice(name, price string) (string, string, error) {

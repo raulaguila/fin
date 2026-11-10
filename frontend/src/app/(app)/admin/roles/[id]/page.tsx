@@ -73,7 +73,8 @@ function GeneralCard({ name, enabled, isDefault, editable, onName, onEnabled, on
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="name">{t("auth.name")}</Label>
-          <Input id="name" required maxLength={40} disabled={!editable} value={name} onChange={(e) => onName(e.target.value)} />
+          <Input id="name" required minLength={2} maxLength={40} pattern="[a-z0-9_\-]+" aria-describedby="name-hint" disabled={!editable} value={name} onChange={(e) => onName(e.target.value)} />
+          <p id="name-hint" className="text-xs text-muted-foreground">{t("roles.name_hint")}</p>
         </div>
         <label className="flex items-center gap-3 text-sm">
           {/* The default role must stay enabled. */}

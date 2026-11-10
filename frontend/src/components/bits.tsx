@@ -123,16 +123,20 @@ export function FormSection({ title, description, wide = false, danger = false, 
   );
 }
 
-/** Sections of one page, split by a thin rule. */
-export function FormSections({ children }: { children: React.ReactNode }) {
-  return <div className="space-y-8">{children}</div>;
+/**
+ * The page's form surface: one card holding every section, split by thin rules.
+ * Capped in width, since a form gains nothing from a wide screen.
+ */
+export function FormSections({ danger = false, children }: { danger?: boolean; children: React.ReactNode }) {
+  return <div className={cn("max-w-5xl space-y-8 rounded-xl border bg-card p-6 text-card-foreground shadow-xs sm:p-8", danger && "border-destructive/40")}>{children}</div>;
 }
 
 /**
- * The page's one save control, sticky at the bottom while there is something to
- * save. Inside a form, `submit` makes Save the form's submit button, so Enter saves.
+ * Save control, sticky at the bottom while there is something to save. As the
+ * last child of FormSections, `footer` makes it the card's footer; otherwise it
+ * sits inside its section. `submit` makes Save the form's submit button, so Enter saves.
  */
-export function SaveBar({ label, error, saving, canSave, saveLabel, discardLabel, onSave, onDiscard, submit = false }: {
+export function SaveBar({ label, error, saving, canSave, saveLabel, discardLabel, onSave, onDiscard, submit = false, footer = false }: {
   label: string;
   error?: string | null;
   saving: boolean;
@@ -142,9 +146,18 @@ export function SaveBar({ label, error, saving, canSave, saveLabel, discardLabel
   onSave?: () => void;
   onDiscard: () => void;
   submit?: boolean;
+  footer?: boolean;
 }) {
   return (
-    <div role="region" aria-label={label} className="sticky bottom-4 z-10 flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-lg">
+    <div
+      role="region"
+      aria-label={label}
+      className={cn(
+        "sticky z-10 flex flex-wrap items-center gap-3",
+        // The negative margins undo FormSections' padding so the bar spans the card.
+        footer ? "bottom-0 -mx-6 -mb-6 rounded-b-xl border-t bg-card px-6 py-4 sm:-mx-8 sm:-mb-8 sm:px-8" : "bottom-4 rounded-lg border bg-muted px-4 py-3",
+      )}
+    >
       <span className="flex-1 text-sm font-medium">{label}</span>
       {error && <div className="basis-full"><FormError message={error} /></div>}
       <Button type="button" variant="ghost" disabled={saving} onClick={onDiscard}>{discardLabel}</Button>
@@ -160,11 +173,13 @@ export function SaveBar({ label, error, saving, canSave, saveLabel, discardLabel
 export function DangerZone({ description, label, onClick }: { description: string; label: string; onClick: () => void }) {
   const { t } = useI18n();
   return (
-    <FormSection title={t("common.danger_zone")} danger>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 p-4">
-        <p className="min-w-0 flex-1 text-sm text-muted-foreground">{description}</p>
-        <Button variant="destructive" onClick={onClick}>{label}</Button>
-      </div>
-    </FormSection>
+    <FormSections danger>
+      <FormSection title={t("common.danger_zone")} danger>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="min-w-0 flex-1 text-sm text-muted-foreground">{description}</p>
+          <Button variant="destructive" onClick={onClick}>{label}</Button>
+        </div>
+      </FormSection>
+    </FormSections>
   );
 }

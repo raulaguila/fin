@@ -126,6 +126,7 @@ function InviteForm() {
 
   if (link) {
     return (
+      <FormSections>
       <FormSection title={t("users.link_title")} description={t("users.activation_link")}>
           <div className="space-y-4 text-sm">
             <Input readOnly aria-label={t("users.link_title")} value={link} className="font-mono text-xs" onFocus={(e) => e.target.select()} />
@@ -135,6 +136,7 @@ function InviteForm() {
             </div>
           </div>
       </FormSection>
+      </FormSections>
     );
   }
 
@@ -156,6 +158,7 @@ function InviteForm() {
             </div>
         </FormSection>
         <SaveBar
+          footer
           submit
           label={t("users.invite")}
           error={error}
@@ -267,13 +270,14 @@ function UserDetail({ id }: { id: string }) {
         ) : detail.isError ? (
           <QueryErrorState error={detail.error} onRetry={() => void detail.refetch()} />
         ) : (
-          <FormSections>
+          <>
           {blocked && (
             <div role="status" className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
               <ShieldAlert className="mt-0.5 size-4 shrink-0" />
               <span>{t("users.login_blocked")}</span>
             </div>
           )}
+          <FormSections>
           <FormSection title={t("users.details")} description={t("users.details_desc")}>
               <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-[10rem_1fr]">
                 <dt className="text-muted-foreground">{t("users.status")}</dt>
@@ -311,6 +315,7 @@ function UserDetail({ id }: { id: string }) {
           </FormSection>
           <RolesCard user={detail.data} />
           </FormSections>
+          </>
         )}
       </PageBody>
       <ConfirmDialog

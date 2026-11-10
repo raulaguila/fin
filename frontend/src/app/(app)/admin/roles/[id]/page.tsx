@@ -12,7 +12,7 @@ import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
 import { TablePagination, emptyPageFallback } from "@/components/table-pagination";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -116,7 +116,7 @@ function PermissionsCard({ all, draft, editable, onChange }: { all: boolean; dra
 
   return (
     <FormSection title={t("roles.permissions")} description={t("roles.permissions_desc")} wide={!all}>
-    <Card>
+    <div className="rounded-lg border py-4">
       {all && <CardContent className="text-sm text-muted-foreground">{t("roles.all_permissions_desc")}</CardContent>}
       {!all && (
         <CardContent>
@@ -231,7 +231,7 @@ function PermissionsCard({ all, draft, editable, onChange }: { all: boolean; dra
           )}
         </CardContent>
       )}
-    </Card>
+    </div>
     </FormSection>
   );
 }
@@ -308,6 +308,7 @@ function RoleEditor({ role: saved, editable }: { role: Role | null; editable: bo
         <PermissionsCard all={all} draft={draft} editable={editable} onChange={setDraft} />
       {editable && (dirty || !saved) && (
         <SaveBar
+          footer
           label={t(saved ? "roles.unsaved" : "roles.new")}
           error={error}
           saving={save.isPending}
@@ -393,8 +394,8 @@ function MembersCard({ roleId, editable }: { roleId: string; editable: boolean }
 
   return (
     <FormSection title={t("roles.members")} description={t("roles.members_desc")}>
-    <Card>
-      <CardContent className="space-y-3">
+    <div>
+      <div className="space-y-3">
         {canAdd && <div className="flex justify-end"><Button variant="outline" size="sm" onClick={() => setAdding(true)}><Plus className="size-4" />{t("roles.add_member")}</Button></div>}
         {(members.data?.pagination.total_items !== 0 || q) && (
           <div className="relative">
@@ -438,9 +439,9 @@ function MembersCard({ roleId, editable }: { roleId: string; editable: boolean }
             />
           </div>
         )}
-      </CardContent>
+      </div>
       {adding && <AddMemberDialog roleId={roleId} onClose={() => setAdding(false)} />}
-    </Card>
+    </div>
     </FormSection>
   );
 }

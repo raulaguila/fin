@@ -92,6 +92,7 @@ function ProductForm({ product, editable }: { product: Product | null; editable:
         </FormSection>
         {editable && (dirty || !product) && (
           <SaveBar
+            footer
             submit
             label={t(product ? "roles.unsaved" : "products.new")}
             error={error}

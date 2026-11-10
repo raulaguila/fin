@@ -13,7 +13,6 @@ import { ListSkeleton } from "@/components/skeletons";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -229,8 +228,8 @@ function SessionsCard() {
 
   return (
     <FormSection title={t("profile.sessions")} description={t("profile.sessions_hint")}>
-    <Card>
-      <CardContent className="space-y-3">
+    <div>
+      <div className="space-y-3">
         {others > 0 && <div className="flex justify-end"><Button variant="outline" size="sm" onClick={() => setConfirmOthers(true)}>{t("profile.revoke_others")}</Button></div>}
         {sessions.isPending ? (
           <ListSkeleton rows={2} />
@@ -264,7 +263,7 @@ function SessionsCard() {
             ))}
           </ul>
         )}
-      </CardContent>
+      </div>
       <ConfirmDialog
         open={confirmOthers}
         onOpenChange={setConfirmOthers}
@@ -276,7 +275,7 @@ function SessionsCard() {
           await refresh();
         }}
       />
-    </Card>
+    </div>
     </FormSection>
   );
 }

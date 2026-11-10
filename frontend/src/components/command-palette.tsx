@@ -86,10 +86,10 @@ export function CommandPalette() {
         onClick={() => changeOpen(true)}
         aria-label={t("palette.open")}
         aria-keyshortcuts="Control+K Meta+K"
-        className="flex size-11 items-center justify-center gap-2 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground md:h-8 md:w-auto md:border md:px-2.5"
+        title={`${t("palette.open")} (Ctrl K)`}
+        className="flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:size-8"
       >
         <Search className="size-4" />
-        <kbd className="hidden font-sans text-xs md:inline">Ctrl K</kbd>
       </button>
       <Dialog open={open} onOpenChange={changeOpen}>
         <DialogContent showCloseButton={false} className="top-[20%] translate-y-0 gap-0 p-0 sm:max-w-lg">

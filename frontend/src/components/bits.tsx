@@ -18,7 +18,7 @@ export function PageHeader({
 }) {
   return (
     <div data-ui-page-header className="border-b px-[var(--space-page)] py-[var(--space-page-y)] sm:py-4">
-      <div className="flex w-full max-w-6xl flex-col gap-[var(--space-row)] sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+      <div className="flex w-full flex-col gap-[var(--space-row)] sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
       <div className="min-w-0 max-w-full flex-1 sm:basis-64">
         <h1 className="font-heading text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
         {description && <p className="mt-1 max-w-[72ch] text-sm text-muted-foreground">{description}</p>}
@@ -31,7 +31,7 @@ export function PageHeader({
 
 /** Page body padding shared by every app screen. */
 export function PageBody({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("w-full max-w-6xl space-y-6 px-[var(--space-page)] py-[var(--space-page-y)]", className)}>{children}</div>;
+  return <div className={cn("w-full space-y-6 px-[var(--space-page)] py-[var(--space-page-y)]", className)}>{children}</div>;
 }
 
 const STATUS_CLS: Record<UserStatus, string> = {

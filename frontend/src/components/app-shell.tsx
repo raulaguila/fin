@@ -85,8 +85,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-20 flex h-[var(--header-h)] shrink-0 items-center border-b bg-background px-[var(--space-page)]">
-            {/* Same left-aligned width as PageHeader/PageBody, so the breadcrumb lines up with the title. */}
-            <div className="flex w-full max-w-6xl items-center justify-between">
+            <div className="flex w-full items-center justify-between">
             <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
               <button
                 type="button"
@@ -146,7 +145,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 overflow-auto bg-content outline-none">
             <div className="app-page">
-              {failed ? <div className="max-w-6xl p-[var(--space-page)]"><QueryErrorState onRetry={retry} /></div> : children}
+              {failed ? <div className="p-[var(--space-page)]"><QueryErrorState onRetry={retry} /></div> : children}
             </div>
           </main>
         </div>

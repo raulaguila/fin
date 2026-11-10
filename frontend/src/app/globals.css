@@ -71,7 +71,7 @@
   /* Semantic neutral ladder: chrome → canvas → cards → interaction states.
      Opaque levels make hover/selection readable on every surface. */
   --background: oklch(0.984152 0.003413 247.857544);
-  --content: oklch(0.968 0.006 250);
+  --content: oklch(0.984152 0.003413 247.857544);
   --foreground: oklch(0.279495 0.036848 260.030984);
   --card: oklch(1.000000 0.000000 89.875563);
   --card-foreground: oklch(0.279495 0.036848 260.030984);

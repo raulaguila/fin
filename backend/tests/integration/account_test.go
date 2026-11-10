@@ -196,3 +196,34 @@ func TestLoginLimitSaysHowLongIsLeft(t *testing.T) {
 		t.Fatalf("about 5 of the 15 minutes are left: %+v", appErr)
 	}
 }
+
+func TestAvatarIsStoredByContentAndRemoved(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	id := e.userID(t, e.activeUser(t))
+	svc := e.account()
+
+	png := append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 64)...)
+	if err := svc.SetAvatar(ctx, id, png); err != nil {
+		t.Fatal(err)
+	}
+	profile, err := svc.Profile(ctx, id)
+	if err != nil || profile.AvatarAt == nil {
+		t.Fatalf("avatar_at %v, %v", profile, err)
+	}
+	if image, contentType, err := svc.Avatar(ctx, id); err != nil || contentType != "image/png" || len(image) != len(png) {
+		t.Fatalf("avatar %s %d %v", contentType, len(image), err)
+	}
+	// An SVG can carry script, and a picture past the cap is refused, whatever the client claims.
+	wantCode(t, svc.SetAvatar(ctx, id, []byte(`<svg xmlns="http://www.w3.org/2000/svg"></svg>`)), apperror.CodeInvalidInput)
+	wantCode(t, svc.SetAvatar(ctx, id, append(png, make([]byte, domain.AvatarMaxBytes)...)), apperror.CodeInvalidInput)
+
+	if err := svc.RemoveAvatar(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if profile, err = svc.Profile(ctx, id); err != nil || profile.AvatarAt != nil {
+		t.Fatalf("after remove: %v %v", profile.AvatarAt, err)
+	}
+	_, _, err = svc.Avatar(ctx, id)
+	wantCode(t, err, apperror.CodeNotFound)
+}

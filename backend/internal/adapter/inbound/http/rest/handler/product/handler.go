@@ -40,6 +40,7 @@ type productDTO struct {
 	Name      string    `json:"name"`
 	Price     string    `json:"price"`
 	Enabled   bool      `json:"enabled"`
+	Version   int       `json:"version"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -68,11 +69,13 @@ type updateDTO struct {
 	Name    *string `json:"name"`
 	Price   any     `json:"price" swaggertype:"string" example:"19.90"`
 	Enabled *bool   `json:"enabled"`
+	// Version is the version the client read; when sent, a newer row is a 409 conflict.
+	Version *int `json:"version" example:"3"`
 }
 
 func toDTO(p domain.Product) productDTO {
 	return productDTO{
-		ID: p.ID, Name: p.Name, Price: p.Price, Enabled: p.Enabled, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
+		ID: p.ID, Name: p.Name, Price: p.Price, Enabled: p.Enabled, Version: p.Version, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 	}
 }
 
@@ -237,6 +240,7 @@ func (h *Handler) Create(c fiber.Ctx) error {
 // @Failure 401 {object} mapper.errorBody
 // @Failure 403 {object} mapper.errorBody
 // @Failure 404 {object} mapper.errorBody
+// @Failure 409 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
 // @Router /v1/products/{id} [patch]
 func (h *Handler) Update(c fiber.Ctx) error {
@@ -244,7 +248,7 @@ func (h *Handler) Update(c fiber.Ctx) error {
 	if err := c.Bind().Body(&body); err != nil {
 		return mapper.WriteError(c, apperror.New(apperror.CodeInvalidInput, "invalid body"))
 	}
-	cmd := input.UpdateProductCommand{ID: c.Params("id"), Name: body.Name, Enabled: body.Enabled}
+	cmd := input.UpdateProductCommand{ID: c.Params("id"), Name: body.Name, Enabled: body.Enabled, Version: body.Version}
 	if body.Price != nil {
 		price, err := priceString(body.Price)
 		if err != nil {

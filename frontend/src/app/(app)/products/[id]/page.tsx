@@ -37,6 +37,8 @@ function ProductForm({ product, editable }: { product: Product | null; editable:
   const sentPrice = price.trim().replace(",", ".");
   const [enabled, setEnabled] = useState(product?.enabled ?? true);
   const [error, setError] = useState<string | null>(null);
+  // The version this form was loaded from: a save made over someone else's newer change is refused.
+  const [version, setVersion] = useState(product?.version);
   const dirty = product
     ? name.trim() !== product.name || sentPrice !== product.price || enabled !== product.enabled
     : name.trim() !== "" || price.trim() !== "";
@@ -44,7 +46,7 @@ function ProductForm({ product, editable }: { product: Product | null; editable:
   const save = useMutation({
     mutationFn: () => {
       const input = { name: name.trim(), price: sentPrice, enabled };
-      return product ? products.update(product.id, input) : products.create(input);
+      return product ? products.update(product.id, { ...input, version }) : products.create(input);
     },
     onSuccess: (saved) => {
       setError(null);
@@ -53,7 +55,11 @@ function ProductForm({ product, editable }: { product: Product | null; editable:
       toast.success(t("common.saved"));
       router.push("/products");
     },
-    onError: (err) => setError(errorMessage(err, "common.save_failed", t)),
+    onError: (err) => {
+      setError(errorMessage(err, "common.save_failed", t));
+      // Fetch the newer row now, so Discard shows it.
+      if (product && err instanceof ApiError && err.code === "CONFLICT") void client.invalidateQueries({ queryKey: ["products", "detail", product.id] });
+    },
   });
 
   const discard = () => {
@@ -61,6 +67,7 @@ function ProductForm({ product, editable }: { product: Product | null; editable:
     setName(product.name);
     setPrice(comma ? product.price.replace(".", ",") : product.price);
     setEnabled(product.enabled);
+    setVersion(product.version);
     setError(null);
   };
 

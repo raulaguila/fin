@@ -25,6 +25,7 @@ type UnitOfWork interface {
 	Notifications() NotificationRepository
 	Audit() AuditRepository
 	Products() ProductRepository
+	Jobs() JobRepository
 }
 
 // AccountStore exposes only the repositories this application service reads or updates.

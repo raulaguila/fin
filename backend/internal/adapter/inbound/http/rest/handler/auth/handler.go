@@ -29,6 +29,9 @@ func (h *Handler) MeRoutes(r fiber.Router, passwordLimit fiber.Handler) {
 	r.Get("/", h.Me)
 	r.Patch("/", h.Rename)
 	r.Post("/password", passwordLimit, h.ChangePassword)
+	r.Get("/avatar", h.Avatar)
+	r.Put("/avatar", h.SetAvatar)
+	r.Delete("/avatar", h.RemoveAvatar)
 }
 
 // Routes mounts the auth routes; each limiter runs on the routes that need it.
@@ -90,6 +93,9 @@ type userDTO struct {
 	Permissions map[string][]string   `json:"permissions"`
 	Preferences mapper.PreferencesDTO `json:"preferences"`
 	Roles       []string              `json:"roles"`
+	// AvatarAt is when the picture was last set; absent when there is none. Use it
+	// as a cache buster on /v1/me/avatar.
+	AvatarAt *time.Time `json:"avatar_at,omitempty"`
 }
 
 type tokenPairDTO struct {
@@ -116,6 +122,7 @@ func toUserDTO(p *domain.Profile) userDTO {
 		Permissions: mapper.Permissions(p.Permissions),
 		Preferences: mapper.Preferences(p.Preferences),
 		Roles:       p.Roles,
+		AvatarAt:    p.AvatarAt,
 	}
 }
 
@@ -288,6 +295,56 @@ func (h *Handler) Rename(c fiber.Ctx) error {
 		return mapper.WriteError(c, err)
 	}
 	return c.JSON(meDTO{User: toUserDTO(profile), SessionID: middleware.SessionID(c)})
+}
+
+// @Summary Get the profile picture
+// @Tags Profile
+// @Produce image/png,image/jpeg,image/webp
+// @Security BearerAuth
+// @Success 200 {file} binary
+// @Failure 401 {object} mapper.errorBody
+// @Failure 404 {object} mapper.errorBody
+// @Router /v1/me/avatar [get]
+func (h *Handler) Avatar(c fiber.Ctx) error {
+	image, contentType, err := h.account.Avatar(c.Context(), middleware.UserID(c))
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	c.Set(fiber.HeaderContentType, contentType)
+	c.Set("X-Content-Type-Options", "nosniff")
+	// The URL carries avatar_at, so a new picture is a new URL; private keeps it out of shared caches.
+	c.Set(fiber.HeaderCacheControl, "private, max-age=86400")
+	return c.Send(image)
+}
+
+// @Summary Set the profile picture
+// @Description The body is the image itself: PNG, JPEG or WebP, at most 100 KB. The type is read from the bytes.
+// @Tags Profile
+// @Accept image/png,image/jpeg,image/webp
+// @Security BearerAuth
+// @Param body body string true "Image bytes"
+// @Success 204
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Router /v1/me/avatar [put]
+func (h *Handler) SetAvatar(c fiber.Ctx) error {
+	if err := h.account.SetAvatar(c.Context(), middleware.UserID(c), c.Body()); err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// @Summary Remove the profile picture
+// @Tags Profile
+// @Security BearerAuth
+// @Success 204
+// @Failure 401 {object} mapper.errorBody
+// @Router /v1/me/avatar [delete]
+func (h *Handler) RemoveAvatar(c fiber.Ctx) error {
+	if err := h.account.RemoveAvatar(c.Context(), middleware.UserID(c)); err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // @Summary Change the password and end the other sessions

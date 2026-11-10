@@ -179,6 +179,24 @@ func (r *Repository) UpdateName(ctx context.Context, id, name string) error {
 	return shared.WrapError(res.Error, "user")
 }
 
+func (r *Repository) AvatarAt(ctx context.Context, id string) (*time.Time, error) {
+	var m struct {
+		AvatarAt *time.Time `gorm:"column:avatar_at"`
+	}
+	if err := r.db.WithContext(ctx).Raw(`SELECT avatar_at FROM usr.usr_user WHERE id = ?`, id).Take(&m).Error; err != nil {
+		return nil, shared.WrapError(err, "user")
+	}
+	return m.AvatarAt, nil
+}
+
+func (r *Repository) SetAvatarAt(ctx context.Context, id string, at *time.Time) error {
+	res := r.db.WithContext(ctx).Exec(`UPDATE usr.usr_user SET avatar_at = ? WHERE id = ?`, at, id)
+	if res.Error == nil && res.RowsAffected == 0 {
+		return shared.WrapError(gorm.ErrRecordNotFound, "user")
+	}
+	return shared.WrapError(res.Error, "user")
+}
+
 func (r *Repository) UpdateStatus(ctx context.Context, id, status string) error {
 	err := r.db.WithContext(ctx).Exec(`
 		UPDATE usr.usr_user SET status = ?, updated_at = now() WHERE id = ? AND status <> ?

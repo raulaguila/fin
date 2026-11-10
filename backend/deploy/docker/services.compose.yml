@@ -5,6 +5,9 @@ volumes:
   postgres_volume:
     name: authenticity_pg_volume
 
+  files_volume:
+    name: authenticity_files_volume
+
 networks:
 
   authenticity_network:

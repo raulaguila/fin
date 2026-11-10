@@ -28,6 +28,8 @@ export interface Me {
   preferences: Preferences;
   /** Names of the enabled roles. */
   roles: string[];
+  /** When the profile picture was last set; absent when there is none. */
+  avatar_at?: string;
 }
 
 export interface MeResponse {
@@ -128,6 +130,7 @@ export interface Product {
   name: string;
   price: string;
   enabled: boolean;
+  version: number;
   created_at: string;
   updated_at: string;
 }

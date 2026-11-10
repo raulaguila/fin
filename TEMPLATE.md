@@ -24,9 +24,14 @@ lives in `frontend/src/lib/brand.ts` and the mark in `frontend/src/components/br
 
 ## Add a module
 
-`products` is the reference: copy its files and follow the same layers. The
-architecture test (`tests/architecture`) fails if the core imports an adapter,
-GORM, Fiber or the config.
+`products` is the reference. `make module NAME=invoice` (in `backend/`, with
+`PLURAL=` when the plural is not the name plus "s") copies it into a new module:
+migration, domain, ports, use case, repository, handler, tests and web screens,
+with the wiring lines added next to the products ones and the Swagger spec
+regenerated. Then replace the copied fields (name, price, enabled) with the
+module's own and review the pt-BR texts. The table below is what it touches,
+for a module written by hand. The architecture test (`tests/architecture`) fails
+if the core imports an adapter, GORM, Fiber or the config.
 
 | Step | File (products) | What goes there |
 |------|-----------------|-----------------|
@@ -45,6 +50,22 @@ GORM, Fiber or the config.
 
 The app role gets read and write rights on new tables in `usr`, `sys` and
 `app` by default privileges. A table in a new schema needs its own `GRANT`.
+
+What a module gets from the products pattern:
+
+- **Edit conflicts.** Each row has a `version`; an update that sends the version
+  it read is refused with 409 (`CONFLICT`) when someone saved in between, and
+  the screen asks to discard and redo instead of overwriting.
+- **Background jobs.** `policy.EnqueueJob(ctx, uow, kind, payload)` inside the
+  use case's transaction queues a job in `sys.job`; the module's handlers
+  (`product.Jobs`) are registered in `composition.NewJobs`, and every backend
+  instance runs the worker. Failed runs retry with backoff up to `max_attempts`;
+  `policy.PermanentJobError` stops at once. Handlers must be safe to repeat.
+- **Files.** `output.FileStore` keeps uploads on disk (`STORAGE_DRIVER=local`,
+  one instance) or in an S3-compatible bucket (`s3`: AWS S3, MinIO, R2). The
+  profile picture (`/v1/me/avatar`) is the example. Request bodies are capped at
+  about 100 KB for every route; larger uploads need their own listener or a
+  streamed body.
 
 A request already carries its correlation id and actor in the context
 (`pkg/reqctx`), so logs, outbox messages and audit entries of a new module pick

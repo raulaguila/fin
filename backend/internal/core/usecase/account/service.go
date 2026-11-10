@@ -3,6 +3,7 @@ package account
 
 import (
 	"context"
+	"net/http"
 	"regexp"
 	"slices"
 
@@ -23,12 +24,13 @@ type Service struct {
 	UOW   output.AccountStore
 	Perms output.PermissionReader
 	Clock output.Clock
+	Files output.FileStore
 }
 
 var _ input.AccountService = (*Service)(nil)
 
-func New(uow output.AccountStore, perms output.PermissionReader, clock output.Clock) *Service {
-	return &Service{UOW: uow, Perms: perms, Clock: clock}
+func New(uow output.AccountStore, perms output.PermissionReader, clock output.Clock, files output.FileStore) *Service {
+	return &Service{UOW: uow, Perms: perms, Clock: clock, Files: files}
 }
 
 // Profile loads permissions live, so a client refreshing it sees grants at once.
@@ -49,7 +51,11 @@ func (s *Service) Profile(ctx context.Context, userID string) (*domain.Profile, 
 	if err != nil {
 		return nil, err
 	}
-	profile := &domain.Profile{User: *user, Preferences: *prefs, Roles: []string{}}
+	avatarAt, err := s.UOW.Users().AvatarAt(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	profile := &domain.Profile{User: *user, Preferences: *prefs, Roles: []string{}, AvatarAt: avatarAt}
 	for _, r := range roles {
 		if r.Enabled {
 			profile.Roles = append(profile.Roles, r.Name)
@@ -71,6 +77,43 @@ func (s *Service) Rename(ctx context.Context, userID, name string) (*domain.Prof
 		return nil, err
 	}
 	return s.Profile(ctx, userID)
+}
+
+// avatarTypes are the pictures a browser shows; SVG stays out, since it can carry script.
+var avatarTypes = []string{"image/png", "image/jpeg", "image/webp"}
+
+func avatarKey(userID string) string { return "avatars/" + userID }
+
+// SetAvatar trusts the bytes, not a declared type: the type is sniffed from the content.
+func (s *Service) SetAvatar(ctx context.Context, userID string, image []byte) error {
+	if len(image) == 0 || len(image) > domain.AvatarMaxBytes {
+		return apperror.New(apperror.CodeInvalidInput, "picture must be at most 100 KB").WithField("avatar")
+	}
+	if !slices.Contains(avatarTypes, http.DetectContentType(image)) {
+		return apperror.New(apperror.CodeInvalidInput, "picture must be PNG, JPEG or WebP").WithField("avatar")
+	}
+	if err := s.Files.Put(ctx, avatarKey(userID), image); err != nil {
+		return err
+	}
+	now := s.Clock.Now()
+	return s.UOW.Users().SetAvatarAt(ctx, userID, &now)
+}
+
+// RemoveAvatar deletes the file first: if the second step fails, the profile
+// points at a missing picture, never at one the user asked to remove.
+func (s *Service) RemoveAvatar(ctx context.Context, userID string) error {
+	if err := s.Files.Delete(ctx, avatarKey(userID)); err != nil {
+		return err
+	}
+	return s.UOW.Users().SetAvatarAt(ctx, userID, nil)
+}
+
+func (s *Service) Avatar(ctx context.Context, userID string) ([]byte, string, error) {
+	image, err := s.Files.Get(ctx, avatarKey(userID))
+	if err != nil {
+		return nil, "", err
+	}
+	return image, http.DetectContentType(image), nil
 }
 
 func (s *Service) Sessions(ctx context.Context, userID string) ([]domain.Session, error) {

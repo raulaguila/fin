@@ -26,6 +26,8 @@ import (
 	"github.com/raulaguila/authenticity/internal/core/usecase/account"
 	"github.com/raulaguila/authenticity/internal/core/usecase/auth"
 	"github.com/raulaguila/authenticity/pkg/apperror"
+
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/files"
 )
 
 const strongPassword = "correct horse battery"
@@ -163,7 +165,7 @@ func (e *env) loginFrom(addr, pass, ip string) (*domain.TokenPair, error) {
 }
 
 func (e *env) account() *account.Service {
-	return account.New(e.store, rbac.NewRepository(testDB), e.clock)
+	return account.New(e.store, rbac.NewRepository(testDB), e.clock, &files.Local{Dir: filepath.Join(os.TempDir(), "authenticity-it-files")})
 }
 
 func (e *env) userID(t testing.TB, addr string) string {

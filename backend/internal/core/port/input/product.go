@@ -17,6 +17,7 @@ type UpdateProductCommand struct {
 	Name    *string
 	Price   *string
 	Enabled *bool
+	Version *int // the version the caller read; nil skips the check
 }
 
 // ProductService is the inbound port for product CRUD.

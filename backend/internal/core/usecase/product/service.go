@@ -90,6 +90,9 @@ func (s *Service) Create(ctx context.Context, cmd input.CreateProductCommand) (*
 		if err := uow.Products().Create(ctx, p); err != nil {
 			return err
 		}
+		if err := policy.EnqueueJob(ctx, uow, JobCreated, createdJob{ID: p.ID}); err != nil {
+			return err
+		}
 		return policy.Audit(ctx, uow, "product.create", p.ID, map[string]any{"name": p.Name, "price": p.Price, "enabled": p.Enabled})
 	})
 	if err != nil {
@@ -102,7 +105,7 @@ func (s *Service) Update(ctx context.Context, cmd input.UpdateProductCommand) (*
 	if err := validate.ID(cmd.ID); err != nil {
 		return nil, err
 	}
-	patch := domain.ProductPatch{Enabled: cmd.Enabled}
+	patch := domain.ProductPatch{Enabled: cmd.Enabled, Version: cmd.Version}
 	if cmd.Name != nil {
 		name, err := normalizeName(*cmd.Name)
 		if err != nil {

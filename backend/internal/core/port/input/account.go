@@ -12,6 +12,12 @@ type AccountService interface {
 	Profile(ctx context.Context, userID string) (*domain.Profile, error)
 	Rename(ctx context.Context, userID, name string) (*domain.Profile, error)
 
+	// SetAvatar stores a PNG, JPEG or WebP picture of at most domain.AvatarMaxBytes.
+	SetAvatar(ctx context.Context, userID string, image []byte) error
+	RemoveAvatar(ctx context.Context, userID string) error
+	// Avatar returns the picture and its content type.
+	Avatar(ctx context.Context, userID string) ([]byte, string, error)
+
 	Sessions(ctx context.Context, userID string) ([]domain.Session, error)
 	RevokeSession(ctx context.Context, userID, sessionID string) error
 	RevokeOtherSessions(ctx context.Context, userID, currentSessionID string) error

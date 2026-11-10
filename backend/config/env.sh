@@ -60,6 +60,14 @@ SMTP_REPLY_TO=''                                # Reply-To address (optional)
 SMTP_SECURITY='none'                            # none, starttls or tls; production needs TLS
 SMTP_APP_URL=''                                 # Web app address for links in emails, e.g. https://id.acme.io; required in production
 
+STORAGE_DRIVER='local'                          # local or s3; s3 when more than one backend instance runs
+STORAGE_LOCAL_DIR='data/files'                  # Directory for uploaded files (local driver)
+STORAGE_S3_ENDPOINT=''                          # S3-compatible endpoint without the bucket, e.g. http://minio:9000
+STORAGE_S3_REGION='us-east-1'                   # Bucket region
+STORAGE_S3_BUCKET=''                            # Bucket name
+STORAGE_S3_ACCESS_KEY=''                        # Access key id
+STORAGE_S3_SECRET_KEY=''                        # Secret access key
+
 REGISTRATION_TOKEN_TTL='24h'                      # Registration token time-to-live
 PASSWORD_RESET_TOKEN_TTL='2h'                   # Password reset token time-to-live
 AUTH_SESSION_MAX_LIFETIME='720h'                # Login required again after this, however often the session refreshes

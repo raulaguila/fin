@@ -5,6 +5,18 @@ include:
 
 services:
 
+  # The backend runs as nobody; a fresh named volume is owned by root. This
+  # one-shot step hands the uploads directory to nobody before the backend starts.
+  files-init:
+
+    container_name: authenticity_files_init
+    image: authenticity_backend:${SYS_VERSION}
+    user: "0:0"
+    entrypoint: ["chown", "65534:65534", "/data/files"]
+    restart: "no"
+    volumes:
+      - files_volume:/data/files
+
   backend:
 
     container_name: authenticity_backend
@@ -35,6 +47,9 @@ services:
       - GOMEMLIMIT=400MiB  # GC pressure before the container limit
       # Only the web BFF (frontend/deploy/compose.yml) may set the client IP; the gateway may not.
       - API_TRUSTED_PROXIES=${WEB_IP:-172.30.99.10}
+      - STORAGE_LOCAL_DIR=/data/files  # used when STORAGE_DRIVER is local
+    volumes:
+      - files_volume:/data/files
     deploy:
       resources:
         limits:
@@ -44,6 +59,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      files-init:
+        condition: service_completed_successfully
 
   mailer:
 

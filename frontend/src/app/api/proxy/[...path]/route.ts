@@ -8,7 +8,7 @@ import { clearSessionCookie, readSession, unauthorized, writeSessionCookie, type
 
 export const dynamic = "force-dynamic";
 
-const MAX_BODY = 16 * 1024; // the backend refuses more
+const MAX_BODY = 104 * 1024; // the backend refuses more: a 100 KB picture is its largest body
 const TOKEN_PATHS = /^v1\/auth\/(login|refresh|logout|register|activate|password-reset)(\/|$)/;
 const PASSTHROUGH = ["content-type", "content-disposition", "retry-after", "x-request-id"];
 
@@ -22,8 +22,10 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   const { session, present } = await readSession();
   if (!session) return unauthorized(present);
 
-  const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text();
-  if (body && body.length > MAX_BODY) return NextResponse.json({ code: "INVALID_INPUT", message: "request body too large" }, { status: 413 });
+  // Bytes, not text: an image body would not survive a UTF-8 round trip.
+  const raw = req.method === "GET" || req.method === "HEAD" ? undefined : await req.arrayBuffer();
+  const body = raw?.byteLength ? raw : undefined;
+  if (body && body.byteLength > MAX_BODY) return NextResponse.json({ code: "INVALID_INPUT", message: "request body too large" }, { status: 413 });
 
   const headers = forwardHeaders(req);
   const send = (token: string) =>

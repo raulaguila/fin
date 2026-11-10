@@ -107,6 +107,20 @@ func (c SMTPConfig) TokenKey() []byte {
 	return key
 }
 
+// StorageConfig picks where uploaded files live: a local directory, or an
+// S3-compatible bucket (AWS S3, MinIO, Cloudflare R2) for more than one instance.
+type StorageConfig struct {
+	Driver   string `env:"STORAGE_DRIVER" default:"local"`
+	LocalDir string `env:"STORAGE_LOCAL_DIR" default:"data/files"`
+	// S3Endpoint is the bucket host without the bucket, e.g. https://s3.us-east-1.amazonaws.com
+	// or http://minio:9000; requests use path style (endpoint/bucket/key).
+	S3Endpoint  string `env:"STORAGE_S3_ENDPOINT" default:""`
+	S3Region    string `env:"STORAGE_S3_REGION" default:"us-east-1"`
+	S3Bucket    string `env:"STORAGE_S3_BUCKET" default:""`
+	S3AccessKey string `env:"STORAGE_S3_ACCESS_KEY" default:""`
+	S3SecretKey string `env:"STORAGE_S3_SECRET_KEY" default:""`
+}
+
 type Environment struct {
 	DiagnosticsAddress string         `env:"DIAGNOSTICS_ADDRESS" default:"127.0.0.1:9091"`
 	Timezone           *time.Location `env:"TZ" default:"America/Manaus"`
@@ -119,6 +133,7 @@ type Environment struct {
 	Auth     AuthConfig
 	Postgres PostgresConfig
 	SMTP     SMTPConfig
+	Storage  StorageConfig
 }
 
 // Protected reports whether production rules apply.

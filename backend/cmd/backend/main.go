@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -49,6 +50,15 @@ func main() {
 		log.Warn("AUTH_MANUAL_TOKEN_DELIVERY is on: activation and reset tokens are returned in API responses. Development only.")
 	}
 
+	jobsCtx, stopJobs := context.WithCancel(context.Background())
+	jobsDone := make(chan struct{})
+	go func() {
+		defer close(jobsDone)
+		_ = composition.NewJobs(res, log).Run(jobsCtx)
+	}()
+	// Runs before the deferred shutdowns: a job in flight finishes its mark before the pool closes.
+	defer func() { stopJobs(); <-jobsDone }()
+
 	addr := fmt.Sprintf(":%d", cfg.API.Port)
 	failed := make(chan error, 1)
 	go func() {
@@ -62,6 +72,8 @@ func main() {
 	case err := <-failed: // back in main, so the deferred shutdowns run before the exit code
 		if err != nil {
 			log.Error("HTTP server stopped", slog.String("error", err.Error()))
+			stopJobs()
+			<-jobsDone
 			stopDiagnostics()
 			res.Shutdown(log)
 			os.Exit(1)

@@ -20,13 +20,16 @@ import (
 	usershttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/user"
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/mapper"
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
+	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/pkg/logger"
 )
 
 // maxBodyBytes bounds what a client makes the server buffer: the body is read
-// before any middleware runs, rate limit included. No route needs more.
-const maxBodyBytes = 16 * 1024
+// before any middleware runs, rate limit included. The largest route is the
+// profile picture (domain.AvatarMaxBytes); larger uploads need their own listener
+// or a streamed body, not a higher limit for every route.
+const maxBodyBytes = domain.AvatarMaxBytes + 4*1024
 
 func serverConfig(api config.APIConfig) fiber.Config {
 	cfg := fiber.Config{

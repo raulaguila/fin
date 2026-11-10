@@ -18,6 +18,9 @@ type UserRepository interface {
 	LockStatus(ctx context.Context, id string) (string, error)
 	Create(ctx context.Context, user *domain.User) error
 	UpdateName(ctx context.Context, id, name string) error
+	// AvatarAt reads when the user last set a picture; nil when there is none.
+	AvatarAt(ctx context.Context, id string) (*time.Time, error)
+	SetAvatarAt(ctx context.Context, id string, at *time.Time) error
 	// UpdateStatus leaves a disabled account as it is: a login or activation already
 	// running when the account was disabled must not undo that.
 	UpdateStatus(ctx context.Context, id, status string) error

@@ -31,6 +31,8 @@ export async function errorFrom(res: Response): Promise<ApiError> {
 export interface FetchOpts {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   json?: unknown;
+  /** A raw body such as an image; sent with the blob's own type. */
+  blob?: Blob;
   signal?: AbortSignal;
 }
 
@@ -50,8 +52,8 @@ async function apiResponse(path: string, opts: FetchOpts): Promise<Response> {
   const init: RequestInit = {
     method: opts.method ?? "GET",
     signal: opts.signal,
-    headers: opts.json === undefined ? undefined : { "content-type": "application/json" },
-    body: opts.json === undefined ? undefined : JSON.stringify(opts.json),
+    headers: opts.blob ? { "content-type": opts.blob.type } : opts.json === undefined ? undefined : { "content-type": "application/json" },
+    body: opts.blob ?? (opts.json === undefined ? undefined : JSON.stringify(opts.json)),
   };
   let res = await fetch("/api/proxy" + path, init);
   if (res.status === 401) {

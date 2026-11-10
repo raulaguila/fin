@@ -631,6 +631,111 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/me/avatar": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp"
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "Get the profile picture",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "The body is the image itself: PNG, JPEG or WebP, at most 100 KB. The type is read from the bytes.",
+                "consumes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp"
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "Set the profile picture",
+                "parameters": [
+                    {
+                        "description": "Image bytes",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "Remove the profile picture",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/me/notifications": {
             "get": {
                 "security": [
@@ -1523,6 +1628,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
                         }
@@ -3131,6 +3242,10 @@ const docTemplate = `{
         "auth.userDTO": {
             "type": "object",
             "properties": {
+                "avatar_at": {
+                    "description": "AvatarAt is when the picture was last set; absent when there is none. Use it\nas a cache buster on /v1/me/avatar.",
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -3358,6 +3473,9 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                },
+                "version": {
+                    "type": "integer"
                 }
             }
         },
@@ -3393,6 +3511,11 @@ const docTemplate = `{
                 "price": {
                     "type": "string",
                     "example": "19.90"
+                },
+                "version": {
+                    "description": "Version is the version the client read; when sent, a newer row is a 409 conflict.",
+                    "type": "integer",
+                    "example": 3
                 }
             }
         },

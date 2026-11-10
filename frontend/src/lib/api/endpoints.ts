@@ -36,6 +36,10 @@ export const account = {
   sessions: () => apiFetch<{ items: Session[] }>("/v1/me/sessions"),
   revokeSession: (sessionId: string) => apiFetch<void>(`/v1/me/sessions/${id(sessionId)}`, { method: "DELETE" }),
   revokeOtherSessions: () => apiFetch<void>("/v1/me/sessions/others", { method: "DELETE" }),
+  setAvatar: (image: Blob) => apiFetch<void>("/v1/me/avatar", { method: "PUT", blob: image }),
+  removeAvatar: () => apiFetch<void>("/v1/me/avatar", { method: "DELETE" }),
+  /** The picture's address; avatar_at in the query makes a new picture a new URL. */
+  avatarUrl: (avatarAt: string) => `/api/proxy/v1/me/avatar?v=${Date.parse(avatarAt)}`,
   savePreferences: (p: Preferences) => apiFetch<Preferences>("/v1/me/preferences", { method: "PUT", json: p }),
 };
 
@@ -89,7 +93,7 @@ export const products = {
     apiFetch<Paged<Product>>(`/v1/products${query(p)}`, { signal }),
   get: (productId: string) => apiFetch<Product>(`/v1/products/${id(productId)}`),
   create: (input: ProductInput) => apiFetch<Product>("/v1/products", { method: "POST", json: input }),
-  update: (productId: string, input: Partial<ProductInput>) => apiFetch<Product>(`/v1/products/${id(productId)}`, { method: "PATCH", json: input }),
+  update: (productId: string, input: Partial<ProductInput> & { version?: number }) => apiFetch<Product>(`/v1/products/${id(productId)}`, { method: "PATCH", json: input }),
   remove: (ids: string[]) => apiFetch<void>("/v1/products/delete", { method: "POST", json: { ids } }),
 };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { Loader2, Monitor, Smartphone } from "lucide-react";
@@ -10,12 +10,13 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { PasswordInput } from "@/components/password-input";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ApiError } from "@/lib/api/client";
 import { account } from "@/lib/api/endpoints";
 import type { Language, Theme } from "@/lib/api/types";
 import { ME_KEY, useMe } from "@/lib/context/me";
@@ -25,16 +26,45 @@ import type { MessageKey } from "@/lib/i18n/messages";
 import { describeDevice } from "@/lib/device";
 import { useI18n } from "@/lib/i18n/provider";
 import { newPassword, personName, ready, sameAs } from "@/lib/validation";
+import { squareImage } from "@/lib/image";
 import { passwordScore } from "@/lib/password";
 import { cn } from "@/lib/utils";
 
 function ProfileHeader() {
   const { t, locale } = useI18n();
   const { user } = useMe();
+  const client = useQueryClient();
+  const picker = useRef<HTMLInputElement>(null);
+  const done = (key: MessageKey) => {
+    toast.success(t(key));
+    void client.invalidateQueries({ queryKey: ME_KEY });
+  };
+  const upload = useMutation({
+    mutationFn: async (file: File) => {
+      let image: Blob;
+      try {
+        image = await squareImage(file);
+      } catch {
+        throw new Error(t("profile.avatar_unreadable"));
+      }
+      return account.setAvatar(image);
+    },
+    onSuccess: () => done("profile.avatar_saved"),
+    onError: (err) => toast.error(err instanceof ApiError ? errorMessage(err, "common.save_failed", t) : err.message),
+  });
+  const remove = useMutation({
+    mutationFn: account.removeAvatar,
+    onSuccess: () => done("profile.avatar_removed"),
+    onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
+  });
   if (!user) return null;
+  const busy = upload.isPending || remove.isPending;
   return (
     <div className="flex flex-wrap items-center gap-4">
-      <Avatar className="size-14"><AvatarFallback className="text-lg">{initials(user.name)}</AvatarFallback></Avatar>
+      <Avatar className="size-14">
+        {user.avatar_at && <AvatarImage src={account.avatarUrl(user.avatar_at)} alt="" />}
+        <AvatarFallback className="text-lg">{initials(user.name)}</AvatarFallback>
+      </Avatar>
       <div className="min-w-0 flex-1">
         <div className="truncate text-lg font-semibold">{user.name}</div>
         <div className="truncate text-sm text-muted-foreground">{user.email}</div>
@@ -42,6 +72,30 @@ function ProfileHeader() {
           {user.roles.map((r) => <Badge key={r} variant="secondary">{r}</Badge>)}
           <span>{t("profile.member_since")} {new Date(user.created_at).toLocaleDateString(locale, { dateStyle: "medium" })}</span>
         </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <input
+          ref={picker}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = ""; // picking the same file again still fires
+            if (file) upload.mutate(file);
+          }}
+        />
+        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => picker.current?.click()}>
+          {upload.isPending && <Loader2 className="size-4 animate-spin" />}
+          {t(user.avatar_at ? "profile.avatar_change" : "profile.avatar_add")}
+        </Button>
+        {user.avatar_at && (
+          <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => remove.mutate()}>
+            {t("profile.avatar_remove")}
+          </Button>
+        )}
       </div>
     </div>
   );

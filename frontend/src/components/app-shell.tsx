@@ -12,7 +12,7 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { QueryErrorState } from "@/components/query-error-state";
 import { SessionKeepalive } from "@/components/session-keepalive";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { redirectToLogin } from "@/lib/api/client";
-import { notifications } from "@/lib/api/endpoints";
+import { account, notifications } from "@/lib/api/endpoints";
 import { useMe } from "@/lib/context/me";
 import { useI18n } from "@/lib/i18n/provider";
 import { ADMIN_NAV, MAIN_NAV, isActive } from "@/lib/navigation";
@@ -124,6 +124,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <DropdownMenu>
                 <DropdownMenuTrigger aria-label={t("a11y.account_menu")} className="ml-1 flex size-11 items-center justify-center rounded-md md:size-8">
                   <Avatar className="size-8">
+                    {user?.avatar_at && <AvatarImage src={account.avatarUrl(user.avatar_at)} alt="" />}
                     <AvatarFallback className="text-xs">{initials(user?.name ?? "?")}</AvatarFallback>
                   </Avatar>
                 </DropdownMenuTrigger>

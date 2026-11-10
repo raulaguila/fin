@@ -18,6 +18,9 @@
 **/*.pem
 **/*.key
 
+# Uploaded files of the local storage driver
+backend/data/
+
 # Build outputs and temporary files
 **/bin/
 **/tmp/

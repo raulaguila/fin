@@ -15,6 +15,7 @@ type ProductRepository interface {
 	FindByID(ctx context.Context, id string) (*domain.Product, error)
 	Create(ctx context.Context, p *domain.Product) error
 	// Update writes only the fields set in patch, so two edits of different fields both land.
+	// With patch.Version set, a row changed since that version is a conflict.
 	Update(ctx context.Context, id string, patch domain.ProductPatch) (*domain.Product, error)
 	// DeleteMany deletes every listed product or, when one is missing, none.
 	DeleteMany(ctx context.Context, ids []string) error

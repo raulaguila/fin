@@ -215,3 +215,30 @@ func TestProductChangesAreAudited(t *testing.T) {
 		t.Fatalf("audit %v, want %v", got, want)
 	}
 }
+
+func TestProductUpdateRefusesStaleVersion(t *testing.T) {
+	ctx := context.Background()
+	svc := product.New(productrepo.NewRepository(testDB), postgres.NewStore(testDB))
+	p, err := svc.Create(ctx, input.CreateProductCommand{Name: "Versioned", Price: "1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, second := "First", "Second"
+	read := p.Version
+	got, err := svc.Update(ctx, input.UpdateProductCommand{ID: p.ID, Name: &first, Version: &read})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Version != read+1 {
+		t.Fatalf("version %d, want %d", got.Version, read+1)
+	}
+	// A second editor still holding the old version loses, and the row keeps the first edit.
+	_, err = svc.Update(ctx, input.UpdateProductCommand{ID: p.ID, Name: &second, Version: &read})
+	wantCode(t, err, apperror.CodeConflict)
+	if now, _ := svc.Get(ctx, p.ID); now.Name != "First" {
+		t.Fatalf("name %q", now.Name)
+	}
+	missing := "11111111-1111-4111-8111-111111111111"
+	_, err = svc.Update(ctx, input.UpdateProductCommand{ID: missing, Name: &first, Version: &read})
+	wantCode(t, err, apperror.CodeNotFound)
+}

@@ -1,17 +1,21 @@
 package composition
 
 import (
+	"maps"
 	"time"
 
 	"github.com/raulaguila/authenticity/config"
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/emailpayload"
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/files"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres"
+	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/job"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/outbox"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/ratelimit"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/rbac"
 	smtpmail "github.com/raulaguila/authenticity/internal/adapter/outbound/smtp"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/tokens"
+	"github.com/raulaguila/authenticity/internal/core/policy"
 	"github.com/raulaguila/authenticity/internal/core/port/input"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
 	"github.com/raulaguila/authenticity/internal/core/usecase/account"
@@ -20,6 +24,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/core/usecase/auth"
 	"github.com/raulaguila/authenticity/internal/core/usecase/authorize"
 	"github.com/raulaguila/authenticity/internal/core/usecase/health"
+	"github.com/raulaguila/authenticity/internal/core/usecase/jobs"
 	"github.com/raulaguila/authenticity/internal/core/usecase/mailer"
 	"github.com/raulaguila/authenticity/internal/core/usecase/product"
 	rolesvc "github.com/raulaguila/authenticity/internal/core/usecase/role"
@@ -47,6 +52,27 @@ func NewMailer(cfg *config.Environment, res *infra.Resources, log *logger.Logger
 		Clock:  output.RealClock{},
 		Codec:  emailpayload.New(cfg.SMTP.TokenKey()),
 		AppURL: cfg.SMTP.AppURL,
+	}
+}
+
+// NewFiles picks the file store named by STORAGE_DRIVER, validated at load time.
+func NewFiles(cfg config.StorageConfig) output.FileStore {
+	if cfg.Driver == "s3" {
+		return &files.S3{Endpoint: cfg.S3Endpoint, Region: cfg.S3Region, Bucket: cfg.S3Bucket, AccessKey: cfg.S3AccessKey, SecretKey: cfg.S3SecretKey}
+	}
+	return &files.Local{Dir: cfg.LocalDir}
+}
+
+// NewJobs wires the background job worker that cmd/backend runs. Each module
+// adds its handlers here.
+func NewJobs(res *infra.Resources, log *logger.Logger) *jobs.Worker {
+	handlers := map[string]policy.JobHandler{}
+	maps.Copy(handlers, product.Jobs(log))
+	return &jobs.Worker{
+		Repo:     job.NewRepository(res.PostgresDB),
+		Handlers: handlers,
+		Log:      log,
+		Clock:    output.RealClock{},
 	}
 }
 
@@ -94,7 +120,7 @@ func NewApplication(cfg *config.Environment, res *infra.Resources, log *logger.L
 		Roles:      rolesvc.New(store, store, permReader),
 		Users:      usersvc.New(store, store, output.RealClock{}, cfg.Auth.LoginAttemptEmailWindow),
 		Auth:       authSvc,
-		Account:    account.New(store, permReader, output.RealClock{}),
+		Account:    account.New(store, permReader, output.RealClock{}, NewFiles(cfg.Storage)),
 		Products:   product.New(store.Products(), store),
 		Audit:      auditsvc.New(store.Audit()),
 	}

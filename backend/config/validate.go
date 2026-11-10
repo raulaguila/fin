@@ -55,7 +55,25 @@ func validateEnvironment(env *Environment) error {
 	if env.Postgres.MaxConns <= 0 {
 		return fmt.Errorf("POSTGRES_MAX_CONNS must be greater than 0")
 	}
+	return validateStorage(env.Storage)
+}
 
+func validateStorage(cfg StorageConfig) error {
+	switch cfg.Driver {
+	case "", "local": // empty only in hand-built configs; the loader defaults to local
+		if cfg.Driver == "local" && cfg.LocalDir == "" {
+			return fmt.Errorf("STORAGE_LOCAL_DIR is required when STORAGE_DRIVER is local")
+		}
+	case "s3":
+		if u, err := url.Parse(cfg.S3Endpoint); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return fmt.Errorf("STORAGE_S3_ENDPOINT must be an http or https address")
+		}
+		if cfg.S3Bucket == "" || cfg.S3Region == "" || cfg.S3AccessKey == "" || cfg.S3SecretKey == "" {
+			return fmt.Errorf("STORAGE_S3_BUCKET, STORAGE_S3_REGION, STORAGE_S3_ACCESS_KEY and STORAGE_S3_SECRET_KEY are required when STORAGE_DRIVER is s3")
+		}
+	default:
+		return fmt.Errorf("STORAGE_DRIVER must be local or s3")
+	}
 	return nil
 }
 

@@ -8,7 +8,8 @@ type Profile struct {
 	IsSuperuser bool
 	Permissions map[string]Action
 	Preferences Preferences
-	Roles       []string // names of the enabled roles
+	Roles       []string   // names of the enabled roles
+	AvatarAt    *time.Time // when the picture was last set; nil when there is none
 }
 
 // Theme values match usr.usr_preference.
@@ -18,6 +19,9 @@ const (
 	ThemeDark   = "dark"
 
 	DefaultLanguage = "pt-BR"
+
+	// AvatarMaxBytes caps a profile picture; the web app sends a 256px square of a few KB.
+	AvatarMaxBytes = 100 * 1024
 )
 
 // Preferences holds a user's interface choices. A user with no row gets the defaults.

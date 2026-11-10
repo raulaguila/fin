@@ -10,6 +10,7 @@ import (
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/shared"
 	"github.com/raulaguila/authenticity/internal/core/domain"
 	"github.com/raulaguila/authenticity/internal/core/port/output"
+	"github.com/raulaguila/authenticity/pkg/apperror"
 )
 
 type Repository struct {
@@ -27,6 +28,7 @@ type row struct {
 	Name      string    `gorm:"column:name"`
 	Price     string    `gorm:"column:price"`
 	Enabled   bool      `gorm:"column:enabled"`
+	Version   int       `gorm:"column:version"`
 	CreatedAt time.Time `gorm:"column:created_at"`
 	UpdatedAt time.Time `gorm:"column:updated_at"`
 }
@@ -37,6 +39,7 @@ func (m row) toDomain() domain.Product {
 		Name:      m.Name,
 		Price:     m.Price,
 		Enabled:   m.Enabled,
+		Version:   m.Version,
 		CreatedAt: m.CreatedAt,
 		UpdatedAt: m.UpdatedAt,
 	}
@@ -84,7 +87,7 @@ func (r *Repository) List(ctx context.Context, filter domain.ProductFilter) ([]d
 		q = q.Offset(filter.Page.Offset())
 	}
 	var rows []row
-	err := q.Select("id, name, price::text AS price, enabled, created_at, updated_at").Order(order).Limit(filter.Page.Limit).Find(&rows).Error
+	err := q.Select("id, name, price::text AS price, enabled, version, created_at, updated_at").Order(order).Limit(filter.Page.Limit).Find(&rows).Error
 	if err != nil {
 		return nil, 0, shared.WrapError(err, "product")
 	}
@@ -113,7 +116,7 @@ func (r *Repository) ListOptions(ctx context.Context, limit int) ([]domain.Produ
 func (r *Repository) FindByID(ctx context.Context, id string) (*domain.Product, error) {
 	var m row
 	err := r.db.WithContext(ctx).Raw(`
-		SELECT id, name, price::text, enabled, created_at, updated_at
+		SELECT id, name, price::text, enabled, version, created_at, updated_at
 		FROM app.product WHERE id = ?
 	`, id).Take(&m).Error
 	if err != nil {
@@ -134,6 +137,7 @@ func (r *Repository) Create(ctx context.Context, p *domain.Product) error {
 		return shared.WrapError(err, "product")
 	}
 	p.ID = id.String()
+	p.Version = 1
 	p.CreatedAt = now
 	p.UpdatedAt = now
 	return nil
@@ -146,18 +150,35 @@ func (r *Repository) Update(ctx context.Context, id string, patch domain.Product
 		SET name = COALESCE(?::text, name),
 		    price = COALESCE(?::numeric, price),
 		    enabled = COALESCE(?::boolean, enabled),
+		    version = version + 1,
 		    updated_at = now()
-		WHERE id = ?
-		RETURNING id, name, price::text AS price, enabled, created_at, updated_at
-	`, patch.Name, patch.Price, patch.Enabled, id).Find(&rows).Error
+		WHERE id = ? AND (?::integer IS NULL OR version = ?)
+		RETURNING id, name, price::text AS price, enabled, version, created_at, updated_at
+	`, patch.Name, patch.Price, patch.Enabled, id, patch.Version, patch.Version).Find(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "product")
 	}
 	if len(rows) == 0 {
-		return nil, shared.WrapError(gorm.ErrRecordNotFound, "product")
+		return nil, r.missOrStale(ctx, id, patch.Version)
 	}
 	p := rows[0].toDomain()
 	return &p, nil
+}
+
+// missOrStale tells a missing row from one changed since the caller read it.
+// It runs only after an update matched nothing, so the happy path stays one statement.
+func (r *Repository) missOrStale(ctx context.Context, id string, version *int) error {
+	if version == nil {
+		return shared.WrapError(gorm.ErrRecordNotFound, "product")
+	}
+	var found []int
+	if err := r.db.WithContext(ctx).Raw(`SELECT 1 FROM app.product WHERE id = ?`, id).Find(&found).Error; err != nil {
+		return shared.WrapError(err, "product")
+	}
+	if len(found) == 0 {
+		return shared.WrapError(gorm.ErrRecordNotFound, "product")
+	}
+	return apperror.New(apperror.CodeConflict, "the record was changed by someone else").WithField("version")
 }
 
 // DeleteMany is one statement: the count check and the delete see the same snapshot.

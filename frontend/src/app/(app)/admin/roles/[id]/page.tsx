@@ -23,11 +23,13 @@ import { ApiError } from "@/lib/api/client";
 import { roles, users } from "@/lib/api/endpoints";
 import type { Action, Role } from "@/lib/api/types";
 import { useMe } from "@/lib/context/me";
+import { cn } from "@/lib/utils";
 import { errorMessage } from "@/lib/errors";
 import { useDebounced } from "@/lib/hooks/use-debounced";
 import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/provider";
+import { ready, roleName } from "@/lib/validation";
 import { can, resourceText } from "@/lib/permissions";
 import { useCrumb } from "@/lib/store/crumb";
 
@@ -57,8 +59,9 @@ function AllBox({ label, on, total, disabled, onChange }: { label: string; on: n
   );
 }
 
-function GeneralCard({ name, enabled, isDefault, editable, onName, onEnabled, onDefault }: {
+function GeneralCard({ name, nameOk, enabled, isDefault, editable, onName, onEnabled, onDefault }: {
   name: string;
+  nameOk: boolean;
   enabled: boolean;
   isDefault: boolean;
   editable: boolean;
@@ -73,8 +76,9 @@ function GeneralCard({ name, enabled, isDefault, editable, onName, onEnabled, on
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="name">{t("auth.name")}</Label>
-          <Input id="name" required minLength={2} maxLength={40} pattern="[a-z0-9_\-]+" aria-describedby="name-hint" disabled={!editable} value={name} onChange={(e) => onName(e.target.value)} />
-          <p id="name-hint" className="text-xs text-muted-foreground">{t("roles.name_hint")}</p>
+          {/* Flagged as soon as it breaks the rule; an empty field only blocks saving. */}
+          <Input id="name" required maxLength={40} aria-describedby="name-hint" aria-invalid={name !== "" && !nameOk} disabled={!editable} value={name} onChange={(e) => onName(e.target.value)} />
+          <p id="name-hint" className={cn("text-xs", name !== "" && !nameOk ? "text-destructive" : "text-muted-foreground")}>{t("roles.name_hint")}</p>
         </div>
         <label className="flex items-center gap-3 text-sm">
           {/* The default role must stay enabled. */}
@@ -255,6 +259,8 @@ function RoleEditor({ role: saved, editable }: { role: Role | null; editable: bo
   };
   const permsDirty = !all && JSON.stringify(clean(draft)) !== JSON.stringify(clean(role.permissions));
   const dirty = (!saved && name.trim() !== "") || Object.keys(patch).length > 0 || permsDirty;
+  // An old name outside the rule still lets the other fields save.
+  const nameOk = (saved !== null && name.trim() === role.name) || ready([name, roleName]);
 
   const created = useRef(""); // set once the role exists, so a later failure knows where to go
   const save = useMutation({
@@ -293,6 +299,7 @@ function RoleEditor({ role: saved, editable }: { role: Role | null; editable: bo
         <div className="space-y-6">
           <GeneralCard
             name={name}
+            nameOk={nameOk}
             enabled={enabled}
             isDefault={isDefault}
             editable={editable}
@@ -309,7 +316,7 @@ function RoleEditor({ role: saved, editable }: { role: Role | null; editable: bo
           <span className="flex-1 text-sm font-medium">{t(saved ? "roles.unsaved" : "roles.new")}</span>
           {error && <div className="basis-full"><FormError message={error} /></div>}
           <Button variant="ghost" disabled={save.isPending} onClick={discard}>{t(saved ? "common.discard" : "common.cancel")}</Button>
-          <Button disabled={save.isPending || name.trim() === ""} onClick={() => save.mutate()}>
+          <Button disabled={save.isPending || !nameOk} onClick={() => save.mutate()}>
             {save.isPending && <Loader2 className="size-4 animate-spin" />}
             {t(saved ? "common.save" : "common.create")}
           </Button>

@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { Loader2, Monitor, Smartphone } from "lucide-react";
 import { toast } from "sonner";
-import { FormError, PageBody, PageHeader, initials, useFormatDate } from "@/components/bits";
+import { FieldNote, FormError, PageBody, PageHeader, initials, useFormatDate } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { PasswordInput } from "@/components/password-input";
 import { QueryErrorState } from "@/components/query-error-state";
@@ -25,6 +25,7 @@ import { LOCALES } from "@/lib/i18n/messages";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { describeDevice } from "@/lib/device";
 import { useI18n } from "@/lib/i18n/provider";
+import { newPassword, personName, ready, sameAs } from "@/lib/validation";
 import { passwordScore } from "@/lib/password";
 import { cn } from "@/lib/utils";
 
@@ -91,9 +92,10 @@ function NameCard() {
           <FormError message={error} />
           <div className="space-y-2">
             <Label htmlFor="name">{t("auth.name")}</Label>
-            <Input id="name" required minLength={2} maxLength={80} value={name} onChange={(e) => setName(e.target.value)} />
+            <Input id="name" required maxLength={80} aria-invalid={!!personName(name)} aria-describedby="name-note" value={name} onChange={(e) => setName(e.target.value)} />
+            <FieldNote id="name-note" error={personName(name) && t(personName(name)!)} />
           </div>
-          <Button type="submit" disabled={save.isPending || name.trim() === user?.name}>
+          <Button type="submit" disabled={save.isPending || name.trim() === user?.name || !ready([name, personName])}>
             {save.isPending && <Loader2 className="size-4 animate-spin" />}
             {t("common.save")}
           </Button>
@@ -124,7 +126,6 @@ function PasswordCard() {
   });
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (next !== confirm) return setError(t("auth.password_mismatch"));
     change.mutate();
   };
   return (
@@ -142,15 +143,16 @@ function PasswordCard() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="new">{t("auth.new_password")}</Label>
-            <PasswordInput id="new" autoComplete="new-password" required minLength={8} maxLength={128} value={next} onChange={(e) => setNext(e.target.value)} />
+            <PasswordInput id="new" autoComplete="new-password" required maxLength={128} aria-invalid={!!newPassword(next)} aria-describedby="new-note" value={next} onChange={(e) => setNext(e.target.value)} />
             <StrengthMeter password={next} />
-            <p className="text-xs text-muted-foreground">{t("auth.password_rule")}</p>
+            <FieldNote id="new-note" hint={t("auth.password_rule")} error={newPassword(next) && t("auth.password_rule")} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirm">{t("auth.confirm_password")}</Label>
-            <PasswordInput id="confirm" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+            <PasswordInput id="confirm" autoComplete="new-password" required aria-invalid={!!sameAs(next)(confirm)} aria-describedby="confirm-note" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+            <FieldNote id="confirm-note" error={sameAs(next)(confirm) && t("auth.password_mismatch")} />
           </div>
-          <Button type="submit" disabled={change.isPending || !current || !next || !confirm}>
+          <Button type="submit" disabled={change.isPending || !ready([current], [next, newPassword], [confirm, sameAs(next)])}>
             {change.isPending && <Loader2 className="size-4 animate-spin" />}
             {t("profile.change_password")}
           </Button>

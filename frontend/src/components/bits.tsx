@@ -74,6 +74,12 @@ export function useFormatDate() {
 }
 
 /** The red box a form shows above its fields when the server refuses it. */
+/** Under a field: its rule or hint while fine, in red once the value breaks a rule. */
+export function FieldNote({ id, error, hint }: { id: string; error?: string | null; hint?: string }) {
+  if (!error && !hint) return null;
+  return <p id={id} className={cn("text-xs", error ? "text-destructive" : "text-muted-foreground")}>{error || hint}</p>;
+}
+
 export function FormError({ message }: { message: string | null }) {
   if (!message) return null;
   return (

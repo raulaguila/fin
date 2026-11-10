@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { DangerZone, FormError, PageBody, PageHeader } from "@/components/bits";
+import { DangerZone, FieldNote, FormError, PageBody, PageHeader } from "@/components/bits";
 import { CURRENCY } from "@/lib/brand";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
@@ -23,6 +23,7 @@ import { useMe } from "@/lib/context/me";
 import { errorMessage } from "@/lib/errors";
 import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { useI18n } from "@/lib/i18n/provider";
+import { price as priceRule, productName, ready } from "@/lib/validation";
 import { can } from "@/lib/permissions";
 import { useCrumb } from "@/lib/store/crumb";
 
@@ -66,14 +67,16 @@ function ProductForm({ product, editable }: { product: Product | null; editable:
           <FormError message={error} />
           <div className="space-y-2">
             <Label htmlFor="p-name">{t("auth.name")}</Label>
-            <Input id="p-name" required autoFocus={!product} maxLength={120} disabled={!editable} value={name} onChange={(e) => setName(e.target.value)} />
+            <Input id="p-name" required autoFocus={!product} maxLength={120} aria-invalid={!!productName(name)} aria-describedby="p-name-note" disabled={!editable} value={name} onChange={(e) => setName(e.target.value)} />
+            <FieldNote id="p-name-note" error={productName(name) && t(productName(name)!)} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="p-price">{t("products.price")}</Label>
             <div className="relative">
               <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground" aria-hidden="true">{symbol}</span>
-              <Input id="p-price" required inputMode="decimal" pattern={"\\d+([.,]\\d{1,2})?"} placeholder={comma ? "0,00" : "0.00"} disabled={!editable} value={price} onChange={(e) => setPrice(e.target.value)} className="pl-10 font-mono" />
+              <Input id="p-price" required inputMode="decimal" aria-invalid={!!priceRule(price)} aria-describedby="p-price-note" placeholder={comma ? "0,00" : "0.00"} disabled={!editable} value={price} onChange={(e) => setPrice(e.target.value)} className="pl-10 font-mono" />
             </div>
+            <FieldNote id="p-price-note" error={priceRule(price) && t(priceRule(price)!)} />
           </div>
           <label className="flex items-center gap-3 text-sm">
             <Switch checked={enabled} disabled={!editable} onCheckedChange={setEnabled} aria-label={t("products.enabled")} />
@@ -82,7 +85,7 @@ function ProductForm({ product, editable }: { product: Product | null; editable:
           {editable && (
             <div className="flex justify-end gap-2">
               <Button type="button" variant="ghost" disabled={save.isPending} onClick={() => router.push("/products")}>{t("common.cancel")}</Button>
-              <Button type="submit" disabled={save.isPending || !dirty}>
+              <Button type="submit" disabled={save.isPending || !dirty || !ready([name, productName], [price, priceRule])}>
                 {save.isPending && <Loader2 className="size-4 animate-spin" />}
                 {t(product ? "common.save" : "common.create")}
               </Button>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { AuthCard } from "@/components/auth-card";
-import { FormError } from "@/components/bits";
+import { FieldNote, FormError } from "@/components/bits";
 import { CapsLockHint } from "@/components/caps-lock-hint";
 import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { authPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/provider";
+import { newPassword, ready, sameAs } from "@/lib/validation";
 
 // The mail carries a plain token, so the field accepts a paste; a #token= link (or an old ?token= one) fills it.
 function Form({ action, title, subtitle, submitLabel, doneTitle, doneBody }: {
@@ -42,6 +43,7 @@ function Form({ action, title, subtitle, submitLabel, doneTitle, doneBody }: {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
+  const confirmErr = sameAs(password)(confirm);
 
   const footer = <Link href="/login" className="font-medium text-primary hover:underline">{t("auth.back_to_login")}</Link>;
 
@@ -55,7 +57,6 @@ function Form({ action, title, subtitle, submitLabel, doneTitle, doneBody }: {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password !== confirm) return setError(t("auth.password_mismatch"));
     setPending(true);
     setError(null);
     try {
@@ -78,15 +79,16 @@ function Form({ action, title, subtitle, submitLabel, doneTitle, doneBody }: {
         </div>
         <div className="space-y-2">
           <Label htmlFor="password">{t("auth.new_password")}</Label>
-          <PasswordInput id="password" autoComplete="new-password" required minLength={8} maxLength={128} value={password} onChange={(e) => setPassword(e.target.value)} onCapsLock={setCaps} />
-          <p className="text-xs text-muted-foreground">{t("auth.password_rule")}</p>
+          <PasswordInput id="password" autoComplete="new-password" required maxLength={128} aria-invalid={!!newPassword(password)} aria-describedby="password-note" value={password} onChange={(e) => setPassword(e.target.value)} onCapsLock={setCaps} />
+          <FieldNote id="password-note" hint={t("auth.password_rule")} error={newPassword(password) && t("auth.password_rule")} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="confirm">{t("auth.confirm_password")}</Label>
-          <PasswordInput id="confirm" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} onCapsLock={setCaps} />
+          <PasswordInput id="confirm" autoComplete="new-password" required aria-invalid={!!confirmErr} aria-describedby="confirm-note" value={confirm} onChange={(e) => setConfirm(e.target.value)} onCapsLock={setCaps} />
+          <FieldNote id="confirm-note" error={confirmErr && t(confirmErr)} />
           <CapsLockHint on={caps} />
         </div>
-        <Button type="submit" className="w-full" disabled={pending}>
+        <Button type="submit" className="w-full" disabled={pending || !ready([token], [password, newPassword], [confirm, sameAs(password)])}>
           {pending && <Loader2 className="size-4 animate-spin" />}
           {t(submitLabel)}
         </Button>

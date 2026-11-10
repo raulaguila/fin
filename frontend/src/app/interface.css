@@ -472,6 +472,8 @@ html.sidebar-collapsed [data-ui-workspace-rail]:not([data-mobile]) .rail-item { 
 /* Administration is workspace-scoped; the compact rail opens the same links. */
 .rail-admin, .rail-workspaces {
   --rail-admin-row-h:44px;
+  --rail-current-bg:var(--primary);
+  --rail-current-fg:var(--primary-foreground);
   --rail-item-hover-bg:color-mix(in oklab,var(--primary) 12%,var(--sidebar));
   --rail-item-hover-fg:var(--primary);
   --rail-parent-bg:color-mix(in oklab,var(--primary) 16%,var(--sidebar));
@@ -510,13 +512,13 @@ html.sidebar-collapsed [data-ui-workspace-rail]:not([data-mobile]) .rail-item { 
 .rail-administration > span { color:var(--foreground); font-weight:500; }
 .rail-admin-chevron { margin-left:auto; transition:transform 150ms ease-out; }
 .rail-administration[aria-expanded=true] .rail-admin-chevron { transform:rotate(180deg); }
-.rail-admin .rail-item, .rail-workspace-navigation .rail-item { font-size:14px; min-height:var(--rail-admin-row-h); height:auto; white-space:normal; }
+.rail-admin .rail-item, .rail-workspace-navigation .rail-item { font-size:13px; min-height:var(--rail-admin-row-h); height:auto; white-space:normal; }
 .rail-administration[data-active] { background:var(--rail-parent-bg,var(--accent)); color:var(--primary); }
 .rail-admin .rail-item:hover, .rail-workspace-navigation .rail-item:hover { background:var(--rail-item-hover-bg,var(--accent)); color:var(--rail-item-hover-fg,var(--foreground)); }
 .rail-admin .rail-administration[data-active] { color:var(--primary); }
 .rail-admin .rail-administration:hover { background:var(--rail-parent-hover-bg,var(--accent)); }
-/* Sub-items mark the current page like the main links: a tinted pill, same size and weight. */
-:is(.rail-admin, .rail-workspace-navigation) .rail-item[aria-current=page] { background:color-mix(in oklab,var(--primary) 16%,transparent); color:var(--primary); }
+:is(.rail-admin, .rail-workspace-navigation) .rail-item[aria-current=page] { background:transparent; color:var(--primary); font-weight:600; }
+:is(.rail-admin, .rail-workspace-navigation) .rail-item[aria-current=page]:focus-visible { outline-color:var(--rail-current-focus,var(--ring)); outline-offset:var(--rail-current-focus-offset,-2px); }
 /* Table headings keep their rhythm even when body rows are compact. */
 .app-page th { min-height:40px; height:44px; padding:10px 16px; font-size:13px; line-height:20px; font-weight:600; }
 .app-page thead { background:var(--muted); }
@@ -554,7 +556,7 @@ html.sidebar-collapsed [data-ui-workspace-rail]:not([data-mobile]) .rail-item { 
 
 /* One icon treatment for both rail widths; labels retain their own readable color. */
 :is(.rail-admin nav, .rail-workspace-navigation) .rail-item { padding-block:4px; gap:8px; }
-:is(.rail-admin nav, .rail-workspace-navigation) .rail-item:not([aria-current=page]):hover { background:var(--accent); }
+:is(.rail-admin nav, .rail-workspace-navigation) .rail-item:hover { background:transparent; }
 :is(.rail-admin nav, .rail-workspace-navigation) .rail-item > svg {
   box-sizing:border-box;
   overflow:visible;
@@ -565,6 +567,20 @@ html.sidebar-collapsed [data-ui-workspace-rail]:not([data-mobile]) .rail-item { 
   border-radius:50%;
   flex-shrink:0;
 }
+:is(.rail-admin nav, .rail-workspace-navigation) .rail-item:hover > svg { background:var(--rail-item-hover-bg); }
+:is(.rail-admin nav, .rail-workspace-navigation) .rail-item[aria-current=page] > svg { background:var(--rail-current-bg); color:var(--rail-current-fg); }
+/* The inner focus ring stays inside the filled circle when labels are hidden. */
+:is([data-ui-workspace-rail][data-collapsed], html.sidebar-collapsed [data-ui-workspace-rail]:not([data-mobile])) {
+  --rail-current-focus:var(--primary-foreground);
+  --rail-current-focus-offset:-8px;
+}
+@media (min-width:768px) and (max-width:1023px) {
+  [data-ui-workspace-rail]:not([data-mobile]) {
+    --rail-current-focus:var(--primary-foreground);
+    --rail-current-focus-offset:-8px;
+  }
+}
+
 /* The rail button supplies the surface; override the shared avatar inline fill. */
 .rail-workspace > .rail-avatar { background:transparent !important; }
 .rail-workspaces .rail-workspace[aria-current=true] { background:var(--rail-parent-bg); }

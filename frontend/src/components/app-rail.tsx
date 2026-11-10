@@ -19,14 +19,6 @@ const subscribeWide = (listener: () => void) => {
   media.addEventListener("change", listener);
   return () => media.removeEventListener("change", listener);
 };
-const ADMIN_OPEN_KEY = "rail-admin-open";
-function readAdminOpen(): boolean {
-  try { return localStorage.getItem(ADMIN_OPEN_KEY) === "1"; } catch { return false; }
-}
-function subscribeStorage(onChange: () => void) {
-  window.addEventListener("storage", onChange);
-  return () => window.removeEventListener("storage", onChange);
-}
 
 export const useWideRail = () => useSyncExternalStore(subscribeWide, () => window.matchMedia(WIDE).matches, () => true);
 
@@ -57,9 +49,8 @@ export function AppRail({ collapsed, onToggle, mobile = false, onNavigate }: { c
     );
   };
   const adminActive = admin.some((item) => isActive(pathname, item.href));
-  // Each navigation opens the group on admin pages, or where the user last left it open; the toggle still works in between.
+  // Each navigation opens the group on admin pages and closes it elsewhere; the toggle still works in between.
   // adminActive also flips once the permissions load after a direct visit to an admin page.
-  const savedOpen = useSyncExternalStore(subscribeStorage, readAdminOpen, () => false);
   const seen = `${pathname}|${adminActive}`;
   const [toggled, setToggled] = useState<boolean | null>(null);
   const [seenKey, setSeenKey] = useState(seen);
@@ -67,11 +58,8 @@ export function AppRail({ collapsed, onToggle, mobile = false, onNavigate }: { c
     setSeenKey(seen);
     setToggled(null);
   }
-  const adminOpen = toggled ?? (adminActive || savedOpen);
-  const toggleAdmin = () => {
-    setToggled(!adminOpen);
-    try { localStorage.setItem(ADMIN_OPEN_KEY, adminOpen ? "0" : "1"); } catch { /* private mode: the choice lasts until the next navigation */ }
-  };
+  const adminOpen = toggled ?? adminActive;
+  const toggleAdmin = () => setToggled(!adminOpen);
   const adminNavId = useId();
   const adminLabel = t("nav.administration");
 

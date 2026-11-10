@@ -13,7 +13,7 @@ import { TablePagination, emptyPageFallback } from "@/components/table-paginatio
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -244,11 +244,12 @@ export default function AuditPage() {
           </Card>
         )}
       </PageBody>
-      <Dialog open={open !== null} onOpenChange={(o) => !o && setOpen(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{t("audit.record")}</DialogTitle></DialogHeader>
+      {/* A side drawer: long details scroll inside it and the list stays in view. */}
+      <Sheet open={open !== null} onOpenChange={(o) => !o && setOpen(null)}>
+        <SheetContent side="right" className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
+          <SheetHeader className="border-b pr-12"><SheetTitle>{t("audit.record")}</SheetTitle></SheetHeader>
           {open && (
-            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+            <dl className="grid min-h-0 flex-1 auto-rows-min grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3 overflow-y-auto p-4 text-sm">
               {([
                 [t("audit.when"), format(open.created_at)],
                 [t("audit.actor"), open.actor_id ? [open.actor_name, open.actor_email].filter(Boolean).join(" · ") || open.actor_id : t("audit.system")],
@@ -264,8 +265,8 @@ export default function AuditPage() {
               ))}
             </dl>
           )}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

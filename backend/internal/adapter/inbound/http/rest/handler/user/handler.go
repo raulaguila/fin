@@ -17,6 +17,7 @@ import (
 type Inviter interface {
 	Invite(ctx context.Context, cmd input.RegisterCommand) (*input.RegisterResult, error)
 	Reinvite(ctx context.Context, userID string) (*input.RegisterResult, error)
+	ActivationLink(ctx context.Context, userID string) (*input.RegisterResult, error)
 }
 
 type Handler struct {
@@ -35,6 +36,7 @@ func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
 	r.Get("/", read, h.List)
 	r.Post("/", middleware.Require(authz, domain.ResourceUsers, domain.ActionCreate), h.Invite)
 	r.Post("/:id/invite", update, h.Reinvite)
+	r.Post("/:id/activation-link", update, h.ActivationLink)
 	r.Get("/:id", read, h.Get)
 	r.Post("/disable", update, h.Disable)
 	r.Post("/enable", update, h.Enable)
@@ -68,6 +70,8 @@ type accessDTO struct {
 	LockedUntil    *time.Time `json:"locked_until"`    // past or null: not locked
 	RecentFailures int        `json:"recent_failures"` // inside the login email window
 	ActiveSessions int        `json:"active_sessions" example:"2"`
+	// ActivationExpiresAt is when the live activation link stops working; null when there is none.
+	ActivationExpiresAt *time.Time `json:"activation_expires_at"`
 }
 
 func toDTO(u domain.User) userDTO {
@@ -133,7 +137,7 @@ func (h *Handler) Get(c fiber.Ctx) error {
 		out.Roles = append(out.Roles, roleDTO{ID: r.ID, Name: r.Name})
 	}
 	if a := user.Access; a != nil {
-		out.Access = &accessDTO{a.LastLoginAt, a.FailedLogins, a.LockedUntil, a.RecentFailures, a.ActiveSessions}
+		out.Access = &accessDTO{a.LastLoginAt, a.FailedLogins, a.LockedUntil, a.RecentFailures, a.ActiveSessions, a.ActivationExpiresAt}
 	}
 	return c.JSON(out)
 }
@@ -279,6 +283,29 @@ func (h *Handler) Reinvite(c fiber.Ctx) error {
 		return mapper.WriteError(c, err)
 	}
 	return c.JSON(inviteAnswer(res))
+}
+
+// @Summary Make a new activation link for a pending user, to hand over by hand
+// @Description The old link stops working and no email is sent. The token comes back
+// @Description whatever the delivery mode, so only an administrator with users:update gets it.
+// @Tags Users
+// @Produce json
+// @Param id path string true "User ID"
+// @Security BearerAuth
+// @Success 200 {object} object{user_id=string,status=string,activation_token=string,expires_at=string}
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Failure 403 {object} mapper.errorBody
+// @Failure 404 {object} mapper.errorBody
+// @Failure 409 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
+// @Router /v1/users/{id}/activation-link [post]
+func (h *Handler) ActivationLink(c fiber.Ctx) error {
+	res, err := h.inviter.ActivationLink(c.Context(), c.Params("id"))
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.JSON(fiber.Map{"user_id": res.UserID, "status": res.Status, "activation_token": res.ActivationToken, "expires_at": res.ExpiresAt})
 }
 
 // @Summary End every session of another user

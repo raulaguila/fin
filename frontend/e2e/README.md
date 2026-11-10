@@ -10,15 +10,15 @@ reset, and saving a role's permissions.
   (default `http://127.0.0.1:9990`), started with
   `AUTH_MANUAL_TOKEN_DELIVERY=1` so it hands activation and reset codes back
   instead of mailing them. Never point this at production.
+- Test-only limits on that backend, so a run is not throttled:
+  `AUTH_EMAIL_TOKEN_COOLDOWN=1s` (a new activation link right after the invite)
+  and `API_RATE_LIMIT_AUTH=100` (a run makes more sign-ins and activations than
+  the default ten per minute allows).
 - An admin account on it, made with `admin bootstrap`:
   `E2E_ADMIN_EMAIL` and `E2E_ADMIN_PASSWORD`.
 - Chromium for Playwright, once per machine: `pnpm exec playwright install chromium`.
 
 Every run invites new people with unique addresses, so a database can be reused.
-
-A run makes about nine auth calls, and the backend allows ten per minute and IP
-(`API_RATE_LIMIT_AUTH`). Wait a minute between runs, or raise that limit on the
-test backend.
 
 ## Running
 

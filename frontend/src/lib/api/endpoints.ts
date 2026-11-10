@@ -52,6 +52,9 @@ export const users = {
   invite: (name: string, email: string) => apiFetch<InviteResult>("/v1/users", { method: "POST", json: { name, email } }),
   /** A new activation email for a pending account; the old link stops working. */
   reinvite: (userId: string) => apiFetch<InviteResult>(`/v1/users/${id(userId)}/invite`, { method: "POST" }),
+  /** A new activation link for a pending account, without email; the old link stops working. */
+  activationLink: (userId: string) =>
+    apiFetch<{ user_id: string; status: UserStatus; activation_token: string; expires_at: string }>(`/v1/users/${id(userId)}/activation-link`, { method: "POST" }),
   revokeSessions: (userId: string) => apiFetch<void>(`/v1/users/${id(userId)}/sessions`, { method: "DELETE" }),
   get: (userId: string) => apiFetch<UserDetails>(`/v1/users/${id(userId)}`),
   disable: (ids: string[]) => apiFetch<void>("/v1/users/disable", { method: "POST", json: { ids } }),

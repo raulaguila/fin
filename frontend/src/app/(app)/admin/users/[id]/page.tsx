@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, ShieldAlert } from "lucide-react";
+import { ChevronDown, Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { ActiveBadge, FormError, PageBody, PageHeader, StatusBadge, useFormatDate } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api/client";
@@ -186,6 +188,7 @@ function UserDetail({ id }: { id: string }) {
   const [confirm, setConfirm] = useState(false);
   const [revoking, setRevoking] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
+  const [linking, setLinking] = useState(false);
 
   const u = detail.data;
   useCrumb(u?.name);
@@ -199,12 +202,20 @@ function UserDetail({ id }: { id: string }) {
     mutationFn: () => users.reinvite(id),
     onSuccess: async (res) => {
       // Only a development backend hands the token back (manual delivery).
+      void client.invalidateQueries({ queryKey: ["users", "detail", id] }); // the link's expiry moved
       if (!res.activation_token) return void toast.success(t("users.reinvited"));
       await navigator.clipboard.writeText(`${window.location.origin}/activate#token=${encodeURIComponent(res.activation_token)}`);
       toast.success(t("users.reinvited_link"));
     },
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
   });
+
+  const linkState = (expires: string | null) => {
+    if (!expires) return <span className="text-muted-foreground">{t("users.link_none")}</span>;
+    const expired = new Date(expires) <= new Date();
+    const text = t(expired ? "users.link_expired" : "users.link_expires").replace("{date}", format(expires));
+    return <span className={expired ? "text-destructive" : undefined}>{text}</span>;
+  };
 
   return (
     <>
@@ -220,7 +231,15 @@ function UserDetail({ id }: { id: string }) {
               <Button variant="outline" onClick={() => setUnlocking(true)}>{t("users.unlock")}</Button>
             )}
             {canToggle && u.status === "pending" && (
-              <Button variant="outline" disabled={reinvite.isPending} onClick={() => reinvite.mutate()}>{t("users.reinvite")}</Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<Button variant="outline" disabled={reinvite.isPending} />}>
+                  {t("users.activation")}<ChevronDown className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-auto min-w-48">
+                  <DropdownMenuItem onClick={() => reinvite.mutate()}>{t("users.resend_email")}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLinking(true)}>{t("users.copy_link")}</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             {canToggle && (a?.active_sessions ?? 0) > 0 && (
               <Button variant="outline" onClick={() => setRevoking(true)}>{t("users.revoke_sessions")}</Button>
@@ -269,6 +288,12 @@ function UserDetail({ id }: { id: string }) {
                     <dd className="tabular-nums">{a.active_sessions}</dd>
                     <dt className="text-muted-foreground">{t("users.recent_failures")}</dt>
                     <dd className="tabular-nums" title={t("users.recent_failures_hint")}>{a.recent_failures}</dd>
+                    {u?.status === "pending" && (
+                      <>
+                        <dt className="text-muted-foreground">{t("users.link_title")}</dt>
+                        <dd>{linkState(a.activation_expires_at)}</dd>
+                      </>
+                    )}
                     {locked && (
                       <>
                         <dt className="text-muted-foreground">{t("users.locked_until")}</dt>
@@ -307,6 +332,7 @@ function UserDetail({ id }: { id: string }) {
           toast.success(t("users.unlocked"));
         }}
       />
+      <ActivationLinkDialog userId={id} open={linking} onOpenChange={setLinking} />
       <ConfirmDialog
         open={revoking}
         onOpenChange={setRevoking}
@@ -319,5 +345,49 @@ function UserDetail({ id }: { id: string }) {
         }}
       />
     </>
+  );
+}
+
+/** Makes a new activation link to hand over by hand; it is shown once, so the dialog holds it until closed. */
+function ActivationLinkDialog({ userId, open, onOpenChange }: { userId: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { t } = useI18n();
+  const format = useFormatDate();
+  const client = useQueryClient();
+  const make = useMutation({
+    mutationFn: () => users.activationLink(userId),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ["users", "detail", userId] }),
+  });
+  const link = make.data && `${window.location.origin}/activate#token=${encodeURIComponent(make.data.activation_token)}`;
+  const change = (next: boolean) => {
+    onOpenChange(next);
+    if (!next) make.reset(); // the link is gone once the dialog closes
+  };
+  return (
+    <Dialog open={open} onOpenChange={change}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("users.link_title")}</DialogTitle>
+          <DialogDescription>{t(link ? "users.link_ready" : "users.link_desc")}</DialogDescription>
+        </DialogHeader>
+        <FormError message={make.error ? errorMessage(make.error, "common.save_failed", t) : null} />
+        {link && (
+          <div className="space-y-2">
+            <Input readOnly aria-label={t("users.link_title")} value={link} className="font-mono text-xs" onFocus={(e) => e.target.select()} />
+            <p className="text-xs text-muted-foreground">{t("users.link_expires").replace("{date}", format(make.data!.expires_at))}</p>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => change(false)}>{t("common.close")}</Button>
+          {link ? (
+            <Button onClick={() => void navigator.clipboard.writeText(link).then(() => toast.success(t("common.copied")))}>{t("common.copy")}</Button>
+          ) : (
+            <Button disabled={make.isPending} onClick={() => make.mutate()}>
+              {make.isPending && <Loader2 className="size-4 animate-spin" />}
+              {t("users.link_generate")}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

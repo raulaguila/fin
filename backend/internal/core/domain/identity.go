@@ -79,6 +79,8 @@ type UserAccess struct {
 	LockedUntil    *time.Time // account lock; nil or past means none
 	RecentFailures int        // counted failures inside the email window, from any client
 	ActiveSessions int
+	// ActivationExpiresAt is when the live activation link stops working; nil when there is none.
+	ActivationExpiresAt *time.Time
 }
 
 // Credential is 1:1 with User.

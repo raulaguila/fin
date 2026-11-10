@@ -78,20 +78,27 @@ func (s *Service) emailThrottled(ctx context.Context, uow output.UnitOfWork, use
 	return n >= s.Cfg.EmailTokenHourlyMax, err
 }
 
+// replaceToken stores a new token for the user and kills the live one, so only
+// the newest link works. Only its hash is kept.
+func (s *Service) replaceToken(ctx context.Context, uow output.UnitOfWork, userID, purpose, plain string, ttl time.Duration) (time.Time, error) {
+	if err := uow.Tokens().InvalidateActive(ctx, userID, purpose); err != nil {
+		return time.Time{}, err
+	}
+	now := s.Clock.Now()
+	tok := &domain.EmailToken{
+		UserID:    userID,
+		Purpose:   purpose,
+		TokenHash: tokenhash.SHA256Bytes(plain),
+		ExpiresAt: now.Add(ttl),
+		CreatedAt: now,
+	}
+	return tok.ExpiresAt, uow.Tokens().Create(ctx, tok)
+}
+
 // issueEmailToken replaces the user's live token and queues the email. The
 // outbox only ever holds the token sealed; the mailer opens it to send.
 func (s *Service) issueEmailToken(ctx context.Context, uow output.UnitOfWork, u *domain.User, purpose, plain string, ttl time.Duration) error {
-	if err := uow.Tokens().InvalidateActive(ctx, u.ID, purpose); err != nil {
-		return err
-	}
-	tok := &domain.EmailToken{
-		UserID:    u.ID,
-		Purpose:   purpose,
-		TokenHash: tokenhash.SHA256Bytes(plain),
-		ExpiresAt: s.Clock.Now().Add(ttl),
-		CreatedAt: s.Clock.Now(),
-	}
-	if err := uow.Tokens().Create(ctx, tok); err != nil {
+	if _, err := s.replaceToken(ctx, uow, u.ID, purpose, plain, ttl); err != nil {
 		return err
 	}
 	lang := domain.DefaultLanguage // a new account has saved no preference yet

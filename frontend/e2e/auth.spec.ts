@@ -9,7 +9,7 @@ test("a wrong password keeps the person on the login page", async ({ page }) => 
   await page.getByLabel("E-mail").fill(admin.email);
   await page.getByLabel("Senha", { exact: true }).fill("not the password at all");
   await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: /\S/ })).toBeVisible();
   await expect(page).toHaveURL(/\/login/);
 });
 

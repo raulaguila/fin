@@ -94,6 +94,8 @@ export interface UserDetails extends User {
     locked_until: string | null;
     recent_failures: number;
     active_sessions: number;
+    /** When the live activation link stops working; null when there is none. */
+    activation_expires_at: string | null;
   };
 }
 

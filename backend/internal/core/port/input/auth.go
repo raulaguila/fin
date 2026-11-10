@@ -2,6 +2,7 @@ package input
 
 import (
 	"context"
+	"time"
 
 	"github.com/raulaguila/authenticity/internal/core/domain"
 )
@@ -14,8 +15,9 @@ type RegisterCommand struct {
 type RegisterResult struct {
 	UserID          string
 	Status          string
-	ActivationToken string // only when AllowManualTokenDelivery
+	ActivationToken string // only when AllowManualTokenDelivery, or from ActivationLink
 	ManualDelivery  bool
+	ExpiresAt       time.Time // set by ActivationLink
 }
 
 type ActivateCommand struct {
@@ -69,6 +71,9 @@ type AuthService interface {
 	Invite(ctx context.Context, cmd RegisterCommand) (*RegisterResult, error)
 	// Reinvite sends a pending account a new activation email.
 	Reinvite(ctx context.Context, userID string) (*RegisterResult, error)
+	// ActivationLink replaces a pending account's activation token without an
+	// email and always returns it, for the administrator to hand over.
+	ActivationLink(ctx context.Context, userID string) (*RegisterResult, error)
 	Activate(ctx context.Context, cmd ActivateCommand) error
 	Login(ctx context.Context, cmd LoginCommand) (*domain.TokenPair, error)
 	Refresh(ctx context.Context, cmd RefreshCommand) (*domain.TokenPair, error)

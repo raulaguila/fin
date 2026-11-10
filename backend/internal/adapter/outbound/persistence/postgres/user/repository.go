@@ -58,16 +58,20 @@ func (r *Repository) Access(ctx context.Context, id string, failuresSince, now t
 		LockedUntil    *time.Time `gorm:"column:locked_until"`
 		RecentFailures int        `gorm:"column:recent_failures"`
 		ActiveSessions int        `gorm:"column:active_sessions"`
+		// One live token per user and purpose (uni_usr_token_live), so the subquery reads one row.
+		ActivationExpiresAt *time.Time `gorm:"column:activation_expires_at"`
 	}
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT c.last_login_at, c.failed_login_attempts, c.locked_until,
 		       (SELECT count(*) FROM usr.usr_login_attempt a
 		         WHERE a.email = u.email AND a.created_at >= ? AND `+shared.CountedFailure+`) AS recent_failures,
 		       (SELECT count(*) FROM usr.usr_session s
-		         WHERE s.user_id = u.id AND s.revoked_at IS NULL AND s.expires_at > ?) AS active_sessions
+		         WHERE s.user_id = u.id AND s.revoked_at IS NULL AND s.expires_at > ?) AS active_sessions,
+		       (SELECT t.expires_at FROM usr.usr_token t
+		         WHERE t.user_id = u.id AND t.purpose = ? AND t.used_at IS NULL) AS activation_expires_at
 		FROM usr.usr_user u JOIN usr.usr_credential c ON c.user_id = u.id
 		WHERE u.id = ?
-	`, failuresSince, now, id).Take(&out).Error
+	`, failuresSince, now, domain.TokenPurposeActivation, id).Take(&out).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "user")
 	}

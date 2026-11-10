@@ -329,7 +329,6 @@ const ptBR = {
   "home.no_activity": "Nenhuma alteração ainda.",
   "common.danger_zone": "Zona de perigo",
   "products.delete_hint": "O produto sai da lista e dos relatórios. Esta ação não pode ser desfeita.",
-  "users.reinvite": "Reenviar ativação",
   "users.reinvited": "E-mail de ativação reenviado",
   "users.reinvited_link": "Novo link de ativação copiado",
   "audit.action.user.reinvite": "Ativação reenviada",
@@ -350,6 +349,17 @@ const ptBR = {
   "home.by": "por",
   "auth.registration_closed": "O cadastro está fechado. Peça um convite a um administrador.",
   "audit.no_permissions": "Nenhuma",
+  "users.activation": "Ativação",
+  "users.resend_email": "Reenviar por e-mail",
+  "users.copy_link": "Gerar link para copiar",
+  "users.link_title": "Link de ativação",
+  "users.link_desc": "Um link novo substitui o anterior e não envia e-mail. Quem tiver o link define a senha da conta: entregue só à própria pessoa.",
+  "users.link_generate": "Gerar link",
+  "users.link_ready": "Copie e envie à pessoa agora: o link não aparece de novo.",
+  "users.link_expires": "Expira em {date}",
+  "users.link_expired": "Expirou em {date}",
+  "users.link_none": "Nenhum",
+  "audit.action.user.activation_link": "Link de ativação gerado",
 } as const;
 
 export type MessageKey = keyof typeof ptBR;
@@ -675,7 +685,6 @@ const enUS: Record<MessageKey, string> = {
   "home.no_activity": "No changes yet.",
   "common.danger_zone": "Danger zone",
   "products.delete_hint": "The product leaves the list and reports. This cannot be undone.",
-  "users.reinvite": "Resend activation",
   "users.reinvited": "Activation email sent again",
   "users.reinvited_link": "New activation link copied",
   "audit.action.user.reinvite": "Activation resent",
@@ -696,6 +705,17 @@ const enUS: Record<MessageKey, string> = {
   "home.by": "by",
   "auth.registration_closed": "Sign-up is closed. Ask an administrator for an invitation.",
   "audit.no_permissions": "None",
+  "users.activation": "Activation",
+  "users.resend_email": "Resend by email",
+  "users.copy_link": "Make a link to copy",
+  "users.link_title": "Activation link",
+  "users.link_desc": "A new link replaces the previous one and sends no email. Whoever holds it sets the account password: give it only to the person.",
+  "users.link_generate": "Make link",
+  "users.link_ready": "Copy it and send it to the person now: the link is not shown again.",
+  "users.link_expires": "Expires {date}",
+  "users.link_expired": "Expired {date}",
+  "users.link_none": "None",
+  "audit.action.user.activation_link": "Activation link made",
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { "pt-BR": ptBR, "en-US": enUS };

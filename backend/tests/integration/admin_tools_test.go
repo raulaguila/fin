@@ -144,6 +144,53 @@ func TestReinviteReplacesTheActivationToken(t *testing.T) {
 	wantCode(t, err, apperror.CodeConflict)
 }
 
+func TestActivationLinkHandsOverATokenWithoutEmail(t *testing.T) {
+	e := newEnv(t)
+	ctx := reqctx.WithActor(context.Background(), e.userID(t, e.activeUser(t)))
+	e.svc.Cfg.AllowManualTokenDelivery = false // the link comes back even when tokens normally go by email only
+	e.svc.Cfg.EmailTokenCooldown = time.Minute
+	first, err := e.svc.Invite(ctx, input.RegisterCommand{Name: "Cid", Email: email()})
+	if err != nil || first.ActivationToken != "" {
+		t.Fatalf("invite: %+v %v", first, err)
+	}
+	outbox := func() (n int64) {
+		if err := testDB.Raw("SELECT count(*) FROM sys.outbox").Row().Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := outbox()
+
+	e.clock.now = e.clock.now.Add(2 * time.Minute) // past the email cooldown
+	link, err := e.svc.ActivationLink(ctx, first.UserID)
+	if err != nil || link.ActivationToken == "" || !link.ExpiresAt.Equal(e.clock.now.Add(e.svc.Cfg.RegistrationTokenTTL)) {
+		t.Fatalf("link: %+v %v", link, err)
+	}
+	if outbox() != before {
+		t.Fatal("a copied link must not send an email")
+	}
+	access, err := e.store.Users().Access(ctx, first.UserID, e.clock.now, e.clock.now)
+	if err != nil || access.ActivationExpiresAt == nil || access.ActivationExpiresAt.Sub(link.ExpiresAt).Abs() > time.Millisecond {
+		t.Fatalf("access: %+v %v", access, err)
+	}
+	var audited int64
+	if err := testDB.Raw("SELECT count(*) FROM usr.usr_audit_log WHERE action = 'user.activation_link' AND target_id = ?", first.UserID).Row().Scan(&audited); err != nil || audited != 1 {
+		t.Fatalf("audited %d %v", audited, err)
+	}
+	_, err = e.svc.ActivationLink(ctx, first.UserID)
+	wantCode(t, err, apperror.CodeTooManyRequests) // shares the email throttle
+
+	if err := e.svc.Activate(ctx, input.ActivateCommand{Token: link.ActivationToken, Password: strongPassword}); err != nil {
+		t.Fatal(err)
+	}
+	if access, err = e.store.Users().Access(ctx, first.UserID, e.clock.now, e.clock.now); err != nil || access.ActivationExpiresAt != nil {
+		t.Fatalf("after activation: %+v %v", access, err)
+	}
+	e.clock.now = e.clock.now.Add(2 * time.Minute)
+	_, err = e.svc.ActivationLink(ctx, first.UserID)
+	wantCode(t, err, apperror.CodeConflict)
+}
+
 func TestAuditCountStopsAtTheCap(t *testing.T) {
 	e := newEnv(t)
 	target := uuid.NewString()

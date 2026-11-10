@@ -177,10 +177,32 @@ func (s *Service) Invite(ctx context.Context, cmd input.RegisterCommand) (*input
 // Reinvite sends a fresh activation email to an account that never set a
 // password, for when the first one was lost. The old token stops working.
 func (s *Service) Reinvite(ctx context.Context, userID string) (*input.RegisterResult, error) {
+	res, err := s.renewActivation(ctx, userID, true)
+	if err != nil {
+		return nil, err
+	}
+	if !s.Cfg.AllowManualTokenDelivery {
+		res.ActivationToken = ""
+	}
+	return res, nil
+}
+
+// ActivationLink is Reinvite without the email: the administrator gets the
+// token to hand over (chat, phone) when the mail never arrived or the link
+// expired. Whoever holds it sets the password, so it is audited apart and
+// shares the email throttle.
+func (s *Service) ActivationLink(ctx context.Context, userID string) (*input.RegisterResult, error) {
+	return s.renewActivation(ctx, userID, false)
+}
+
+// renewActivation replaces a pending account's activation token, sending it by
+// email or not, and returns it.
+func (s *Service) renewActivation(ctx context.Context, userID string, send bool) (*input.RegisterResult, error) {
 	plain, err := tokenhash.RandomURLSafe()
 	if err != nil {
 		return nil, apperror.New(apperror.CodeInternal, "token generation failed").WithCause(err)
 	}
+	var expires time.Time
 	err = s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
 		target, err := policy.Reachable(ctx, uow, userID)
 		if err != nil {
@@ -194,20 +216,27 @@ func (s *Service) Reinvite(ctx context.Context, userID string) (*input.RegisterR
 			return err
 		}
 		if cooling {
-			return apperror.New(apperror.CodeTooManyRequests, "an activation email was sent a moment ago").
+			return apperror.New(apperror.CodeTooManyRequests, "an activation code was issued a moment ago").
 				WithDetails(apperror.DetailRetryAfter, int(s.Cfg.EmailTokenCooldown.Seconds()))
 		}
-		if err := s.issueEmailToken(ctx, uow, &target.User, domain.TokenPurposeActivation, plain, s.Cfg.RegistrationTokenTTL); err != nil {
+		action := "user.activation_link"
+		if send {
+			action = "user.reinvite"
+			err = s.issueEmailToken(ctx, uow, &target.User, domain.TokenPurposeActivation, plain, s.Cfg.RegistrationTokenTTL)
+			expires = s.Clock.Now().Add(s.Cfg.RegistrationTokenTTL)
+		} else {
+			expires, err = s.replaceToken(ctx, uow, userID, domain.TokenPurposeActivation, plain, s.Cfg.RegistrationTokenTTL)
+		}
+		if err != nil {
 			return err
 		}
-		return policy.Audit(ctx, uow, "user.reinvite", userID, nil)
+		return policy.Audit(ctx, uow, action, userID, nil)
 	})
 	if err != nil {
 		return nil, err
 	}
-	res := &input.RegisterResult{UserID: userID, Status: domain.UserStatusPending}
-	if s.Cfg.AllowManualTokenDelivery {
-		res.ActivationToken, res.ManualDelivery = plain, true
-	}
-	return res, nil
+	return &input.RegisterResult{
+		UserID: userID, Status: domain.UserStatusPending,
+		ActivationToken: plain, ManualDelivery: send && s.Cfg.AllowManualTokenDelivery, ExpiresAt: expires,
+	}, nil
 }

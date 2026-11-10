@@ -26,7 +26,7 @@ func NewRepository(db *gorm.DB) *Repository {
 func (r *Repository) ListResources(ctx context.Context) ([]domain.Resource, error) {
 	var rows []domain.Resource
 	err := r.db.WithContext(ctx).Raw(`
-		SELECT code, description FROM usr.usr_resource ORDER BY code
+		SELECT code, description, actions FROM usr.usr_resource ORDER BY code
 	`).Find(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "resources")

@@ -110,6 +110,8 @@ export interface Role {
 export interface Resource {
   code: string;
   description: string;
+  /** The actions a role may be granted on it, in create, read, update, delete order. */
+  actions: Action[];
 }
 
 export interface Member {

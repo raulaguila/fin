@@ -86,13 +86,13 @@ export default function ProductsPage() {
         action={can(user, "products", "create") && <Button onClick={() => open("new")}><Plus className="size-4" />{t("products.new")}</Button>}
       />
       <PageBody>
-        <div className="flex flex-wrap gap-2">
-          <div className="relative min-w-56 flex-1 sm:max-w-sm">
+        <div className="flex flex-wrap gap-2 max-sm:grid max-sm:grid-cols-2">
+          <div className="relative min-w-56 flex-1 sm:max-w-sm max-sm:col-span-2 max-sm:min-w-0">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input type="search" aria-label={t("common.search")} placeholder={t("products.search")} className="pl-9" value={search} onChange={(e) => { setSearch(e.target.value); set({ q: e.target.value.trim(), page: 1 }); }} />
           </div>
           <Select value={state} items={stateItems} onValueChange={(v) => set({ state: v as State, page: 1 })}>
-            <SelectTrigger className="w-44" aria-label={t("roles.state")}><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-44 max-sm:w-full" aria-label={t("roles.state")}><SelectValue /></SelectTrigger>
             <SelectContent>
               {Object.entries(stateItems).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
             </SelectContent>

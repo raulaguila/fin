@@ -59,4 +59,5 @@ const (
 type Resource struct {
 	Code        string
 	Description string
+	Actions     Action // the actions its routes check; grants outside them are refused
 }

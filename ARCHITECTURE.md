@@ -84,7 +84,7 @@ Every query reads only what its caller uses. A hot path pays for each extra colu
 | GET/PUT | `/v1/me/preferences` (Bearer) |
 | GET | `/v1/me/notifications`, `/v1/me/notifications/count` (Bearer) |
 | PUT | `/v1/me/notifications/read`, body `{"ids": [...]}` (1 to 100, all or none) or no body for every one (Bearer) |
-| GET | `/v1/permissions/resources` (`roles:read`) |
+| GET | `/v1/permissions/resources` (`roles:read`); each resource lists the `actions` its routes check, and `PUT /v1/roles/:id/permissions` refuses any other (audit is read-only, users have no delete) |
 | GET/POST | `/v1/roles`, `search`, `sort` (`name`, `created_at`), `order` and pagination (`roles:read`, `roles:create`) |
 | GET | `/v1/roles/:id` (`roles:read`) |
 | POST | `/v1/roles/delete`, body `{"ids": [...]}` (1 to 100), all or none; roles without members, not default (`roles:delete`) |

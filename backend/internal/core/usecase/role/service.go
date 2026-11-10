@@ -157,16 +157,19 @@ func (s *Service) Update(ctx context.Context, id string, patch domain.RolePatch)
 // SetPermissions replaces every permission of a role in one transaction, so a
 // failure leaves the previous ones. Only catalog resources pass, which also
 // refuses "*": that sentinel would turn the role into full access. A resource
-// with no actions gets no row.
+// with no actions gets no row, and actions the resource does not take are refused.
 func (s *Service) SetPermissions(ctx context.Context, roleID string, permissions map[string]domain.Action) (*domain.Role, error) {
 	resources, err := s.Perms.ListResources(ctx)
 	if err != nil {
 		return nil, err
 	}
-	for resource := range permissions {
-		known := slices.ContainsFunc(resources, func(r domain.Resource) bool { return r.Code == resource })
-		if !known {
+	for resource, actions := range permissions {
+		i := slices.IndexFunc(resources, func(r domain.Resource) bool { return r.Code == resource })
+		if i < 0 {
 			return nil, apperror.New(apperror.CodeInvalidInput, "unknown resource").WithField("permissions")
+		}
+		if !domain.Allows(resources[i].Actions, actions) {
+			return nil, apperror.New(apperror.CodeInvalidInput, resource+" does not take these actions").WithField("permissions")
 		}
 	}
 	var updated *domain.Role

@@ -95,6 +95,8 @@ function PermissionsCard({ all, draft, editable, onChange }: { all: boolean; dra
   const { t } = useI18n();
   const resources = useQuery({ queryKey: ["resources"], queryFn: roles.resources, staleTime: Infinity });
   const codes = resources.data?.items.map((r) => r.code) ?? [];
+  // Each resource takes only the actions its routes check; the others get no box.
+  const takes = (res: string, a: Action) => resources.data?.items.find((r) => r.code === res)?.actions.includes(a) ?? false;
   const has = (res: string, a: Action) => draft[res]?.includes(a) ?? false;
   const set = (pairs: [string, Action][], on: boolean) => {
     const next = { ...draft };
@@ -104,7 +106,7 @@ function PermissionsCard({ all, draft, editable, onChange }: { all: boolean; dra
     }
     onChange(next);
   };
-  const cells = (rs: string[], as: Action[]) => rs.flatMap((r) => as.map((a) => [r, a] as [string, Action]));
+  const cells = (rs: string[], as: Action[]) => rs.flatMap((r) => as.filter((a) => takes(r, a)).map((a) => [r, a] as [string, Action]));
   const count = (pairs: [string, Action][]) => pairs.filter(([r, a]) => has(r, a)).length;
   const actionLabel = (a: Action) => t(`action.${a}` as MessageKey);
 
@@ -125,7 +127,7 @@ function PermissionsCard({ all, draft, editable, onChange }: { all: boolean; dra
             {/* Phones: one block per resource, its actions in a row, so nothing scrolls sideways. */}
             <div className="space-y-3 sm:hidden">
               <label className="flex items-center gap-3 rounded-lg border bg-muted/40 p-3 text-sm font-medium">
-                <AllBox label={t("common.select_all")} on={count(cells(codes, ACTIONS))} total={codes.length * ACTIONS.length} disabled={!editable} onChange={(on) => set(cells(codes, ACTIONS), on)} />
+                <AllBox label={t("common.select_all")} on={count(cells(codes, ACTIONS))} total={cells(codes, ACTIONS).length} disabled={!editable} onChange={(on) => set(cells(codes, ACTIONS), on)} />
                 {t("roles.all_permissions")}
               </label>
               {resources.data.items.map((r) => {
@@ -142,7 +144,7 @@ function PermissionsCard({ all, draft, editable, onChange }: { all: boolean; dra
                       </div>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 pl-7">
-                      {ACTIONS.map((a) => (
+                      {r.actions.map((a) => (
                         <label key={a} className="flex items-center gap-2 text-sm">
                           <Checkbox
                             aria-label={`${text.label}: ${actionLabel(a)}`}
@@ -177,7 +179,7 @@ function PermissionsCard({ all, draft, editable, onChange }: { all: boolean; dra
                     <TableHead className="w-16 border-l bg-muted/40 text-center px-1 [&:has([role=checkbox])]:px-1">
                       <div className="py-1">{t("roles.all_permissions")}</div>
                       <div className="flex justify-center pb-1">
-                        <AllBox label={t("common.select_all")} on={count(cells(codes, ACTIONS))} total={codes.length * ACTIONS.length} disabled={!editable} onChange={(on) => set(cells(codes, ACTIONS), on)} />
+                        <AllBox label={t("common.select_all")} on={count(cells(codes, ACTIONS))} total={cells(codes, ACTIONS).length} disabled={!editable} onChange={(on) => set(cells(codes, ACTIONS), on)} />
                       </div>
                     </TableHead>
                   </TableRow>
@@ -203,12 +205,12 @@ function PermissionsCard({ all, draft, editable, onChange }: { all: boolean; dra
                         {ACTIONS.map((a) => (
                           <TableCell key={a} className="px-1 [&:has([role=checkbox])]:px-1">
                             <div className="flex justify-center">
-                              <Checkbox
+                              {!takes(r.code, a) ? <span className="text-muted-foreground" aria-hidden>—</span> : <Checkbox
                                 aria-label={`${text.label}: ${actionLabel(a)}`}
                                 disabled={!editable}
                                 checked={has(r.code, a)}
                                 onCheckedChange={(on) => set([[r.code, a]], on === true)}
-                              />
+                              />}
                             </div>
                           </TableCell>
                         ))}
@@ -479,7 +481,7 @@ export default function RoleDetailPage() {
           <RoleEditor key={role.id} role={role} editable={editable} />
         )}
         {role && !role.is_default && can(user, "roles", "delete") && (
-          <DangerZone description={t("roles.delete_desc")} label={t("roles.delete")} onClick={() => setConfirmDelete(true)} />
+          <DangerZone className="max-w-none" description={t("roles.delete_desc")} label={t("roles.delete")} onClick={() => setConfirmDelete(true)} />
         )}
       </PageBody>
       <ConfirmDialog

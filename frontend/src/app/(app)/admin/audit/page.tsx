@@ -26,6 +26,7 @@ import { errorMessage } from "@/lib/errors";
 import { useGoToPage, useListParams } from "@/lib/hooks/use-list-params";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/provider";
+import { cn } from "@/lib/utils";
 
 const KINDS = ["user.", "role.", "product.", "admin."];
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -66,16 +67,16 @@ function DateField({ label, value, min, max, onChange }: { label: string; value:
   const input = useRef<HTMLInputElement>(null);
   const shown = DAY.test(value) ? new Date(`${value}T00:00:00`).toLocaleDateString(locale, { dateStyle: "medium" }) : "";
   return (
-    <span className="relative inline-flex items-center gap-2 text-sm text-muted-foreground">
+    <span className="relative inline-flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
       {label}
       <Button
         type="button"
         variant="outline"
-        className="w-40 justify-between font-normal"
+        className="w-40 justify-between font-normal max-sm:w-auto max-sm:min-w-0 max-sm:flex-1"
         aria-label={`${label}: ${shown || t("common.pick_date")}`}
         onClick={() => (input.current?.showPicker ? input.current.showPicker() : input.current?.focus())}
       >
-        <span className={shown ? "text-foreground" : undefined}>{shown || t("common.pick_date")}</span>
+        <span className={cn("truncate", shown && "text-foreground")}>{shown || t("common.pick_date")}</span>
         <CalendarDays className="size-4" aria-hidden="true" />
       </Button>
       <input ref={input} type="date" tabIndex={-1} aria-hidden="true" className="pointer-events-none absolute right-0 bottom-0 size-px opacity-0" value={value} min={min} max={max} onChange={(e) => onChange(e.target.value)} />
@@ -106,7 +107,7 @@ function UserFilter({ onPick }: { onPick: (id: string) => void }) {
     <>
       <Input
         type="search"
-        className="w-56"
+        className="w-56 max-sm:col-span-2 max-sm:w-full"
         list={listId}
         placeholder={t("audit.user_filter")}
         aria-label={t("audit.user_filter")}
@@ -161,9 +162,9 @@ export default function AuditPage() {
         }
       />
       <PageBody>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 max-sm:grid max-sm:grid-cols-2">
           <Select value={action || "all"} items={kindItems} onValueChange={(v) => set({ action: v === "all" ? "" : (v as string), page: 1 })}>
-            <SelectTrigger className="w-44" aria-label={t("audit.action")}><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-44 max-sm:col-span-2 max-sm:w-full" aria-label={t("audit.action")}><SelectValue /></SelectTrigger>
             <SelectContent>
               {Object.entries(kindItems).map(([value, text]) => <SelectItem key={value} value={value}>{text}</SelectItem>)}
             </SelectContent>
@@ -172,7 +173,7 @@ export default function AuditPage() {
           <DateField label={t("audit.to")} value={to} min={from || undefined} onChange={(day) => set({ to: day, page: 1 })} />
           {!user && pickable && <UserFilter onPick={(id) => set({ user: id, page: 1 })} />}
           {user && (
-            <Badge variant="secondary" className="gap-1">
+            <Badge variant="secondary" className="gap-1 max-sm:col-span-2 max-sm:justify-self-start">
               {picked.data ? picked.data.email : t("audit.filtered_user")}
               <button type="button" aria-label={t("audit.clear_user")} className="rounded-sm hover:text-foreground" onClick={() => set({ user: "", page: 1 })}>
                 <X className="size-3" />
@@ -208,7 +209,7 @@ export default function AuditPage() {
                     <TableRow key={r.id} className="cursor-pointer" onClick={() => setOpen(r)}>
                       <TableCell data-label={t("audit.when")} data-cell="date" className="text-muted-foreground">
                         {/* the keyboard way to the full record; a click anywhere on the row does the same */}
-                        <button type="button" className="hover:underline" aria-label={`${t("audit.open")}: ${format(r.created_at)}`}>{format(r.created_at)}</button>
+                        <button type="button" className="text-left hover:underline" aria-label={`${t("audit.open")}: ${format(r.created_at)}`}>{format(r.created_at)}</button>
                       </TableCell>
                       <TableCell data-label={t("audit.actor")} data-cell="name" onClick={(e) => e.stopPropagation()}>
                         {r.actor_id ? (
@@ -219,9 +220,11 @@ export default function AuditPage() {
                       </TableCell>
                       <TableCell data-label={t("audit.action")} data-cell="status"><Badge variant="outline" className="font-normal">{label(r.action)}</Badge></TableCell>
                       <TableCell data-label={t("audit.target")} data-cell="sub">
-                        {href ? <Link href={href} className="hover:underline" onClick={(e) => e.stopPropagation()}>{target}</Link> : target}
+                        <span className="block truncate lg:max-w-56 2xl:max-w-80" title={target}>
+                          {href ? <Link href={href} className="hover:underline" onClick={(e) => e.stopPropagation()}>{target}</Link> : target}
+                        </span>
                       </TableCell>
-                      <TableCell data-label={t("audit.details")} data-cell="detail" className="max-w-72 truncate text-muted-foreground">{extra || "-"}</TableCell>
+                      <TableCell data-label={t("audit.details")} data-cell="detail" className="text-muted-foreground"><span className="block truncate lg:max-w-56 2xl:max-w-80" title={extra || undefined}>{extra || "-"}</span></TableCell>
                     </TableRow>
                   );
                 })}

@@ -72,8 +72,8 @@ export default function UsersPage() {
         action={can(user, "users", "create") && <Button onClick={() => router.push("/admin/users/new")}><UserPlus className="size-4" />{t("users.invite")}</Button>}
       />
       <PageBody>
-        <div className="flex flex-wrap gap-2">
-          <div className="relative min-w-56 flex-1 sm:max-w-sm">
+        <div className="flex flex-wrap gap-2 max-sm:grid max-sm:grid-cols-2">
+          <div className="relative min-w-56 flex-1 sm:max-w-sm max-sm:col-span-2 max-sm:min-w-0">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
@@ -85,14 +85,14 @@ export default function UsersPage() {
             />
           </div>
           <Select value={status || "all"} items={statusItems} onValueChange={(v) => set({ status: v === "all" ? "" : (v as string), page: 1 })}>
-            <SelectTrigger className="w-44" aria-label={t("users.status")}><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-44 max-sm:w-full" aria-label={t("users.status")}><SelectValue /></SelectTrigger>
             <SelectContent>
               {Object.entries(statusItems).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
             </SelectContent>
           </Select>
           {canRoles && (
             <Select value={role || "all"} items={roleItems} onValueChange={(v) => set({ role: v === "all" ? "" : (v as string), page: 1 })}>
-              <SelectTrigger className="w-48" aria-label={t("users.role")}><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-48 max-sm:w-full" aria-label={t("users.role")}><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.entries(roleItems).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
               </SelectContent>
@@ -125,9 +125,9 @@ export default function UsersPage() {
                     {canBulk && <SelectCell selection={selection} id={u.id} label={u.name} disabled={u.id === user?.id} />}
                     <TableCell data-label={t("auth.name")} data-cell="name">
                       {/* the keyboard way into the record on phones, where the action button is hidden */}
-                      <Link href={`/admin/users/${u.id}`} className="block truncate font-medium hover:underline lg:max-w-44 2xl:max-w-72" title={u.name} onClick={(e) => e.stopPropagation()}>{u.name}</Link>
+                      <Link href={`/admin/users/${u.id}`} className="block truncate font-medium hover:underline lg:max-w-48 xl:max-w-64 2xl:max-w-80" title={u.name} onClick={(e) => e.stopPropagation()}>{u.name}</Link>
                     </TableCell>
-                    <TableCell data-label={t("auth.email")} data-cell="sub" className="text-muted-foreground lg:text-foreground"><span className="block truncate lg:max-w-44 2xl:max-w-72" title={u.email}>{u.email}</span></TableCell>
+                    <TableCell data-label={t("auth.email")} data-cell="sub" className="text-muted-foreground lg:text-foreground"><span className="block truncate lg:max-w-48 xl:max-w-64 2xl:max-w-80" title={u.email}>{u.email}</span></TableCell>
                     <TableCell data-label={t("users.status")} data-cell="status"><StatusBadge status={u.status} /></TableCell>
                     <TableCell data-label={t("common.created_at")} data-cell="date" className="text-muted-foreground">{format(u.created_at)}</TableCell>
                     <TableCell data-cell="action" className="text-right">

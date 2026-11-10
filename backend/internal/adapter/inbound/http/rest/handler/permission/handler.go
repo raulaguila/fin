@@ -23,8 +23,9 @@ func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
 }
 
 type resourceDTO struct {
-	Code        string `json:"code" example:"products"`
-	Description string `json:"description"`
+	Code        string   `json:"code" example:"products"`
+	Description string   `json:"description"`
+	Actions     []string `json:"actions" example:"create,read,update,delete"`
 }
 
 // @Summary List the resources that roles may be granted
@@ -43,7 +44,7 @@ func (h *Handler) ListResources(c fiber.Ctx) error {
 	}
 	out := make([]resourceDTO, 0, len(resources))
 	for _, r := range resources {
-		out = append(out, resourceDTO{Code: r.Code, Description: r.Description})
+		out = append(out, resourceDTO{Code: r.Code, Description: r.Description, Actions: domain.ActionNames(r.Actions)})
 	}
 	return c.JSON(fiber.Map{"items": out})
 }

@@ -3196,6 +3196,18 @@ const docTemplate = `{
         "permission.resourceDTO": {
             "type": "object",
             "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "create",
+                        "read",
+                        "update",
+                        "delete"
+                    ]
+                },
                 "code": {
                     "type": "string",
                     "example": "products"

@@ -65,6 +65,8 @@ export function CommandPalette() {
     .filter((hit) => hit.label.toLowerCase().includes(needle));
   const hits = [...pages, ...(userHits.data ?? []), ...(roleHits.data ?? []), ...(productHits.data ?? [])];
   const current = Math.min(active, hits.length - 1);
+  // While the typed text waits for the debounce or a search is in flight, "nothing found" would be a guess.
+  const searching = text.trim().length >= 2 && (text.trim() !== q || userHits.isFetching || roleHits.isFetching || productHits.isFetching);
 
   const changeOpen = (next: boolean) => {
     setOpen(next);
@@ -114,7 +116,7 @@ export function CommandPalette() {
           </div>
           <ul id="palette-list" role="listbox" className="max-h-80 overflow-y-auto p-1.5">
             {hits.length === 0 ? (
-              <li className="px-3 py-6 text-center text-sm text-muted-foreground">{t("palette.empty")}</li>
+              <li className="px-3 py-6 text-center text-sm text-muted-foreground" aria-live="polite">{t(searching ? "palette.searching" : "palette.empty")}</li>
             ) : hits.map((hit, i) => (
               <li
                 key={hit.href}

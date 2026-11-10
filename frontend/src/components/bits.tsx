@@ -94,10 +94,11 @@ export function IconAction({ label, target, className, onClick, children }: { la
 }
 
 /** The page's destructive action, kept apart at the bottom so it is never the first button in sight. */
-export function DangerZone({ description, label, onClick }: { description: string; label: string; onClick: () => void }) {
+/** className widens it to match a full-width page; the default lines up with narrow forms. */
+export function DangerZone({ description, label, onClick, className }: { description: string; label: string; onClick: () => void; className?: string }) {
   const { t } = useI18n();
   return (
-    <section aria-labelledby="danger-zone" className="mt-8 flex max-w-xl flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 p-4">
+    <section aria-labelledby="danger-zone" className={cn("mt-8 flex max-w-xl flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 p-4", className)}>
       <div className="min-w-0 flex-1 space-y-1">
         <h2 id="danger-zone" className="text-sm font-medium text-destructive">{t("common.danger_zone")}</h2>
         <p className="text-sm text-muted-foreground">{description}</p>

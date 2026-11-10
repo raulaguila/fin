@@ -244,7 +244,7 @@ function SessionsCard() {
           <QueryErrorState onRetry={() => void sessions.refetch()} />
         ) : (
           <ul className="divide-y rounded-lg border">
-            {sessions.data.items.map((s) => (
+            {sessions.data.items.toSorted((a, b) => Number(b.current) - Number(a.current)).map((s) => (
               <li key={s.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 {(() => {
                   const device = describeDevice(s.user_agent);

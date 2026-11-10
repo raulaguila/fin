@@ -128,7 +128,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <AvatarFallback className="text-xs">{initials(user?.name ?? "?")}</AvatarFallback>
                   </Avatar>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="w-auto min-w-56 max-w-80">
                   <DropdownMenuGroup>
                     <DropdownMenuLabel>
                       <div className="truncate">{user?.name}</div>

@@ -16,6 +16,9 @@ func TestCatalogHoldsEveryResourceTheCodeChecks(t *testing.T) {
 	found := map[string]bool{}
 	for _, r := range resources {
 		found[r.Code] = true
+		if r.Actions == 0 {
+			t.Errorf("%s takes no action", r.Code)
+		}
 	}
 	for _, code := range []string{domain.ResourceProducts, domain.ResourceRoles, domain.ResourceUsers} {
 		if !found[code] {

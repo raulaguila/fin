@@ -214,17 +214,40 @@ func TestFailedSaveKeepsThePreviousPermissions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A negative mask only fails at the database, after the old rows are gone.
+	// A constraint for this role only makes the second grant fail at the database, after the old rows are gone.
+	if err := testDB.Exec(`ALTER TABLE usr.usr_role_permission ADD CONSTRAINT chk_test_fail
+		CHECK (role_id <> '` + created.ID + `' OR resource <> 'roles') NOT VALID`).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = testDB.Exec("ALTER TABLE usr.usr_role_permission DROP CONSTRAINT chk_test_fail").Error })
 	_, err := svc.SetPermissions(ctx, created.ID, map[string]domain.Action{
 		domain.ResourceProducts: domain.ActionRead,
-		domain.ResourceRoles:    domain.Action(-1),
+		domain.ResourceRoles:    domain.ActionRead,
 	})
 	if err == nil {
-		t.Fatal("a negative mask must fail")
+		t.Fatal("the failing grant must fail the save")
 	}
 	got := findRole(t, svc, created.Name)
 	if len(got.Permissions) != 1 || got.Permissions["users"] != domain.ActionRead {
 		t.Fatalf("permissions changed: %v", got.Permissions)
+	}
+}
+
+func TestGrantsStayWithinTheResourceActions(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	svc := role.New(e.store, e.store, rbac.NewRepository(testDB))
+	created := newRole(t, svc)
+	for _, bad := range []map[string]domain.Action{
+		{domain.ResourceAudit: domain.ActionCreate},
+		{domain.ResourceUsers: domain.ActionRead | domain.ActionDelete},
+		{domain.ResourceProducts: domain.Action(-1)},
+	} {
+		_, err := svc.SetPermissions(ctx, created.ID, bad)
+		wantCode(t, err, apperror.CodeInvalidInput)
+	}
+	if _, err := svc.SetPermissions(ctx, created.ID, map[string]domain.Action{domain.ResourceAudit: domain.ActionRead}); err != nil {
+		t.Fatal(err)
 	}
 }
 

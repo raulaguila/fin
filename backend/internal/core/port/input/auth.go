@@ -67,6 +67,8 @@ type AuthService interface {
 	Register(ctx context.Context, cmd RegisterCommand) (*RegisterResult, error)
 	// Invite is Register on behalf of an administrator; a taken email is a conflict.
 	Invite(ctx context.Context, cmd RegisterCommand) (*RegisterResult, error)
+	// Reinvite sends a pending account a new activation email.
+	Reinvite(ctx context.Context, userID string) (*RegisterResult, error)
 	Activate(ctx context.Context, cmd ActivateCommand) error
 	Login(ctx context.Context, cmd LoginCommand) (*domain.TokenPair, error)
 	Refresh(ctx context.Context, cmd RefreshCommand) (*domain.TokenPair, error)

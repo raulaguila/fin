@@ -286,7 +286,7 @@ function RoleEditor({ role: saved, editable }: { role: Role | null; editable: bo
 
   return (
     <>
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <div className="grid items-start gap-6 2xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <div className="space-y-6">
           <GeneralCard
             name={name}
@@ -443,7 +443,7 @@ export default function RoleDetailPage() {
   const { t } = useI18n();
   const router = useRouter();
   const client = useQueryClient();
-  const { user } = useMe();
+  const { user, loading } = useMe();
   const { id } = useParams<{ id: string }>();
   const creating = id === "new";
   const detail = useQuery({ queryKey: ["roles", "detail", id], queryFn: () => roles.get(id), enabled: !creating });
@@ -465,7 +465,9 @@ export default function RoleDetailPage() {
         description={subtitle || undefined}
       />
       <PageBody>
-        {creating ? (
+        {loading ? (
+          <ListSkeleton rows={4} />
+        ) : creating ? (
           <RoleEditor role={null} editable={editable} />
         ) : detail.isPending ? (
           <ListSkeleton rows={4} />

@@ -45,19 +45,31 @@ func main() {
 
 	fiberApp := rest.New(cfg, composition.NewApplication(cfg, res, log), composition.NewRateLimit(res), log)
 
+	if cfg.Auth.AllowManualTokenDelivery {
+		log.Warn("AUTH_MANUAL_TOKEN_DELIVERY is on: activation and reset tokens are returned in API responses. Development only.")
+	}
+
 	addr := fmt.Sprintf(":%d", cfg.API.Port)
+	failed := make(chan error, 1)
 	go func() {
 		log.Info("HTTP server listening", slog.String("addr", addr))
-		if err := fiberApp.Listen(addr); err != nil {
-			log.Error("HTTP server stopped", slog.String("error", err.Error()))
-			os.Exit(1)
-		}
+		failed <- fiberApp.Listen(addr)
 	}()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	sig := <-stop
-	log.Info("Shutdown signal received", slog.String("signal", sig.String()))
+	select {
+	case err := <-failed: // back in main, so the deferred shutdowns run before the exit code
+		if err != nil {
+			log.Error("HTTP server stopped", slog.String("error", err.Error()))
+			stopDiagnostics()
+			res.Shutdown(log)
+			os.Exit(1)
+		}
+		return
+	case sig := <-stop:
+		log.Info("Shutdown signal received", slog.String("signal", sig.String()))
+	}
 
 	if err := fiberApp.ShutdownWithTimeout(cfg.API.ShutdownTimeout); err != nil {
 		log.Warn("HTTP shutdown error", slog.String("error", err.Error()))

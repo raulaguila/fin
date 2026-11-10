@@ -1,12 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, Package, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ActiveBadge, IconAction, PageBody, PageHeader, useFormatDate } from "@/components/bits";
-import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
 import { SortHead } from "@/components/sort-head";
@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { products } from "@/lib/api/endpoints";
-import type { Product, SortOrder } from "@/lib/api/types";
+import type { SortOrder } from "@/lib/api/types";
 import { CURRENCY } from "@/lib/brand";
 import { useMe } from "@/lib/context/me";
 import { useDebounced } from "@/lib/hooks/use-debounced";
@@ -45,7 +45,6 @@ export default function ProductsPage() {
   const [search, setSearch] = useState(params.q);
   const [hidden, setHidden] = useState<string[]>([]);
   const router = useRouter();
-  const [deleting, setDeleting] = useState<Product | null>(null);
   const q = useDebounced(params.q);
   const list = useQuery({
     queryKey: ["products", page, limit, q, sort, order, state],
@@ -108,7 +107,7 @@ export default function ProductsPage() {
           <EmptyState icon={Package} title={t(q || state !== "all" ? "common.no_results" : "products.empty")} />
         ) : (
           <Card className="gap-0 overflow-hidden p-0">
-            <Table data-responsive>
+            <Table data-responsive data-compact>
               <TableHeader>
                 <TableRow>
                   {canDelete && <SelectAllHead selection={selection} />}
@@ -116,24 +115,25 @@ export default function ProductsPage() {
                   <SortHead field="price" label={t("products.price")} className="w-36 text-right" {...sortProps} />
                   <TableHead className="w-28">{t("roles.state")}</TableHead>
                   <SortHead field="created_at" label={t("common.created_at")} className="w-44" {...sortProps} />
-                  <TableHead className="w-24"><span className="sr-only">{t("common.actions")}</span></TableHead>
+                  <TableHead className="w-14"><span className="sr-only">{t("common.actions")}</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {items.map((p) => (
                   <TableRow key={p.id} className="cursor-pointer" onClick={() => open(p.id)}>
                     {canDelete && <SelectCell selection={selection} id={p.id} label={p.name} />}
-                    <TableCell data-label={t("auth.name")} className="font-medium">{p.name}</TableCell>
-                    <TableCell data-label={t("products.price")} className="text-right font-mono tabular-nums">{money.format(Number(p.price))}</TableCell>
-                    <TableCell data-label={t("roles.state")}>
+                    <TableCell data-label={t("auth.name")} data-cell="name">
+                      <Link href={`/products/${p.id}`} className="font-medium hover:underline" onClick={(e) => e.stopPropagation()}>{p.name}</Link>
+                    </TableCell>
+                    <TableCell data-label={t("products.price")} data-cell="sub" className="text-right font-mono tabular-nums">{money.format(Number(p.price))}</TableCell>
+                    <TableCell data-label={t("roles.state")} data-cell="status">
                       <ActiveBadge enabled={p.enabled} />
                     </TableCell>
-                    <TableCell data-label={t("common.created_at")} className="text-muted-foreground">{format(p.created_at)}</TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    <TableCell data-label={t("common.created_at")} data-cell="date" className="text-muted-foreground">{format(p.created_at)}</TableCell>
+                    <TableCell data-cell="action" className="text-right" onClick={(e) => e.stopPropagation()}>
                       <IconAction label={t(canEdit ? "common.edit" : "common.view")} target={p.name} onClick={() => open(p.id)}>
                         {canEdit ? <Pencil className="size-4" /> : <Eye className="size-4" />}
                       </IconAction>
-                      {canDelete && <IconAction label={t("common.delete")} target={p.name} className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleting(p)}><Trash2 className="size-4" /></IconAction>}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -152,18 +152,6 @@ export default function ProductsPage() {
           <Button variant="destructive" onClick={removeSelected}><Trash2 className="size-4" />{t("common.delete_selected")}</Button>
         </SelectionBar>
       </PageBody>
-      <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(o) => !o && setDeleting(null)}
-        title={t("products.delete")}
-        description={deleting?.name}
-        destructive
-        confirmLabel={t("common.delete")}
-        onConfirm={async () => {
-          await products.remove([deleting!.id]);
-          await client.invalidateQueries({ queryKey: ["products"] });
-        }}
-      />
     </>
   );
 }

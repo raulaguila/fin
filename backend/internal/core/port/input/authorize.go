@@ -10,7 +10,6 @@ import (
 // perform actions on a resource, in one round trip.
 type Authorizer interface {
 	Authorize(ctx context.Context, p domain.Principal, resource string, need domain.Action) error
-	LoadEffective(ctx context.Context, userID string) (*domain.EffectivePermissions, error)
 }
 
 // ResourceCatalog lists the resources that grants may name.

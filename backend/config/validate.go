@@ -1,6 +1,7 @@
 package config
 
 import (
+	"crypto/ed25519"
 	"fmt"
 	"net/url"
 	"os"
@@ -91,8 +92,12 @@ func validateAuthConfig(cfg AuthConfig) error {
 		return fmt.Errorf("AUTH_ACCOUNT_LOCK_DURATION must be greater than 0")
 	}
 	// With one key an access token passes as a refresh token, and the reverse.
-	if cfg.AccessPrivateKey != nil && cfg.RefreshPrivateKey != nil && cfg.AccessPrivateKey.Equal(cfg.RefreshPrivateKey) {
-		return fmt.Errorf("ACCESS_TOKEN and REFRESH_TOKEN must be different keys")
+	for _, access := range []ed25519.PrivateKey{cfg.AccessPrivateKey, cfg.AccessPreviousKey} {
+		for _, refresh := range []ed25519.PrivateKey{cfg.RefreshPrivateKey, cfg.RefreshPreviousKey} {
+			if access != nil && refresh != nil && access.Equal(refresh) {
+				return fmt.Errorf("the access keys (ACCESS_TOKEN, ACCESS_TOKEN_PREVIOUS) and the refresh keys (REFRESH_TOKEN, REFRESH_TOKEN_PREVIOUS) must differ")
+			}
+		}
 	}
 	return nil
 }

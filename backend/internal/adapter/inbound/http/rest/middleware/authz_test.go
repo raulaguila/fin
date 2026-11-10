@@ -24,10 +24,6 @@ func (s stubAuthz) Authorize(_ context.Context, _ domain.Principal, _ string, _ 
 	return nil
 }
 
-func (s stubAuthz) LoadEffective(ctx context.Context, userID string) (*domain.EffectivePermissions, error) {
-	return &domain.EffectivePermissions{UserID: userID, ByResource: map[string]domain.Action{}}, nil
-}
-
 func withUser(c fiber.Ctx) error {
 	c.Locals(middleware.LocalUserID, "u1")
 	return c.Next()

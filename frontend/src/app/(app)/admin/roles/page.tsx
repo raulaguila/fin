@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -107,7 +108,7 @@ export default function RolesPage() {
           <EmptyState icon={KeyRound} title={t(q ? "common.no_results" : "roles.empty")} />
         ) : (
           <Card className="gap-0 overflow-hidden p-0">
-            <Table data-responsive>
+            <Table data-responsive data-compact>
               <TableHeader>
                 <TableRow>
                   {canDelete && <SelectAllHead selection={selection} />}
@@ -123,15 +124,15 @@ export default function RolesPage() {
                 {items.map((r) => (
                   <TableRow key={r.id} className="cursor-pointer" onClick={() => open(r.id)}>
                     {canDelete && <SelectCell selection={selection} id={r.id} label={r.name} disabled={r.is_default} />}
-                    <TableCell data-label={t("auth.name")}>
-                      <span className="font-medium">{r.name}</span>
+                    <TableCell data-label={t("auth.name")} data-cell="name">
+                      <Link href={`/admin/roles/${r.id}`} className="font-medium hover:underline" onClick={(e) => e.stopPropagation()}>{r.name}</Link>
                       {r.is_default && <Badge variant="outline" className="ml-2">{t("roles.default")}</Badge>}
                     </TableCell>
-                    <TableCell data-label={t("roles.permissions")}><PermissionChips role={r} /></TableCell>
-                    <TableCell data-label={t("roles.members")} className="text-right tabular-nums">{r.member_count}</TableCell>
-                    <TableCell data-label={t("roles.state")}><ActiveBadge enabled={r.enabled} /></TableCell>
-                    <TableCell data-label={t("common.created_at")} className="text-muted-foreground">{format(r.created_at)}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell data-label={t("roles.permissions")} data-cell="sub"><PermissionChips role={r} /></TableCell>
+                    <TableCell data-label={t("roles.members")} data-cell="meta" className="text-right tabular-nums">{r.member_count}<span className="lg:hidden"> {t(r.member_count === 1 ? "roles.member_one" : "roles.members").toLowerCase()}</span></TableCell>
+                    <TableCell data-label={t("roles.state")} data-cell="status"><ActiveBadge enabled={r.enabled} /></TableCell>
+                    <TableCell data-label={t("common.created_at")} data-cell="date" className="text-muted-foreground">{format(r.created_at)}</TableCell>
+                    <TableCell data-cell="action" className="text-right">
                       <IconAction label={t(canEdit ? "common.edit" : "common.view")} target={r.name} onClick={() => open(r.id)}>
                         {canEdit ? <Pencil className="size-4" /> : <Eye className="size-4" />}
                       </IconAction>

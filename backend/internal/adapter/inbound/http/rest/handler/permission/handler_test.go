@@ -24,10 +24,6 @@ func (s stubAuthz) Authorize(_ context.Context, _ domain.Principal, resource str
 	return apperror.New(apperror.CodeForbidden, "forbidden")
 }
 
-func (s stubAuthz) LoadEffective(context.Context, string) (*domain.EffectivePermissions, error) {
-	return nil, nil
-}
-
 type stubCatalog struct{}
 
 func (stubCatalog) ListResources(context.Context) ([]domain.Resource, error) {

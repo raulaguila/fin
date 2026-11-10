@@ -14,7 +14,17 @@ import (
 	"github.com/raulaguila/authenticity/pkg/tokenhash"
 )
 
+// RequestPasswordReset answers no sooner than Cfg.PasswordResetMinDuration: an
+// unknown email does no work, and answering at once would tell it from a known one.
 func (s *Service) RequestPasswordReset(ctx context.Context, cmd input.RequestPasswordResetCommand) (*input.RequestPasswordResetResult, error) {
+	wait := time.NewTimer(s.Cfg.PasswordResetMinDuration)
+	defer func() {
+		select {
+		case <-wait.C:
+		case <-ctx.Done():
+			wait.Stop()
+		}
+	}()
 	email := policy.NormalizeEmail(cmd.Email)
 	res := &input.RequestPasswordResetResult{}
 
@@ -64,7 +74,15 @@ func (s *Service) ConfirmPasswordReset(ctx context.Context, cmd input.ConfirmPas
 	hash := tokenhash.SHA256Bytes(cmd.Token)
 	now := s.Clock.Now()
 
-	if _, err := resetToken(ctx, s.UOW, hash, now); err != nil {
+	tok, err := resetToken(ctx, s.UOW, hash, now)
+	if err != nil {
+		return err
+	}
+	owner, err := s.UOW.Users().FindByID(ctx, tok.UserID)
+	if err != nil {
+		return err
+	}
+	if err := policy.ValidatePasswordFor(cmd.Password, owner.Name, owner.Email); err != nil {
 		return err
 	}
 
@@ -113,7 +131,11 @@ func (s *Service) ConfirmPasswordReset(ctx context.Context, cmd input.ConfirmPas
 // ChangePassword replaces the password of a signed in user who knows the
 // current one, and ends their other sessions.
 func (s *Service) ChangePassword(ctx context.Context, cmd input.ChangePasswordCommand) error {
-	if err := policy.ValidatePassword(cmd.NewPassword); err != nil {
+	owner, err := s.UOW.Users().FindByID(ctx, cmd.UserID)
+	if err != nil {
+		return err
+	}
+	if err := policy.ValidatePasswordFor(cmd.NewPassword, owner.Name, owner.Email); err != nil {
 		return apperror.New(apperror.CodeInvalidInput, err.Error()).WithField("new_password")
 	}
 	cred, err := s.UOW.Credentials().FindByUserID(ctx, cmd.UserID)

@@ -25,10 +25,6 @@ func (s stubAuthz) Authorize(_ context.Context, _ domain.Principal, resource str
 	return apperror.New(apperror.CodeForbidden, "forbidden")
 }
 
-func (s stubAuthz) LoadEffective(context.Context, string) (*domain.EffectivePermissions, error) {
-	return nil, nil
-}
-
 func newApp(svc input.RoleService, authz input.Authorizer) *fiber.App {
 	app := fiber.New()
 	group := app.Group("/roles", func(c fiber.Ctx) error {
@@ -69,10 +65,6 @@ func TestEveryRouteNeedsItsPermission(t *testing.T) {
 type allowAll struct{}
 
 func (allowAll) Authorize(context.Context, domain.Principal, string, domain.Action) error { return nil }
-
-func (allowAll) LoadEffective(context.Context, string) (*domain.EffectivePermissions, error) {
-	return nil, nil
-}
 
 type stubRoles struct {
 	input.RoleService

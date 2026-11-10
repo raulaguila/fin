@@ -55,10 +55,16 @@ func (r *Repository) CountRecentFailures(ctx context.Context, email string, ip *
 		SELECT
 			count(*) FILTER (WHERE `+byEmail+`) AS email,
 			count(*) FILTER (WHERE `+byEmail+` AND ip_address BETWEEN ?::inet AND ?::inet) AS pair,
-			count(*) FILTER (WHERE `+byIP+`) AS ip
+			count(*) FILTER (WHERE `+byIP+`) AS ip,
+			min(created_at) FILTER (WHERE `+byEmail+`) AS email_oldest,
+			min(created_at) FILTER (WHERE `+byEmail+` AND ip_address BETWEEN ?::inet AND ?::inet) AS pair_oldest,
+			min(created_at) FILTER (WHERE `+byIP+`) AS ip_oldest
 		FROM usr.usr_login_attempt
 		WHERE `+shared.CountedFailure+` AND ((`+byEmail+`) OR (`+byIP+`))
 	`, email, emailSince,
+		email, emailSince, first, last,
+		first, last, ipSince,
+		email, emailSince,
 		email, emailSince, first, last,
 		first, last, ipSince,
 		email, emailSince, first, last, ipSince).Find(&out).Error

@@ -1,6 +1,8 @@
 package composition
 
 import (
+	"time"
+
 	"github.com/raulaguila/authenticity/config"
 	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
 	"github.com/raulaguila/authenticity/internal/adapter/outbound/emailpayload"
@@ -55,10 +57,12 @@ func NewApplication(cfg *config.Environment, res *infra.Resources, log *logger.L
 	store := postgres.NewStore(res.PostgresDB)
 	permReader := rbac.NewRepository(res.PostgresDB)
 	issuer := &tokens.Issuer{
-		AccessKey:     cfg.Auth.AccessPrivateKey,
-		RefreshKey:    cfg.Auth.RefreshPrivateKey,
-		AccessExpire:  cfg.Auth.AccessExpiration,
-		RefreshExpire: cfg.Auth.RefreshExpiration,
+		AccessKey:       cfg.Auth.AccessPrivateKey,
+		RefreshKey:      cfg.Auth.RefreshPrivateKey,
+		AccessPrevious:  cfg.Auth.AccessPreviousKey,
+		RefreshPrevious: cfg.Auth.RefreshPreviousKey,
+		AccessExpire:    cfg.Auth.AccessExpiration,
+		RefreshExpire:   cfg.Auth.RefreshExpiration,
 	}
 
 	authSvc := auth.New(store, store, issuer, output.RealClock{}, auth.Config{
@@ -68,6 +72,8 @@ func NewApplication(cfg *config.Environment, res *infra.Resources, log *logger.L
 		MaxFailedLoginAttempts:       cfg.Auth.MaxFailedLoginAttempts,
 		AccountLockDuration:          cfg.Auth.AccountLockDuration,
 		AllowManualTokenDelivery:     cfg.Auth.AllowManualTokenDelivery,
+		AllowRegistration:            cfg.Auth.AllowRegistration,
+		PasswordResetMinDuration:     300 * time.Millisecond, // above the slowest path: one transaction and two inserts
 		LoginAttemptEmailWindow:      cfg.Auth.LoginAttemptEmailWindow,
 		LoginAttemptEmailMaxFailures: cfg.Auth.LoginAttemptEmailMaxFailures,
 		LoginAttemptPairMaxFailures:  cfg.Auth.LoginAttemptPairMaxFailures,

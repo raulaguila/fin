@@ -95,6 +95,7 @@ Every query reads only what its caller uses. A hot path pays for each extra colu
 | PUT | `/v1/users/:id/roles` (`roles:update`; replaces every role of the user) |
 | GET | `/v1/users`, `search`, `status`, `role_id`, `sort` (`name`, `email`, `status`, `created_at`), `order` and pagination (`users:read`) |
 | POST | `/v1/users`, invite: creates a pending account and sends the activation email; a taken email is 409 (`users:create`) |
+| POST | `/v1/users/:id/invite`, sends a pending account a new activation email and ends the old link; 409 once activated, 429 inside the email cooldown (`users:update`) |
 | DELETE | `/v1/users/:id/sessions`, ends every session of another user (`users:update`) |
 | GET | `/v1/users/:id`, with roles and `access`: last login, counted failures in the email window, lock end, live sessions (`users:read`) |
 | POST | `/v1/users/disable`, `/v1/users/enable`, body `{"ids": [...]}` (1 to 100), all or none (`users:update`) |
@@ -106,7 +107,7 @@ Every query reads only what its caller uses. A hot path pays for each extra colu
 | GET/PATCH | `/v1/products/:id` |
 | POST | `/v1/products/delete`, body `{"ids": [...]}` (1 to 100), all or none |
 
-**Auth tokens:** EdDSA (Ed25519), a base64 PEM from `openssl genpkey -algorithm ed25519`; access claims `sub`, `sid`, `jti`, `iat`, `exp`; refresh same with `jti` hashed at rest. Defaults: access 15m, refresh 60m.
+**Auth tokens:** EdDSA (Ed25519), a base64 PEM from `openssl genpkey -algorithm ed25519`; access claims `sub`, `sid`, `jti`, `iat`, `exp`; refresh same with `jti` hashed at rest. Defaults: access 15m, refresh 60m. **Key rotation:** set the new key in `ACCESS_TOKEN`/`REFRESH_TOKEN` and the old one in `ACCESS_TOKEN_PREVIOUS`/`REFRESH_TOKEN_PREVIOUS`; the old key is only verified, never used to sign, and is removed after one refresh lifetime. An access key may never equal a refresh key, current or previous.
 
 **Errors (confirmed):** `pkg/apperror` → JSON `{code,message,field?,details?}` via `rest/mapper`; errors raised by Fiber itself (404, 405, 413) use the same shape. Login failures are always `INVALID_CREDENTIALS`: pending, disabled, locked and unknown accounts answer identically, in the same time. Register answers `201` for known emails too; internal `failure_kind` not echoed.
 
@@ -133,6 +134,8 @@ Every query reads only what its caller uses. A hot path pays for each extra colu
 
 **Notifications:** written by the auth use case for password changed (same transaction as the reset), account locked, refresh token reuse and login from a client never seen on the account (best effort: a lost notice does not fail the login). Clients poll. First login notifies nothing; after it, a client with no session left on the account counts as new. Each one carries a `kind` (`new_login`, `account_locked`, `session_reused`, `password_reset`, `password_changed`) and string `params` (`ip`, `until`); the web app writes the text in the user's language from them. `title`/`message` stay as English fallbacks.
 
+**Emails:** plain text in the user's saved language (Portuguese by default, English otherwise), chosen when the email is queued. The link carries the token in the URL fragment (`/activate#token=...`), which never reaches a server log or a `Referer` header; the web app reads it and clears the address bar.
+
 **Async (confirmed):** mailer claims outbox with `SKIP LOCKED`, sends SMTP (or terminal `smtp_disabled`), backoff on retryable failure.
 
 **Health:** Postgres ping (`ok` / `down`), reused for 1 s. One request probes at a time; the others answer the last report, `down` until the first probe ends.
@@ -145,7 +148,7 @@ Every query reads only what its caller uses. A hot path pays for each extra colu
 |--------|----------|
 | Postgres down | Backend/mailer boot fails; health `postgres=fail` |
 | Fiber timeouts | `API_READ/WRITE/IDLE_TIMEOUT` (30s/30s/120s); shutdown `API_SHUTDOWN_TIMEOUT` 30s |
-| Login abuse | DB-backed attempt counters per client+account (5), client (`/64` on IPv6) and account (50) → `TOO_MANY_REQUESTS` with `Retry-After` (the window of the limit hit, in seconds); lockout at 50 answers `INVALID_CREDENTIALS`. One client cannot lock the owner out. Each attempt is reserved under an advisory lock before hashing, so parallel requests cannot outrun a limit |
+| Login abuse | DB-backed attempt counters per client+account (5), client (`/64` on IPv6) and account (50) → `TOO_MANY_REQUESTS` with `Retry-After` (seconds until the oldest counted failure leaves the window); lockout at 50 answers `INVALID_CREDENTIALS`. One client cannot lock the owner out. Each attempt is reserved under an advisory lock before hashing, so parallel requests cannot outrun a limit. Passwords need 8 to 128 bytes and may not be a common first guess, one repeated character, or the account's own name or email. A password reset request answers no sooner than 300 ms, so an unknown email is not told apart by timing. `AUTH_ALLOW_REGISTRATION=0` closes public sign-up and leaves invitations only (register answers 403). |
 | Memory | Body limit 16 KiB; at most 4 Argon2 hashes (256 MiB live); `GOMEMLIMIT` and container limits in compose; Argon2 runs outside transactions; waiting for a hashing slot is cancellable, but a running Argon2 calculation finishes. PHC version, costs, salt and digest lengths are bounded before allocation |
 | Email flood | `AUTH_EMAIL_TOKEN_COOLDOWN` (60 s) and `AUTH_EMAIL_TOKEN_HOURLY_MAX` (5) per account and purpose; over the cap the live link survives |
 | Refresh reuse | Session revoked `token_reuse` |
@@ -164,7 +167,7 @@ Every query reads only what its caller uses. A hot path pays for each extra colu
 
 **Correlation id:** `RequestID` gives each request an id, returned in `X-Request-ID`. An incoming id is kept only from a trusted proxy. `pkg/reqctx` carries it, with the authenticated user, through the context: into the request log, `sys.outbox.request_id` (logged by the mailer) and the audit log.
 
-**Audit log:** `usr.usr_audit_log` records role, permission, membership, user status, unlock, invitation, session revocation and product changes from the API and `cmd/admin`, through `policy.Audit` in the transaction of the change. A NULL actor means the CLI. The app role may only insert. `GET /v1/audit` reads it (`audit:read`); there is no cleanup.
+**Audit log:** `usr.usr_audit_log` records role, permission, membership, user status, unlock, invitation and its resend, session revocation and product changes from the API and `cmd/admin`, through `policy.Audit` in the transaction of the change. A NULL actor means the CLI. The app role may only insert. `GET /v1/audit` reads it (`audit:read`); there is no cleanup. The list total stops at 10 001 (one past the export limit), so a filter that matches more reads as "more than 10 000" instead of counting the whole log.
 
 **Diagnostics:** `DIAGNOSTICS_ADDRESS` defaults to `127.0.0.1:9091` inside each container. `/metrics` returns JSON with bounded HTTP latency buckets, server errors, hashing queue/active counts and wait time, `database/sql` pool statistics, outbox count/oldest age and runtime heap/GC counters. `/health` checks PostgreSQL and, for the mailer, a successful worker heartbeat within one minute. No public API route exposes these diagnostics. Compose uses healthchecks and stop grace periods of 40s (backend) and 60s (mailer).
 

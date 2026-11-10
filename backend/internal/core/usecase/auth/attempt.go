@@ -15,6 +15,7 @@ import (
 // each other, so none passes a limit because the others are still hashing.
 func (s *Service) reserveAttempt(ctx context.Context, email string, ip, ua *string, now time.Time) (string, error) {
 	var id, limited string
+	var wait time.Duration
 	err := s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
 		attempts := uow.Attempts()
 		// Always this order: two logins never wait on each other's lock.
@@ -29,7 +30,7 @@ func (s *Service) reserveAttempt(ctx context.Context, email string, ip, ua *stri
 		}
 
 		var err error
-		if limited, err = s.overLimit(ctx, attempts, email, ip, now); err != nil {
+		if limited, wait, err = s.overLimit(ctx, attempts, email, ip, now); err != nil {
 			return err
 		}
 		kind := domain.FailureBadPassword
@@ -47,27 +48,31 @@ func (s *Service) reserveAttempt(ctx context.Context, email string, ip, ua *stri
 		return "", err
 	}
 	if limited != "" {
-		// The window is an upper bound: older failures may leave it sooner.
-		wait := s.Cfg.LoginAttemptEmailWindow
-		if limited == domain.FailureRateLimitedIP {
-			wait = s.Cfg.LoginAttemptIPWindow
-		}
 		return "", apperror.New(apperror.CodeTooManyRequests, "too many failed attempts").
-			WithDetails(apperror.DetailRetryAfter, int(wait.Seconds()))
+			WithDetails(apperror.DetailRetryAfter, max(1, int(wait.Seconds())))
 	}
 	return id, nil
 }
 
-// overLimit names the limit this login is over, if any.
-func (s *Service) overLimit(ctx context.Context, attempts output.LoginAttemptRepository, email string, ip *string, now time.Time) (string, error) {
+// overLimit names the limit this login is over, if any, and how long until
+// its oldest failure leaves the window and the limit opens again.
+func (s *Service) overLimit(ctx context.Context, attempts output.LoginAttemptRepository, email string, ip *string, now time.Time) (string, time.Duration, error) {
 	n, err := attempts.CountRecentFailures(ctx, email, ip, now.Add(-s.Cfg.LoginAttemptEmailWindow), now.Add(-s.Cfg.LoginAttemptIPWindow))
+	left := func(oldest *time.Time, window time.Duration) time.Duration {
+		if oldest == nil {
+			return window
+		}
+		return oldest.Add(window).Sub(now)
+	}
 	switch {
 	case err != nil:
-		return "", err
-	case n.Email >= s.Cfg.LoginAttemptEmailMaxFailures, n.Pair >= s.Cfg.LoginAttemptPairMaxFailures:
-		return domain.FailureRateLimitedEmail, nil
+		return "", 0, err
+	case n.Email >= s.Cfg.LoginAttemptEmailMaxFailures:
+		return domain.FailureRateLimitedEmail, left(n.EmailOldest, s.Cfg.LoginAttemptEmailWindow), nil
+	case n.Pair >= s.Cfg.LoginAttemptPairMaxFailures:
+		return domain.FailureRateLimitedEmail, left(n.PairOldest, s.Cfg.LoginAttemptEmailWindow), nil
 	case n.IP >= s.Cfg.LoginAttemptIPMaxFailures:
-		return domain.FailureRateLimitedIP, nil
+		return domain.FailureRateLimitedIP, left(n.IPOldest, s.Cfg.LoginAttemptIPWindow), nil
 	}
-	return "", nil
+	return "", 0, nil
 }

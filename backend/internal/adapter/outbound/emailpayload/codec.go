@@ -12,6 +12,7 @@ import (
 type wireEmail struct {
 	Email string `json:"email"`
 	Token string `json:"token"`
+	Lang  string `json:"lang,omitempty"`
 }
 
 type Codec struct{ key []byte }

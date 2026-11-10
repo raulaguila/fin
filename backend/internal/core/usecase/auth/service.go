@@ -27,6 +27,8 @@ type Config struct {
 	LoginAttemptIPMaxFailures    int
 	EmailTokenCooldown           time.Duration // minimum gap between emails of one purpose to one user
 	EmailTokenHourlyMax          int           // 0 means no cap
+	PasswordResetMinDuration     time.Duration // floor of a reset request, so its timing reveals no account
+	AllowRegistration            bool          // off: accounts come only from invitations
 }
 
 // Service implements identity auth flows.
@@ -92,7 +94,13 @@ func (s *Service) issueEmailToken(ctx context.Context, uow output.UnitOfWork, u 
 	if err := uow.Tokens().Create(ctx, tok); err != nil {
 		return err
 	}
-	payload, err := s.Codec.Encode(output.EmailToken{Email: u.Email, Token: plain})
+	lang := domain.DefaultLanguage // a new account has saved no preference yet
+	if prefs, err := uow.Preferences().Find(ctx, u.ID); err == nil {
+		lang = prefs.Language
+	} else if !apperror.IsNotFound(err) {
+		return err
+	}
+	payload, err := s.Codec.Encode(output.EmailToken{Email: u.Email, Token: plain, Lang: lang})
 	if err != nil {
 		return apperror.New(apperror.CodeInternal, "email token encoding failed").WithCause(err)
 	}

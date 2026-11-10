@@ -86,6 +86,10 @@ type FailureCounts struct {
 	Email int `gorm:"column:email"`
 	Pair  int `gorm:"column:pair"`
 	IP    int `gorm:"column:ip"`
+	// The oldest failure of each count: when it leaves the window, a full limit opens.
+	EmailOldest *time.Time `gorm:"column:email_oldest"`
+	PairOldest  *time.Time `gorm:"column:pair_oldest"`
+	IPOldest    *time.Time `gorm:"column:ip_oldest"`
 }
 
 // LoginAttemptRepository appends login audits.

@@ -49,7 +49,10 @@ type APIConfig struct {
 }
 
 type AuthConfig struct {
-	AccessPrivateKey             ed25519.PrivateKey `env:"ACCESS_TOKEN" default:"new"`
+	AccessPrivateKey ed25519.PrivateKey `env:"ACCESS_TOKEN" default:"new"`
+	// Keys from before a rotation, verified but never used to sign. Empty: none.
+	AccessPreviousKey            ed25519.PrivateKey `env:"ACCESS_TOKEN_PREVIOUS" default:""`
+	RefreshPreviousKey           ed25519.PrivateKey `env:"REFRESH_TOKEN_PREVIOUS" default:""`
 	AccessExpiration             time.Duration      `env:"ACCESS_TOKEN_EXPIRE" default:"15m"`
 	RefreshPrivateKey            ed25519.PrivateKey `env:"REFRESH_TOKEN" default:"new"`
 	RefreshExpiration            time.Duration      `env:"REFRESH_TOKEN_EXPIRE" default:"60m"`
@@ -59,6 +62,7 @@ type AuthConfig struct {
 	MaxFailedLoginAttempts       int                `env:"AUTH_MAX_FAILED_LOGIN_ATTEMPTS" default:"50"`
 	AccountLockDuration          time.Duration      `env:"AUTH_ACCOUNT_LOCK_DURATION" default:"15m"`
 	AllowManualTokenDelivery     bool               `env:"AUTH_MANUAL_TOKEN_DELIVERY" default:"0"`
+	AllowRegistration            bool               `env:"AUTH_ALLOW_REGISTRATION" default:"1"`
 	LoginAttemptEmailWindow      time.Duration      `env:"AUTH_LOGIN_ATTEMPT_EMAIL_WINDOW" default:"15m"`
 	LoginAttemptEmailMaxFailures int                `env:"AUTH_LOGIN_ATTEMPT_EMAIL_MAX" default:"50"`
 	LoginAttemptPairMaxFailures  int                `env:"AUTH_LOGIN_ATTEMPT_PAIR_MAX" default:"5"`
@@ -131,6 +135,9 @@ func init() {
 
 	// A base64 PEM from `openssl genpkey -algorithm ed25519`, or "new" for a per-process key.
 	dotenvgo.RegisterParser(func(s string) (ed25519.PrivateKey, error) {
+		if s == "" {
+			return nil, nil // an optional key that is not set
+		}
 		if s == "new" {
 			_, key, err := ed25519.GenerateKey(rand.Reader)
 			return key, err

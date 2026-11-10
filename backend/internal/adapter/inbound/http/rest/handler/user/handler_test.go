@@ -27,10 +27,6 @@ func (s stubAuthz) Authorize(_ context.Context, _ domain.Principal, resource str
 	return s.err
 }
 
-func (s stubAuthz) LoadEffective(context.Context, string) (*domain.EffectivePermissions, error) {
-	return nil, nil
-}
-
 func newApp(svc input.UserService, authz input.Authorizer) *fiber.App {
 	app := fiber.New()
 	group := app.Group("/users", func(c fiber.Ctx) error {
@@ -50,6 +46,7 @@ func TestEveryRouteNeedsItsPermission(t *testing.T) {
 		{"POST", "/users/unlock", "update"},
 		{"DELETE", "/users/u1/sessions", "update"},
 		{"POST", "/users", "create"},
+		{"POST", "/users/u1/invite", "update"},
 	} {
 		var resource, action string
 		denied := apperror.New(apperror.CodeForbidden, "forbidden")

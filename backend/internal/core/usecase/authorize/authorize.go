@@ -26,14 +26,6 @@ func New(reader output.PermissionReader, clock output.Clock) *Service {
 	return &Service{Reader: reader, Clock: clock}
 }
 
-func (s *Service) LoadEffective(ctx context.Context, userID string) (*domain.EffectivePermissions, error) {
-	if userID == "" {
-		return nil, apperror.New(apperror.CodeInvalidInput, "user id required")
-	}
-
-	return s.Reader.LoadEffective(ctx, userID)
-}
-
 func (s *Service) Authorize(ctx context.Context, p domain.Principal, resource string, need domain.Action) error {
 	if resource == "" {
 		return apperror.New(apperror.CodeInvalidInput, "resource required")

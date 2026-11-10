@@ -104,7 +104,20 @@ func TestBodyLinksToTheWebApp(t *testing.T) {
 	if err := w.tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(mail.bodies[0], "https://id.acme.io/activate?token=plain-token\n") {
+	if !strings.Contains(mail.bodies[0], "https://id.acme.io/activate#token=plain-token\n") || !strings.Contains(mail.bodies[0], "Olá,") {
+		t.Fatalf("body %q", mail.bodies[0])
+	}
+}
+
+func TestBodyFollowsTheUsersLanguage(t *testing.T) {
+	payload, _ := json.Marshal(map[string]string{"email": "a@acme.io", "token": sealed(t, "plain-token"), "lang": "en-US"})
+	box := &fakeOutbox{msgs: []domain.OutboxMessage{{ID: "1", Purpose: domain.OutboxPurposePasswordReset, Payload: payload}}}
+	mail := &fakeMail{}
+	w := &Worker{Outbox: box, Mail: mail, Codec: emailpayload.New(testKey), Clock: fixedClock{}}
+	if err := w.tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(mail.bodies[0], "Use this token to choose a new password:") {
 		t.Fatalf("body %q", mail.bodies[0])
 	}
 }

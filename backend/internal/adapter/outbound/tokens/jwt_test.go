@@ -63,3 +63,28 @@ func TestExpiredAndForeignTokensRefused(t *testing.T) {
 		t.Fatal("foreign signature accepted")
 	}
 }
+
+func TestRotationKeepsTokensOfThePreviousKeyOnly(t *testing.T) {
+	old, next := issuer(t), issuer(t)
+	now := time.Now()
+	access, _ := old.IssueAccess("u", "s", now)
+	refresh, _, _ := old.IssueRefresh("u", "s", now)
+	if _, err := next.ParseAccess(access); err == nil {
+		t.Fatal("a token of an unknown key was accepted")
+	}
+
+	next.AccessPrevious, next.RefreshPrevious = old.AccessKey, old.RefreshKey
+	if c, err := next.ParseAccess(access); err != nil || c.SessionID != "s" {
+		t.Fatalf("access of the previous key: %+v %v", c, err)
+	}
+	if _, err := next.ParseRefresh(refresh); err != nil {
+		t.Fatalf("refresh of the previous key: %v", err)
+	}
+	if _, err := next.ParseAccess(refresh); err == nil {
+		t.Fatal("previous refresh token accepted as access")
+	}
+	expired, _ := old.IssueAccess("u", "s", now.Add(-time.Hour))
+	if _, err := next.ParseAccess(expired); err == nil {
+		t.Fatal("expired token of the previous key accepted")
+	}
+}

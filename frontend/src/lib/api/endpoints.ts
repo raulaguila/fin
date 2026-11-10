@@ -50,6 +50,8 @@ export const users = {
   list: (p: { page: number; limit: number; search?: string; status?: UserStatus | ""; role_id?: string; sort?: string; order?: SortOrder }, signal?: AbortSignal) =>
     apiFetch<Paged<User>>(`/v1/users${query(p)}`, { signal }),
   invite: (name: string, email: string) => apiFetch<InviteResult>("/v1/users", { method: "POST", json: { name, email } }),
+  /** A new activation email for a pending account; the old link stops working. */
+  reinvite: (userId: string) => apiFetch<InviteResult>(`/v1/users/${id(userId)}/invite`, { method: "POST" }),
   revokeSessions: (userId: string) => apiFetch<void>(`/v1/users/${id(userId)}/sessions`, { method: "DELETE" }),
   get: (userId: string) => apiFetch<UserDetails>(`/v1/users/${id(userId)}`),
   disable: (ids: string[]) => apiFetch<void>("/v1/users/disable", { method: "POST", json: { ids } }),

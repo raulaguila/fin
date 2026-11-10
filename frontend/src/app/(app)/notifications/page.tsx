@@ -79,11 +79,11 @@ export default function NotificationsPage() {
                 const { icon: Icon, cls } = ICON[n.level];
                 const { title, message } = text(n);
                 return (
-                  <li key={n.id} className={cn("flex gap-3 border-l-2 border-transparent px-4 py-3", !n.read_at && "border-l-primary bg-primary/[0.05]")}>
+                  <li key={n.id} className={cn("flex flex-wrap gap-x-3 border-l-2 border-transparent px-4 py-3", !n.read_at && "border-l-primary bg-primary/[0.05]")}>
                     <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-full", cls)}>
                       <Icon className="size-4" />
                     </span>
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 max-sm:basis-[calc(100%-2.75rem)]">
                       <div className="flex flex-wrap items-baseline gap-x-2">
                         {!n.read_at && <span className="size-2 self-center rounded-full bg-primary" role="img" aria-label={t("notifications.unread")} />}
                         <span className={cn("text-sm", !n.read_at && "font-semibold")}>{title}</span>
@@ -92,7 +92,7 @@ export default function NotificationsPage() {
                       <p className="mt-0.5 text-sm text-muted-foreground">{message}</p>
                     </div>
                     {!n.read_at && (
-                      <Button variant="ghost" size="sm" disabled={markRead.isPending} onClick={() => markRead.mutate([n.id])}>
+                      <Button variant="ghost" size="sm" className="max-sm:ml-9" disabled={markRead.isPending} onClick={() => markRead.mutate([n.id])}>
                         {t("notifications.mark_read")}
                       </Button>
                     )}

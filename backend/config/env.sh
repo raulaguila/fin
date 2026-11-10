@@ -35,6 +35,8 @@ REFRESH_TOKEN_EXPIRE='3h'                       # Refresh token expiration (m=mi
 
 ACCESS_TOKEN='${access_token}'                  # Ed25519 key signing access tokens, base64 PEM (openssl genpkey -algorithm ed25519 | base64 -w0) - PRIVATE
 REFRESH_TOKEN='${refresh_token}'                # Ed25519 key signing refresh tokens, must differ from ACCESS_TOKEN - PRIVATE
+ACCESS_TOKEN_PREVIOUS=''                        # Rotation: the old ACCESS_TOKEN, still accepted; clear it after one refresh lifetime
+REFRESH_TOKEN_PREVIOUS=''                       # Rotation: the old REFRESH_TOKEN, same rule
 
 POSTGRES_HOST='postgres'                        # Postgres Container HOST
 POSTGRES_PORT='5444'                            # Postgres Container PORT
@@ -70,4 +72,5 @@ AUTH_EMAIL_TOKEN_COOLDOWN='60s'                 # Minimum gap between emails of 
 AUTH_LOGIN_ATTEMPT_EMAIL_MAX='50'               # Failures per account, all clients, per window
 AUTH_LOGIN_ATTEMPT_PAIR_MAX='5'                 # Failures per client and account, per window
 AUTH_EMAIL_TOKEN_HOURLY_MAX='5'                 # Emails per hour, account and purpose (0 = no cap)
+AUTH_ALLOW_REGISTRATION='1'                     # Public sign-up; 0 leaves only invitations by an administrator
 AUTH_MANUAL_TOKEN_DELIVERY='1'                  # Manual token delivery allowed only in local/dev" >.env

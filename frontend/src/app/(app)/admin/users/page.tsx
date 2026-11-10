@@ -125,9 +125,9 @@ export default function UsersPage() {
                     {canBulk && <SelectCell selection={selection} id={u.id} label={u.name} disabled={u.id === user?.id} />}
                     <TableCell data-label={t("auth.name")} data-cell="name">
                       {/* the keyboard way into the record on phones, where the action button is hidden */}
-                      <Link href={`/admin/users/${u.id}`} className="font-medium hover:underline" onClick={(e) => e.stopPropagation()}>{u.name}</Link>
+                      <Link href={`/admin/users/${u.id}`} className="block truncate font-medium hover:underline lg:max-w-44 2xl:max-w-72" title={u.name} onClick={(e) => e.stopPropagation()}>{u.name}</Link>
                     </TableCell>
-                    <TableCell data-label={t("auth.email")} data-cell="email" className="text-muted-foreground lg:text-foreground">{u.email}</TableCell>
+                    <TableCell data-label={t("auth.email")} data-cell="sub" className="text-muted-foreground lg:text-foreground"><span className="block truncate lg:max-w-44 2xl:max-w-72" title={u.email}>{u.email}</span></TableCell>
                     <TableCell data-label={t("users.status")} data-cell="status"><StatusBadge status={u.status} /></TableCell>
                     <TableCell data-label={t("common.created_at")} data-cell="date" className="text-muted-foreground">{format(u.created_at)}</TableCell>
                     <TableCell data-cell="action" className="text-right">

@@ -107,6 +107,7 @@ func newEnv(t testing.TB) *env {
 		MaxFailedLoginAttempts:       3,
 		AccountLockDuration:          15 * time.Minute,
 		AllowManualTokenDelivery:     true,
+		AllowRegistration:            true,
 		LoginAttemptEmailWindow:      15 * time.Minute,
 		LoginAttemptEmailMaxFailures: 5,
 		LoginAttemptPairMaxFailures:  5,

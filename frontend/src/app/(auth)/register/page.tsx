@@ -9,7 +9,7 @@ import { FormError } from "@/components/bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { authPost } from "@/lib/api/client";
+import { ApiError, authPost } from "@/lib/api/client";
 import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n/provider";
 
@@ -35,10 +35,11 @@ export default function RegisterPage() {
     try {
       const res = await authPost<RegisterResult>("register", { name, email });
       // The token comes back only when the server delivers it by hand (no mail set up).
-      if (res.activation_token) router.push(`/activate?token=${encodeURIComponent(res.activation_token)}`);
+      if (res.activation_token) router.push(`/activate#token=${encodeURIComponent(res.activation_token)}`);
       else setSent(true);
     } catch (err) {
-      setError(errorMessage(err, "auth.register_failed", t));
+      // 403 here means AUTH_ALLOW_REGISTRATION is off, not a missing permission.
+      setError(err instanceof ApiError && err.code === "FORBIDDEN" ? t("auth.registration_closed") : errorMessage(err, "auth.register_failed", t));
     } finally {
       setPending(false);
     }

@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -174,5 +175,24 @@ func TestNewClientNoticeSurvivesSessionCleanup(t *testing.T) {
 	e.loginAt(t, addr, "198.51.100.7")
 	if got := e.titles(t, id); len(got) != 1 || got[0] != "New login" {
 		t.Fatalf("no sessions left on the account: %v", got)
+	}
+}
+
+func TestLoginLimitSaysHowLongIsLeft(t *testing.T) {
+	e := newEnv(t)
+	e.svc.Cfg.MaxFailedLoginAttempts = 100 // keep the account lock out of the way
+	addr := e.activeUser(t)
+	for range e.svc.Cfg.LoginAttemptPairMaxFailures {
+		_, err := e.loginFrom(addr, "wrong password", "203.0.113.50")
+		wantCode(t, err, apperror.CodeInvalidCredentials)
+	}
+	e.clock.now = e.clock.now.Add(10 * time.Minute)
+	_, err := e.loginFrom(addr, strongPassword, "203.0.113.50")
+	wantCode(t, err, apperror.CodeTooManyRequests)
+	var appErr *apperror.Error
+	_ = errors.As(err, &appErr)
+	// The clock keeps nanoseconds and the database microseconds, hence the range.
+	if left, _ := appErr.Details[apperror.DetailRetryAfter].(int); left < 295 || left > 300 {
+		t.Fatalf("about 5 of the 15 minutes are left: %+v", appErr)
 	}
 }

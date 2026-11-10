@@ -25,10 +25,14 @@ type refreshClaims struct {
 // Issuer signs and parses EdDSA (Ed25519) JWTs: small signatures and a cheap
 // verification, which runs on every authenticated request.
 type Issuer struct {
-	AccessKey     ed25519.PrivateKey
-	RefreshKey    ed25519.PrivateKey
-	AccessExpire  time.Duration
-	RefreshExpire time.Duration
+	AccessKey  ed25519.PrivateKey
+	RefreshKey ed25519.PrivateKey
+	// Optional keys from before a rotation: still verified, never used to sign.
+	// Drop them once the refresh lifetime has passed since the switch.
+	AccessPrevious  ed25519.PrivateKey
+	RefreshPrevious ed25519.PrivateKey
+	AccessExpire    time.Duration
+	RefreshExpire   time.Duration
 }
 
 var _ output.TokenIssuer = (*Issuer)(nil)
@@ -66,19 +70,35 @@ func (i *Issuer) IssueRefresh(userID, sessionID string, now time.Time) (token st
 	return token, jti, err
 }
 
-func (i *Issuer) ParseAccess(token string) (*output.AccessClaims, error) {
-	parsed, err := jwt.ParseWithClaims(token, &accessClaims{}, func(t *jwt.Token) (any, error) {
-		if t.Method != jwt.SigningMethodEdDSA {
-			return nil, fmt.Errorf("unexpected method")
+// verify fills claims from a token signed by the current key or, after a
+// rotation, by the previous one.
+func verify(token string, claims jwt.Claims, keys ...ed25519.PrivateKey) error {
+	err := errors.New("no signing key")
+	for _, key := range keys {
+		if key == nil {
+			continue
 		}
-		return i.AccessKey.Public(), nil
-	})
-	if err != nil {
-		return nil, err
+		var parsed *jwt.Token
+		parsed, err = jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (any, error) {
+			if t.Method != jwt.SigningMethodEdDSA {
+				return nil, fmt.Errorf("unexpected method")
+			}
+			return key.Public(), nil
+		})
+		if err == nil && !parsed.Valid {
+			err = errors.New("invalid token")
+		}
+		if !errors.Is(err, jwt.ErrTokenSignatureInvalid) {
+			return err // accepted, or refused for a reason another key cannot change
+		}
 	}
-	claims, ok := parsed.Claims.(*accessClaims)
-	if !ok || !parsed.Valid {
-		return nil, errors.New("invalid access token")
+	return err
+}
+
+func (i *Issuer) ParseAccess(token string) (*output.AccessClaims, error) {
+	claims := &accessClaims{}
+	if err := verify(token, claims, i.AccessKey, i.AccessPrevious); err != nil {
+		return nil, err
 	}
 	out := &output.AccessClaims{UserID: claims.Subject, SessionID: claims.Sid}
 	if claims.ExpiresAt != nil {
@@ -88,18 +108,9 @@ func (i *Issuer) ParseAccess(token string) (*output.AccessClaims, error) {
 }
 
 func (i *Issuer) ParseRefresh(token string) (*output.RefreshClaims, error) {
-	parsed, err := jwt.ParseWithClaims(token, &refreshClaims{}, func(t *jwt.Token) (any, error) {
-		if t.Method != jwt.SigningMethodEdDSA {
-			return nil, fmt.Errorf("unexpected method")
-		}
-		return i.RefreshKey.Public(), nil
-	})
-	if err != nil {
+	claims := &refreshClaims{}
+	if err := verify(token, claims, i.RefreshKey, i.RefreshPrevious); err != nil {
 		return nil, err
-	}
-	claims, ok := parsed.Claims.(*refreshClaims)
-	if !ok || !parsed.Valid {
-		return nil, errors.New("invalid refresh token")
 	}
 	out := &output.RefreshClaims{UserID: claims.Subject, SessionID: claims.Sid, JTI: claims.ID}
 	if claims.ExpiresAt != nil {

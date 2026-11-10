@@ -114,7 +114,7 @@ function InviteForm() {
       void client.invalidateQueries({ queryKey: ["users"] });
       toast.success(t("users.invited"));
       // Only a development backend hands the token back (manual delivery).
-      if (res.activation_token) setLink(`${window.location.origin}/activate?token=${encodeURIComponent(res.activation_token)}`);
+      if (res.activation_token) setLink(`${window.location.origin}/activate#token=${encodeURIComponent(res.activation_token)}`);
       else router.push("/admin/users");
     },
     onError: (err) => setError(errorMessage(err, "common.save_failed", t)),
@@ -195,6 +195,16 @@ function UserDetail({ id }: { id: string }) {
   const a = u?.access;
   const locked = !!a?.locked_until && new Date(a.locked_until) > new Date();
   const blocked = u?.status === "locked" || locked || (a?.recent_failures ?? 0) > 0;
+  const reinvite = useMutation({
+    mutationFn: () => users.reinvite(id),
+    onSuccess: async (res) => {
+      // Only a development backend hands the token back (manual delivery).
+      if (!res.activation_token) return void toast.success(t("users.reinvited"));
+      await navigator.clipboard.writeText(`${window.location.origin}/activate#token=${encodeURIComponent(res.activation_token)}`);
+      toast.success(t("users.reinvited_link"));
+    },
+    onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
+  });
 
   return (
     <>
@@ -209,7 +219,10 @@ function UserDetail({ id }: { id: string }) {
             {canToggle && blocked && (
               <Button variant="outline" onClick={() => setUnlocking(true)}>{t("users.unlock")}</Button>
             )}
-            {canToggle && !disabled && (
+            {canToggle && u.status === "pending" && (
+              <Button variant="outline" disabled={reinvite.isPending} onClick={() => reinvite.mutate()}>{t("users.reinvite")}</Button>
+            )}
+            {canToggle && (a?.active_sessions ?? 0) > 0 && (
               <Button variant="outline" onClick={() => setRevoking(true)}>{t("users.revoke_sessions")}</Button>
             )}
             {canToggle && (

@@ -49,6 +49,9 @@ type recordRow struct {
 	Details     []byte    `gorm:"column:details"`
 }
 
+// countCap is one past the largest export (10 000 records), which tells "too many" from "exactly the limit".
+const countCap = 10_001
+
 // shortcut: OFFSET pages, fine for a log read by hand; move to keyset on created_at beyond a few hundred thousand rows.
 func (r *Repository) List(ctx context.Context, filter domain.AuditFilter) ([]domain.AuditRecord, int64, error) {
 	where, args := "TRUE", []any{}
@@ -68,8 +71,10 @@ func (r *Repository) List(ctx context.Context, filter domain.AuditFilter) ([]dom
 		where += " AND a.created_at < ?"
 		args = append(args, *filter.To)
 	}
+	// The log is never cleaned, so the count stops at countCap: past it the total
+	// reads "more than 10 000" and the caller narrows the filters, as the export asks.
 	var total int64
-	if err := r.db.WithContext(ctx).Raw(`SELECT count(*) FROM usr.usr_audit_log a WHERE `+where, args...).Find(&total).Error; err != nil {
+	if err := r.db.WithContext(ctx).Raw(`SELECT count(*) FROM (SELECT 1 FROM usr.usr_audit_log a WHERE `+where+` LIMIT ?) capped`, append(args[:len(args):len(args)], countCap)...).Find(&total).Error; err != nil {
 		return nil, 0, shared.WrapError(err, "audit log")
 	}
 	var rows []recordRow

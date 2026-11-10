@@ -22,6 +22,12 @@ func TestJWTKeyReadsOpenSSLOutput(t *testing.T) {
 	if len(cfg.Key) != ed25519.PrivateKeySize {
 		t.Fatalf("key of %d bytes", len(cfg.Key))
 	}
+	var optional struct {
+		Key ed25519.PrivateKey `env:"TEST_JWT_KEY_UNSET" default:""`
+	}
+	if err := dotenvgo.Load(&optional); err != nil || optional.Key != nil {
+		t.Fatalf("an unset optional key: %v %v", optional.Key, err)
+	}
 	t.Setenv("TEST_JWT_KEY", "bm90IGEga2V5")
 	if err := dotenvgo.Load(&cfg); err == nil {
 		t.Fatal("a non-key was accepted")

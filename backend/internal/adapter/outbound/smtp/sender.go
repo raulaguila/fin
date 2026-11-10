@@ -3,6 +3,7 @@ package smtpmail
 import (
 	"crypto/tls"
 	"fmt"
+	"mime"
 	"net"
 	"net/smtp"
 	"strconv"
@@ -106,12 +107,13 @@ func buildMessage(from, to, replyTo, subject, body string) []byte {
 	if replyTo != "" {
 		b.WriteString("Reply-To: " + replyTo + "\r\n")
 	}
-	b.WriteString("Subject: " + subject + "\r\n")
+	b.WriteString("Subject: " + mime.QEncoding.Encode("utf-8", subject) + "\r\n") // headers are ASCII; plain ASCII passes unchanged
 	b.WriteString("Date: " + time.Now().Format(time.RFC1123Z) + "\r\n")
 	domain := strings.TrimRight(from[strings.LastIndex(from, "@")+1:], ">")
 	b.WriteString("Message-ID: <" + uuid.NewString() + "@" + domain + ">\r\n")
 	b.WriteString("MIME-Version: 1.0\r\n")
 	b.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+	b.WriteString("Content-Transfer-Encoding: 8bit\r\n")
 	b.WriteString("\r\n")
 	b.WriteString(body)
 	return []byte(b.String())

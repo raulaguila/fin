@@ -66,7 +66,7 @@ func (d *Diagnostics) handler() http.Handler {
 			Failed        int64
 			OldestSeconds float64
 		}
-		err = d.resources.PostgresDB.WithContext(ctx).Raw(`SELECT count(*) FILTER (WHERE status IN ('pending','processing')) AS pending, count(*) FILTER (WHERE status = 'failed') AS failed, COALESCE(EXTRACT(EPOCH FROM (now()-min(created_at) FILTER (WHERE status IN ('pending','processing')))),0)::float8 AS oldest_seconds FROM sys.outbox`).Scan(&queue).Error
+		err = d.resources.PostgresDB.WithContext(ctx).Raw(`SELECT count(*) FILTER (WHERE status IN ('pending','processing')) AS pending, count(*) FILTER (WHERE status = 'failed') AS failed, COALESCE(EXTRACT(EPOCH FROM (now()-min(created_at) FILTER (WHERE status IN ('pending','processing')))),0)::float8 AS oldest_seconds FROM sys.outbox`).Find(&queue).Error
 		if err != nil {
 			http.Error(w, "outbox unavailable", http.StatusServiceUnavailable)
 			return

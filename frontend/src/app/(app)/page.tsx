@@ -28,7 +28,7 @@ function StatCard({ href, label, icon: Icon, total }: { href: string; label: str
       <Card className="h-full gap-2 p-4 transition-colors group-hover:bg-muted">
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm text-muted-foreground">{label}</span>
-          <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
+          <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         </div>
         <span className="text-2xl font-semibold tabular-nums">{count.data?.pagination.total_items ?? "—"}</span>
       </Card>
@@ -56,9 +56,9 @@ function RecentActivity() {
         {recent.data?.items.map((r) => (
           <li key={r.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2 text-sm">
             <span className="min-w-0 truncate">
-              <span className="font-medium">{r.actor_name || r.actor_email || t("audit.system")}</span>{" "}
-              <span className="text-muted-foreground">{label(r.action)}</span>{" "}
-              {r.target_label}
+              <span className="font-medium">{label(r.action)}</span>
+              {r.target_label && <> · {r.target_label}</>}{" "}
+              <span className="text-muted-foreground">{t("home.by")} {r.actor_name || r.actor_email || t("audit.system")}</span>
             </span>
             <span className="text-xs text-muted-foreground tabular-nums">{format(r.created_at)}</span>
           </li>
@@ -84,7 +84,7 @@ export default function HomePage() {
     <>
       <PageHeader title={user ? `${t("home.greeting")}, ${user.name.split(" ")[0]}` : t("nav.home")} description={t("home.subtitle")} />
       <PageBody>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
           {items.map((item) => <StatCard key={item.href} href={item.href} label={t(item.key)} icon={item.icon} total={totals[item.href]} />)}
           {can(user, "users", "read") && <StatCard href="/admin/users?status=pending" label={t("home.pending")} icon={UserRoundPlus} total={pending} />}
           {can(user, "users", "read") && <StatCard href="/admin/users?status=locked" label={t("home.locked")} icon={Lock} total={locked} />}

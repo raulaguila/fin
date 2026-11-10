@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -113,5 +114,44 @@ func TestRoleListSortsByCreation(t *testing.T) {
 	}
 	if len(list) != 2 || list[0].ID != ids[1] || list[1].ID != ids[0] {
 		t.Fatalf("order %+v", list)
+	}
+}
+
+func TestReinviteReplacesTheActivationToken(t *testing.T) {
+	e := newEnv(t)
+	ctx := reqctx.WithActor(context.Background(), e.userID(t, e.activeUser(t)))
+	first, err := e.svc.Invite(ctx, input.RegisterCommand{Name: "Bea", Email: email()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.svc.Cfg.EmailTokenCooldown = time.Minute
+	_, err = e.svc.Reinvite(ctx, first.UserID)
+	wantCode(t, err, apperror.CodeTooManyRequests)
+
+	e.clock.now = e.clock.now.Add(2 * time.Minute)
+	second, err := e.svc.Reinvite(ctx, first.UserID)
+	if err != nil || second.ActivationToken == "" || second.ActivationToken == first.ActivationToken {
+		t.Fatalf("reinvite: %+v %v", second, err)
+	}
+	if err := e.svc.Activate(ctx, input.ActivateCommand{Token: first.ActivationToken, Password: strongPassword}); err == nil {
+		t.Fatal("the replaced token still activates")
+	}
+	if err := e.svc.Activate(ctx, input.ActivateCommand{Token: second.ActivationToken, Password: strongPassword}); err != nil {
+		t.Fatal(err)
+	}
+	e.clock.now = e.clock.now.Add(2 * time.Minute)
+	_, err = e.svc.Reinvite(ctx, first.UserID)
+	wantCode(t, err, apperror.CodeConflict)
+}
+
+func TestAuditCountStopsAtTheCap(t *testing.T) {
+	e := newEnv(t)
+	target := uuid.NewString()
+	if err := testDB.Exec(`INSERT INTO usr.usr_audit_log (action, target_id) SELECT 'cap.test', ? FROM generate_series(1, 10050)`, target).Error; err != nil {
+		t.Fatal(err)
+	}
+	records, total, err := audit.New(e.store.Audit()).List(context.Background(), domain.AuditFilter{Page: domain.NewPage(1, 10), UserID: target})
+	if err != nil || total != 10001 || len(records) != 10 {
+		t.Fatalf("total %d, %d records, %v", total, len(records), err)
 	}
 }

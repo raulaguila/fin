@@ -78,6 +78,10 @@ func TestProductionRefuses(t *testing.T) {
 			e.Auth.AccessPrivateKey = testKey(t)
 			e.Auth.RefreshPrivateKey = e.Auth.AccessPrivateKey
 		},
+		"previous access key is the refresh key": func(e *Environment) {
+			e.Auth.AccessPrivateKey, e.Auth.RefreshPrivateKey = testKey(t), testKey(t)
+			e.Auth.AccessPreviousKey = e.Auth.RefreshPrivateKey
+		},
 	}
 	for name, breakIt := range cases {
 		t.Run(name, func(t *testing.T) {

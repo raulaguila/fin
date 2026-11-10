@@ -132,3 +132,28 @@ func TestHostileEmailsNeverReachTheDatabaseRaw(t *testing.T) {
 		t.Fatalf("attempts not recorded: %d %v", n, err)
 	}
 }
+
+func TestClosedRegistrationLeavesOnlyInvitations(t *testing.T) {
+	e := newEnv(t)
+	e.svc.Cfg.AllowRegistration = false
+	ctx := context.Background()
+	_, err := e.svc.Register(ctx, input.RegisterCommand{Name: "Ana", Email: email()})
+	wantCode(t, err, apperror.CodeForbidden)
+	if _, err := e.svc.Invite(ctx, input.RegisterCommand{Name: "Ana", Email: email()}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestResetRequestTakesTheSameTimeForAnyEmail(t *testing.T) {
+	e := newEnv(t)
+	e.svc.Cfg.PasswordResetMinDuration = 150 * time.Millisecond
+	for _, addr := range []string{email(), e.activeUser(t)} { // unknown, then known
+		start := time.Now()
+		if _, err := e.svc.RequestPasswordReset(context.Background(), input.RequestPasswordResetCommand{Email: addr}); err != nil {
+			t.Fatal(err)
+		}
+		if took := time.Since(start); took < 150*time.Millisecond {
+			t.Fatalf("%s answered in %s", addr, took)
+		}
+	}
+}

@@ -147,25 +147,48 @@ func markContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), markTimeout)
 }
 
+// emailText is one email in one language. Link and Bare end the sentence that
+// introduces the link, or the token alone when no web app address is set.
+type emailText struct {
+	Subject, Hello, Link, OrToken, Bare string
+}
+
+var emailTexts = map[string]map[string]emailText{
+	domain.OutboxPurposeActivation: {
+		"pt": {"Ative sua conta", "Olá,", "Abra este link para definir sua senha e ativar sua conta:", "Ou informe este código nessa página:", "Use este código para definir sua senha e ativar sua conta:"},
+		"en": {"Activate your account", "Hello,", "Open this link to set your password and activate your account:", "Or enter this token on that page:", "Use this token to set your password and activate your account:"},
+	},
+	domain.OutboxPurposePasswordReset: {
+		"pt": {"Redefinição de senha", "Olá,", "Abra este link para escolher uma nova senha:", "Ou informe este código nessa página:", "Use este código para escolher uma nova senha:"},
+		"en": {"Password reset", "Hello,", "Open this link to choose a new password:", "Or enter this token on that page:", "Use this token to choose a new password:"},
+	},
+}
+
+var emailPages = map[string]string{
+	domain.OutboxPurposeActivation:    "/activate",
+	domain.OutboxPurposePasswordReset: "/reset-password",
+}
+
 func render(msg *domain.OutboxMessage, codec output.EmailTokenCodec, appURL string) (to, subject, body string, err error) {
 	p, err := codec.Decode(msg.Payload)
 	if err != nil {
 		return "", "", "", err
 	}
-	var page, what string
-	switch msg.Purpose {
-	case domain.OutboxPurposeActivation:
-		subject, page, what = "Activate your account", "/activate", "set your password and activate your account"
-	case domain.OutboxPurposePasswordReset:
-		subject, page, what = "Password reset", "/reset-password", "choose a new password"
-	default:
+	texts, ok := emailTexts[msg.Purpose]
+	if !ok {
 		return "", "", "", fmt.Errorf("unknown_purpose")
 	}
-	body = "Hello,\n\n"
-	if appURL != "" {
-		body += "Open this link to " + what + ":\n\n" + strings.TrimRight(appURL, "/") + page + "?token=" + url.QueryEscape(p.Token) + "\n\nOr enter this token on that page:\n\n"
-	} else {
-		body += "Use this token to " + what + ":\n\n"
+	lang := "pt" // domain.DefaultLanguage; rows queued before Lang existed have none
+	if p.Lang != "" && !strings.HasPrefix(strings.ToLower(p.Lang), "pt") {
+		lang = "en"
 	}
-	return p.Email, subject, body + p.Token + "\n", nil
+	t := texts[lang]
+	body = t.Hello + "\n\n"
+	if appURL != "" {
+		// In the fragment the token never reaches a server log or a Referer header.
+		body += t.Link + "\n\n" + strings.TrimRight(appURL, "/") + emailPages[msg.Purpose] + "#token=" + url.QueryEscape(p.Token) + "\n\n" + t.OrToken + "\n\n"
+	} else {
+		body += t.Bare + "\n\n"
+	}
+	return p.Email, t.Subject, body + p.Token + "\n", nil
 }

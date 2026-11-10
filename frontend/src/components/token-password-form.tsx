@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -16,7 +16,7 @@ import { errorMessage } from "@/lib/errors";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/provider";
 
-// The mail carries a plain token, so the field accepts a paste; a ?token= link fills it.
+// The mail carries a plain token, so the field accepts a paste; a #token= link (or an old ?token= one) fills it.
 function Form({ action, title, subtitle, submitLabel, doneTitle, doneBody }: {
   action: "activate" | "password-reset-confirm";
   title: MessageKey;
@@ -28,6 +28,14 @@ function Form({ action, title, subtitle, submitLabel, doneTitle, doneBody }: {
   const { t } = useI18n();
   const params = useSearchParams();
   const [token, setToken] = useState(params.get("token") ?? "");
+  // Email links carry the token in the fragment, which no server sees; take it and clean the address bar.
+  useEffect(() => {
+    const fromLink = new URLSearchParams(window.location.hash.slice(1)).get("token");
+    if (!fromLink) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the fragment exists only in the browser, after hydration
+    setToken(fromLink);
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [caps, setCaps] = useState(false);

@@ -23,7 +23,23 @@ func TestIdentityRules(t *testing.T) {
 	if ValidatePassword("1234567") == nil || ValidatePassword(strings.Repeat("x", 129)) == nil {
 		t.Fatal("bad password length accepted")
 	}
-	if ValidatePassword("12345678") != nil {
+	if ValidatePassword("long enough") != nil {
 		t.Fatal("valid password rejected")
+	}
+}
+
+func TestPasswordRefusesTheFirstGuesses(t *testing.T) {
+	for _, bad := range []string{"short", "Password123", "12345678", "aaaaaaaaaa", "éééééééé"} {
+		if err := ValidatePassword(bad); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+	for _, own := range []string{"Ana Souza", "ana.souza@acme.io", "ANA.SOUZA"} {
+		if err := ValidatePasswordFor(own, "Ana Souza", "ana.souza@acme.io"); err == nil {
+			t.Errorf("%q accepted for its own account", own)
+		}
+	}
+	if err := ValidatePasswordFor("correct horse battery", "Ana Souza", "ana.souza@acme.io"); err != nil {
+		t.Fatal(err)
 	}
 }

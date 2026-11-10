@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Download, ScrollText, X } from "lucide-react";
+import { CalendarDays, Download, ScrollText, X } from "lucide-react";
 import { PageBody, PageHeader, useFormatDate } from "@/components/bits";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
@@ -13,6 +13,7 @@ import { TablePagination, emptyPageFallback } from "@/components/table-paginatio
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -44,8 +45,47 @@ function targetHref(r: AuditRecord): string | undefined {
   if (r.action.startsWith("product.") && r.action !== "product.delete") return `/products/${r.target_id}`;
 }
 
-function details(d: Record<string, unknown>): string {
-  return Object.entries(d).map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`).join(" · ");
+/** Detail keys and values in the app language; an unknown key or shape stays as the API sent it. */
+function useDetails() {
+  const { t } = useI18n();
+  return (d: Record<string, unknown>): [string, string][] =>
+    Object.entries(d).map(([k, v]) => {
+      const name = t(`audit.detail.${k}` as MessageKey);
+      const value = typeof v === "boolean" ? t(v ? "common.yes" : "common.no") : typeof v === "string" ? v : JSON.stringify(v);
+      return [name.startsWith("audit.detail.") ? k : name, value];
+    });
+}
+
+/**
+ * A date shown in the app language. The native input writes dates in the
+ * browser language, so it stays invisible and only lends its calendar.
+ * shortcut: the calendar popup itself is in the browser language, swap for a date picker component if that matters.
+ */
+function DateField({ label, value, min, max, onChange }: { label: string; value: string; min?: string; max?: string; onChange: (day: string) => void }) {
+  const { t, locale } = useI18n();
+  const input = useRef<HTMLInputElement>(null);
+  const shown = DAY.test(value) ? new Date(`${value}T00:00:00`).toLocaleDateString(locale, { dateStyle: "medium" }) : "";
+  return (
+    <span className="relative inline-flex items-center gap-2 text-sm text-muted-foreground">
+      {label}
+      <Button
+        type="button"
+        variant="outline"
+        className="w-40 justify-between font-normal"
+        aria-label={`${label}: ${shown || t("common.pick_date")}`}
+        onClick={() => (input.current?.showPicker ? input.current.showPicker() : input.current?.focus())}
+      >
+        <span className={shown ? "text-foreground" : undefined}>{shown || t("common.pick_date")}</span>
+        <CalendarDays className="size-4" aria-hidden="true" />
+      </Button>
+      <input ref={input} type="date" tabIndex={-1} aria-hidden="true" className="pointer-events-none absolute right-0 bottom-0 size-px opacity-0" value={value} min={min} max={max} onChange={(e) => onChange(e.target.value)} />
+      {value && (
+        <button type="button" aria-label={`${t("common.clear")}: ${label}`} className="rounded-sm hover:text-foreground" onClick={() => onChange("")}>
+          <X className="size-4" />
+        </button>
+      )}
+    </span>
+  );
 }
 
 /** Picks a user by email from the matches the API returns; the list is native, so it needs no popup code. */
@@ -102,6 +142,8 @@ export default function AuditPage() {
   const fallback = list.isPlaceholderData ? null : emptyPageFallback(page, limit, list.data);
   useGoToPage(fallback, set); // the last rows of the last page went away
   const kindItems: Record<string, string> = { all: t("audit.all_actions"), ...Object.fromEntries(KINDS.map((k) => [k, t(`audit.kind.${k.slice(0, -1)}` as MessageKey)])) };
+  const details = useDetails();
+  const [open, setOpen] = useState<AuditRecord | null>(null);
   const label = (a: string) => {
     const text = t(`audit.action.${a}` as MessageKey);
     return text.startsWith("audit.action.") ? a : text;
@@ -126,14 +168,8 @@ export default function AuditPage() {
               {Object.entries(kindItems).map(([value, text]) => <SelectItem key={value} value={value}>{text}</SelectItem>)}
             </SelectContent>
           </Select>
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            {t("audit.from")}
-            <Input type="date" className="w-40" value={from} max={to || undefined} onChange={(e) => set({ from: e.target.value, page: 1 })} />
-          </label>
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            {t("audit.to")}
-            <Input type="date" className="w-40" value={to} min={from || undefined} onChange={(e) => set({ to: e.target.value, page: 1 })} />
-          </label>
+          <DateField label={t("audit.from")} value={from} max={to || undefined} onChange={(day) => set({ from: day, page: 1 })} />
+          <DateField label={t("audit.to")} value={to} min={from || undefined} onChange={(day) => set({ to: day, page: 1 })} />
           {!user && pickable && <UserFilter onPick={(id) => set({ user: id, page: 1 })} />}
           {user && (
             <Badge variant="secondary" className="gap-1">
@@ -153,7 +189,7 @@ export default function AuditPage() {
           <EmptyState icon={ScrollText} title={t(action || user || from || to ? "common.no_results" : "audit.empty")} />
         ) : (
           <Card className="gap-0 overflow-hidden p-0">
-            <Table data-responsive>
+            <Table data-responsive data-compact>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-44">{t("audit.when")}</TableHead>
@@ -167,22 +203,25 @@ export default function AuditPage() {
                 {list.data.items.map((r) => {
                   const href = targetHref(r);
                   const target = r.target_label || r.target_id?.slice(0, 8) || "-";
-                  const extra = details(r.details);
+                  const extra = details(r.details).map(([k, v]) => `${k}: ${v}`).join(" · ");
                   return (
-                    <TableRow key={r.id}>
-                      <TableCell data-label={t("audit.when")} className="text-muted-foreground">{format(r.created_at)}</TableCell>
-                      <TableCell data-label={t("audit.actor")}>
+                    <TableRow key={r.id} className="cursor-pointer" onClick={() => setOpen(r)}>
+                      <TableCell data-label={t("audit.when")} data-cell="date" className="text-muted-foreground">
+                        {/* the keyboard way to the full record; a click anywhere on the row does the same */}
+                        <button type="button" className="hover:underline" aria-label={`${t("audit.open")}: ${format(r.created_at)}`}>{format(r.created_at)}</button>
+                      </TableCell>
+                      <TableCell data-label={t("audit.actor")} data-cell="name" onClick={(e) => e.stopPropagation()}>
                         {r.actor_id ? (
                           <Link href={`/admin/audit?user=${r.actor_id}`} className="hover:underline" title={r.actor_email}>{r.actor_name || r.actor_email || r.actor_id.slice(0, 8)}</Link>
                         ) : (
                           <span className="text-muted-foreground">{t("audit.system")}</span>
                         )}
                       </TableCell>
-                      <TableCell data-label={t("audit.action")}><Badge variant="outline" className="font-normal">{label(r.action)}</Badge></TableCell>
-                      <TableCell data-label={t("audit.target")}>
-                        {href ? <Link href={href} className="hover:underline">{target}</Link> : target}
+                      <TableCell data-label={t("audit.action")} data-cell="status"><Badge variant="outline" className="font-normal">{label(r.action)}</Badge></TableCell>
+                      <TableCell data-label={t("audit.target")} data-cell="sub">
+                        {href ? <Link href={href} className="hover:underline" onClick={(e) => e.stopPropagation()}>{target}</Link> : target}
                       </TableCell>
-                      <TableCell data-label={t("audit.details")} className="max-w-72 truncate text-muted-foreground" title={extra}>{extra || "-"}</TableCell>
+                      <TableCell data-label={t("audit.details")} data-cell="detail" className="max-w-72 truncate text-muted-foreground">{extra || "-"}</TableCell>
                     </TableRow>
                   );
                 })}
@@ -198,6 +237,28 @@ export default function AuditPage() {
           </Card>
         )}
       </PageBody>
+      <Dialog open={open !== null} onOpenChange={(o) => !o && setOpen(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{t("audit.record")}</DialogTitle></DialogHeader>
+          {open && (
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+              {([
+                [t("audit.when"), format(open.created_at)],
+                [t("audit.actor"), open.actor_id ? [open.actor_name, open.actor_email].filter(Boolean).join(" · ") || open.actor_id : t("audit.system")],
+                [t("audit.action"), label(open.action)],
+                [t("audit.target"), open.target_label || open.target_id || "-"],
+                ...details(open.details),
+                ...(open.request_id ? [[t("audit.request"), open.request_id]] : []),
+              ] as [string, string][]).map(([k, v]) => (
+                <div key={k} className="contents">
+                  <dt className="text-muted-foreground">{k}</dt>
+                  <dd className="break-words">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

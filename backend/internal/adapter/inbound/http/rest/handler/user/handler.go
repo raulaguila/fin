@@ -16,6 +16,7 @@ import (
 // Inviter creates accounts on behalf of an administrator.
 type Inviter interface {
 	Invite(ctx context.Context, cmd input.RegisterCommand) (*input.RegisterResult, error)
+	Reinvite(ctx context.Context, userID string) (*input.RegisterResult, error)
 }
 
 type Handler struct {
@@ -33,6 +34,7 @@ func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
 	update := middleware.Require(authz, domain.ResourceUsers, domain.ActionUpdate)
 	r.Get("/", read, h.List)
 	r.Post("/", middleware.Require(authz, domain.ResourceUsers, domain.ActionCreate), h.Invite)
+	r.Post("/:id/invite", update, h.Reinvite)
 	r.Get("/:id", read, h.Get)
 	r.Post("/disable", update, h.Disable)
 	r.Post("/enable", update, h.Enable)
@@ -247,11 +249,36 @@ func (h *Handler) Invite(c fiber.Ctx) error {
 	if err != nil {
 		return mapper.WriteError(c, err)
 	}
+	return c.Status(fiber.StatusCreated).JSON(inviteAnswer(res))
+}
+
+func inviteAnswer(res *input.RegisterResult) fiber.Map {
 	out := fiber.Map{"user_id": res.UserID, "status": res.Status}
 	if res.ManualDelivery {
 		out["activation_token"] = res.ActivationToken
 	}
-	return c.Status(fiber.StatusCreated).JSON(out)
+	return out
+}
+
+// @Summary Send a pending account a new activation email
+// @Tags Users
+// @Produce json
+// @Param id path string true "User ID"
+// @Security BearerAuth
+// @Success 200 {object} object{user_id=string,status=string,activation_token=string} "activation_token only with manual delivery"
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Failure 403 {object} mapper.errorBody
+// @Failure 404 {object} mapper.errorBody
+// @Failure 409 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
+// @Router /v1/users/{id}/invite [post]
+func (h *Handler) Reinvite(c fiber.Ctx) error {
+	res, err := h.inviter.Reinvite(c.Context(), c.Params("id"))
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.JSON(inviteAnswer(res))
 }
 
 // @Summary End every session of another user

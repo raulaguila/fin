@@ -98,7 +98,7 @@ export default function ProductPage() {
   const { t } = useI18n();
   const router = useRouter();
   const client = useQueryClient();
-  const { user } = useMe();
+  const { user, loading } = useMe();
   const { id } = useParams<{ id: string }>();
   const creating = id === "new";
   const detail = useQuery({ queryKey: ["products", "detail", id], queryFn: () => products.get(id), enabled: !creating });
@@ -113,7 +113,9 @@ export default function ProductPage() {
         title={creating ? t("products.new") : (product?.name ?? t("nav.products"))}
       />
       <PageBody>
-        {creating ? (
+        {loading ? (
+          <ListSkeleton rows={3} />
+        ) : creating ? (
           <ProductForm product={null} editable={editable} />
         ) : detail.isPending ? (
           <ListSkeleton rows={3} />

@@ -47,3 +47,8 @@ next-env.d.ts
 /backups/
 *.bundle
 /package-lock.json
+
+# playwright
+/test-results/
+/playwright-report/
+/e2e/.auth/

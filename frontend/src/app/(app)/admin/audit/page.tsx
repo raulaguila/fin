@@ -20,7 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { audit, users } from "@/lib/api/endpoints";
 import { useMe } from "@/lib/context/me";
 import { useDebounced } from "@/lib/hooks/use-debounced";
-import { can } from "@/lib/permissions";
+import { can, permissionsText } from "@/lib/permissions";
 import type { AuditRecord } from "@/lib/api/types";
 import { errorMessage } from "@/lib/errors";
 import { useGoToPage, useListParams } from "@/lib/hooks/use-list-params";
@@ -52,7 +52,11 @@ function useDetails() {
   return (d: Record<string, unknown>): [string, string][] =>
     Object.entries(d).map(([k, v]) => {
       const name = t(`audit.detail.${k}` as MessageKey);
-      const value = typeof v === "boolean" ? t(v ? "common.yes" : "common.no") : typeof v === "string" ? v : JSON.stringify(v);
+      const value =
+        typeof v === "boolean" ? t(v ? "common.yes" : "common.no")
+        : typeof v === "string" ? v
+        : k === "permissions" && v && typeof v === "object" ? permissionsText(t, v as Record<string, number>)
+        : JSON.stringify(v);
       return [name.startsWith("audit.detail.") ? k : name, value];
     });
 }

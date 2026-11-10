@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Me } from "@/lib/api/types";
-import { can } from "./permissions";
+import { can, permissionsText } from "./permissions";
 
 const user = (over: Partial<Me>): Me => ({
   id: "1", name: "A", email: "a@x", status: "active", created_at: "", is_superuser: false,
@@ -21,4 +21,15 @@ describe("can", () => {
   });
 
   it("denies when nobody is signed in", () => expect(can(null, "products", "read")).toBe(false));
+});
+
+describe("permissionsText", () => {
+  const t = (key: string) => ({ "resource.products": "Produtos", "action.read": "Ler", "action.update": "Editar", "roles.all_permissions": "Todas", "audit.no_permissions": "Nenhuma" })[key] ?? key;
+  it("names each resource and its actions in bit order", () => {
+    expect(permissionsText(t as never, { products: 6, audit: 0 })).toBe("Produtos: Ler, Editar");
+  });
+  it("keeps unknown codes and says when nothing is granted", () => {
+    expect(permissionsText(t as never, { reports: 2 })).toBe("reports: Ler");
+    expect(permissionsText(t as never, {})).toBe("Nenhuma");
+  });
 });

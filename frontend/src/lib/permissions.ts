@@ -14,3 +14,17 @@ export function resourceText(t: (key: MessageKey) => string, code: string, descr
   const desc = t(`resource.${code}_desc` as MessageKey);
   return { label: label.startsWith("resource.") ? code : label, description: desc.startsWith("resource.") ? description : desc };
 }
+
+const BITS: [Action, number][] = [["create", 1], ["read", 2], ["update", 4], ["delete", 8]];
+
+/** A role's grants as the audit log stores them ({"products": 6}), in words: "Produtos: Ler, Editar". */
+export function permissionsText(t: (key: MessageKey) => string, grants: Record<string, number>): string {
+  const parts = Object.entries(grants)
+    .filter(([, bits]) => bits > 0)
+    .map(([code, bits]) => {
+      const label = code === "*" ? t("roles.all_permissions") : resourceText(t, code).label;
+      const actions = BITS.filter(([, bit]) => (bits & bit) === bit).map(([a]) => t(`action.${a}` as MessageKey));
+      return `${label}: ${actions.join(", ")}`;
+    });
+  return parts.length ? parts.join("; ") : t("audit.no_permissions");
+}

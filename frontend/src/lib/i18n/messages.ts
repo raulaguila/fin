@@ -349,6 +349,7 @@ const ptBR = {
   "common.clear": "Limpar",
   "home.by": "por",
   "auth.registration_closed": "O cadastro está fechado. Peça um convite a um administrador.",
+  "audit.no_permissions": "Nenhuma",
 } as const;
 
 export type MessageKey = keyof typeof ptBR;
@@ -694,6 +695,7 @@ const enUS: Record<MessageKey, string> = {
   "common.clear": "Clear",
   "home.by": "by",
   "auth.registration_closed": "Sign-up is closed. Ask an administrator for an invitation.",
+  "audit.no_permissions": "None",
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { "pt-BR": ptBR, "en-US": enUS };

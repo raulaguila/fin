@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { ChevronDown, ChevronRight, ShieldCheck } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { BrandWordmark } from "@/components/brand-wordmark";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMe } from "@/lib/context/me";
 import { useI18n } from "@/lib/i18n/provider";
@@ -88,15 +87,14 @@ export function AppRail({ collapsed, onToggle, mobile = false, onNavigate }: { c
           </section>
         )}
       </div>
-      <div className="rail-footer">
-        <div className="rail-theme"><ThemeToggle />{!compact && <span aria-hidden>{t("common.theme")}</span>}</div>
-        {!mobile && (
+      {!mobile && (
+        <div className="rail-footer">
           <button type="button" className="rail-item rail-toggle" aria-label={t("layout.toggle_sidebar")} title={t(compact ? "layout.expand" : "layout.collapse")} aria-expanded={!compact} onClick={onToggle}>
             <ChevronRight className="size-5" style={compact ? undefined : { transform: "rotate(180deg)" }} aria-hidden />
             {!compact && <span>{t("layout.collapse")}</span>}
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </aside>
   );
 }

@@ -11,6 +11,7 @@ import { CommandPalette } from "@/components/command-palette";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { QueryErrorState } from "@/components/query-error-state";
 import { SessionKeepalive } from "@/components/session-keepalive";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -52,7 +53,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   const section = [...MAIN_NAV, ...ADMIN_NAV].find((item) => isActive(pathname, item.href));
-  const title = pathname.startsWith("/profile") ? t("nav.profile") : pathname.startsWith("/notifications") ? t("nav.notifications") : section ? t(section.key) : "";
   const crumb = useCrumbStore((s) => s.label);
   const count = unread.data?.unread ?? 0;
 
@@ -85,8 +85,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-20 flex h-[var(--header-h)] shrink-0 items-center border-b bg-background px-[var(--space-page)]">
-            {/* Same centered width as PageHeader/PageBody, so the breadcrumb lines up with the title. */}
-            <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
+            {/* Same left-aligned width as PageHeader/PageBody, so the breadcrumb lines up with the title. */}
+            <div className="flex w-full max-w-6xl items-center justify-between">
             <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
               <button
                 type="button"
@@ -97,14 +97,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <Menu className="size-5" />
               </button>
-              {crumb && section ? (
+              {/* Top-level pages already name themselves in the h1; the trail starts one level down. */}
+              {crumb && section && (
                 <nav aria-label="breadcrumb" className="flex min-w-0 items-center gap-1.5">
-                  <Link href={section.href} className="shrink-0 text-muted-foreground hover:text-foreground">{title}</Link>
+                  <Link href={section.href} className="shrink-0 text-muted-foreground hover:text-foreground">{t(section.key)}</Link>
                   <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
                   <span aria-current="page" className="truncate font-medium">{crumb}</span>
                 </nav>
-              ) : (
-                <span className="truncate font-medium">{title}</span>
               )}
             </div>
             <div className="ml-2 flex shrink-0 items-center gap-0.5 sm:gap-1">
@@ -121,6 +120,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </span>
                 )}
               </Link>
+              <ThemeToggle />
               <LanguageSwitcher />
               <DropdownMenu>
                 <DropdownMenuTrigger aria-label={t("a11y.account_menu")} className="ml-1 flex size-11 items-center justify-center rounded-md md:size-8">
@@ -146,7 +146,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 overflow-auto bg-content outline-none">
             <div className="app-page">
-              {failed ? <div className="mx-auto max-w-6xl p-[var(--space-page)]"><QueryErrorState onRetry={retry} /></div> : children}
+              {failed ? <div className="max-w-6xl p-[var(--space-page)]"><QueryErrorState onRetry={retry} /></div> : children}
             </div>
           </main>
         </div>

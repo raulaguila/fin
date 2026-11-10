@@ -71,7 +71,7 @@
   /* Semantic neutral ladder: chrome → canvas → cards → interaction states.
      Opaque levels make hover/selection readable on every surface. */
   --background: oklch(0.984152 0.003413 247.857544);
-  --content: oklch(0.984152 0.003413 247.857544);
+  --content: oklch(0.968 0.006 250);
   --foreground: oklch(0.279495 0.036848 260.030984);
   --card: oklch(1.000000 0.000000 89.875563);
   --card-foreground: oklch(0.279495 0.036848 260.030984);
@@ -80,6 +80,8 @@
   /* Brand accent drives primary + ring. */
   --primary: oklch(0.514480 0.176592 265.697500);
   --primary-foreground: oklch(1 0 0);
+  /* Primary as text on its own 16% tint (active nav); darker for AA headroom. */
+  --primary-strong: oklch(0.45 0.18 266);
   --message-user: oklch(0.944622 0.012042 259.822829);
   --message-user-foreground: oklch(0.278078 0.029596 256.847952);
   --secondary: oklch(0.959257 0.006870 247.896436);
@@ -93,8 +95,8 @@
   --success: oklch(0.44 0.12 150);
   --warn: oklch(0.44 0.09 65);
   --info: oklch(0.46 0.12 240);
-  --border: oklch(0.928761 0.012619 255.507846);
-  --input: oklch(0.640000 0.033971 257.260419);
+  --border: oklch(0.89 0.014 255);
+  --input: oklch(0.6 0.034 257);
   --input-fill: oklch(.94 .005 226);
   --ring: oklch(0.58 0.16 var(--accent-h));
   --chart-1: oklch(0.62 0.17 var(--accent-h));
@@ -109,7 +111,7 @@
   --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-accent: oklch(0.947049 0.009702 252.812502);
   --sidebar-accent-foreground: oklch(0.279495 0.036848 260.030984);
-  --sidebar-border: oklch(0.928761 0.012619 255.507846);
+  --sidebar-border: oklch(0.89 0.014 255);
   --sidebar-ring: oklch(0.58 0.16 var(--accent-h));
 
   /* Density tokens (comfortable defaults; compact overrides below). */
@@ -145,12 +147,13 @@
   --background: oklch(.18 0 0);
   --content: oklch(.18 0 0);
   --foreground: oklch(.94 0 0);
-  --card: oklch(.235 0 0);
+  --card: oklch(.25 0 0);
   --card-foreground: oklch(.94 0 0);
-  --popover: oklch(.255 0 0);
+  --popover: oklch(.27 0 0);
   --popover-foreground: oklch(.94 0 0);
   --primary: oklch(0.747312 0.129614 272.266084);
   --primary-foreground: oklch(0.187396 0.012644 270.658583);
+  --primary-strong: var(--primary);
   --message-user: oklch(0.296736 0.007768 264.449437);
   --message-user-foreground: oklch(0.969953 0.002872 264.541970);
   --secondary: oklch(.29 0 0);

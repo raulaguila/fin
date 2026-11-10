@@ -100,8 +100,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {crumb && section && (
                 <nav aria-label="breadcrumb" className="flex min-w-0 items-center gap-1.5">
                   <Link href={section.href} className="shrink-0 text-muted-foreground hover:text-foreground">{t(section.key)}</Link>
-                  <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span aria-current="page" className="truncate font-medium">{crumb}</span>
+                  <ChevronRight className="hidden size-3.5 shrink-0 text-muted-foreground sm:block" />
+                  <span aria-current="page" className="hidden truncate font-medium sm:inline">{crumb}</span>
                 </nav>
               )}
             </div>

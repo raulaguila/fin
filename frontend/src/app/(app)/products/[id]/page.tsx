@@ -3,16 +3,13 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { DangerZone, FieldNote, FormError, PageBody, PageHeader } from "@/components/bits";
+import { DangerZone, FieldNote, FormSection, FormSections, PageBody, PageHeader, SaveBar, useFormatDate } from "@/components/bits";
 import { CURRENCY } from "@/lib/brand";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -59,41 +56,54 @@ function ProductForm({ product, editable }: { product: Product | null; editable:
     onError: (err) => setError(errorMessage(err, "common.save_failed", t)),
   });
 
+  const discard = () => {
+    if (!product) return router.push("/products");
+    setName(product.name);
+    setPrice(comma ? product.price.replace(".", ",") : product.price);
+    setEnabled(product.enabled);
+    setError(null);
+  };
+
   return (
-    <Card className="max-w-xl">
-      <CardHeader><CardTitle>{t("products.details")}</CardTitle></CardHeader>
-      <CardContent>
-        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
-          <FormError message={error} />
-          <div className="space-y-2">
-            <Label htmlFor="p-name">{t("auth.name")}</Label>
-            <Input id="p-name" required autoFocus={!product} maxLength={120} aria-invalid={!!productName(name)} aria-describedby="p-name-note" disabled={!editable} value={name} onChange={(e) => setName(e.target.value)} />
-            <FieldNote id="p-name-note" error={productName(name) && t(productName(name)!)} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="p-price">{t("products.price")}</Label>
-            <div className="relative">
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground" aria-hidden="true">{symbol}</span>
-              <Input id="p-price" required inputMode="decimal" aria-invalid={!!priceRule(price)} aria-describedby="p-price-note" placeholder={comma ? "0,00" : "0.00"} disabled={!editable} value={price} onChange={(e) => setPrice(e.target.value)} className="pl-10 font-mono" />
+    <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
+      <FormSections>
+        <FormSection title={t("products.details")} description={t("products.details_desc")}>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="p-name">{t("auth.name")}</Label>
+                <Input id="p-name" required autoFocus={!product} maxLength={120} aria-invalid={!!productName(name)} aria-describedby="p-name-note" disabled={!editable} value={name} onChange={(e) => setName(e.target.value)} />
+                <FieldNote id="p-name-note" error={productName(name) && t(productName(name)!)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="p-price">{t("products.price")}</Label>
+                <div className="relative max-w-48">
+                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground" aria-hidden="true">{symbol}</span>
+                  <Input id="p-price" required inputMode="decimal" aria-invalid={!!priceRule(price)} aria-describedby="p-price-note" placeholder={comma ? "0,00" : "0.00"} disabled={!editable} value={price} onChange={(e) => setPrice(e.target.value)} className="pl-10 font-mono" />
+                </div>
+                <FieldNote id="p-price-note" error={priceRule(price) && t(priceRule(price)!)} />
+              </div>
             </div>
-            <FieldNote id="p-price-note" error={priceRule(price) && t(priceRule(price)!)} />
-          </div>
-          <label className="flex items-center gap-3 text-sm">
-            <Switch checked={enabled} disabled={!editable} onCheckedChange={setEnabled} aria-label={t("products.enabled")} />
-            {t(enabled ? "roles.enabled" : "roles.disabled")}
-          </label>
-          {editable && (
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" disabled={save.isPending} onClick={() => router.push("/products")}>{t("common.cancel")}</Button>
-              <Button type="submit" disabled={save.isPending || !dirty || !ready([name, productName], [price, priceRule])}>
-                {save.isPending && <Loader2 className="size-4 animate-spin" />}
-                {t(product ? "common.save" : "common.create")}
-              </Button>
-            </div>
-          )}
-        </form>
-      </CardContent>
-    </Card>
+        </FormSection>
+        <FormSection title={t("products.status")} description={t("products.status_desc")}>
+              <label className="flex items-center gap-3 text-sm">
+                <Switch checked={enabled} disabled={!editable} onCheckedChange={setEnabled} aria-label={t("products.enabled")} />
+                {t(enabled ? "roles.enabled" : "roles.disabled")}
+              </label>
+        </FormSection>
+        {editable && (dirty || !product) && (
+          <SaveBar
+            submit
+            label={t(product ? "roles.unsaved" : "products.new")}
+            error={error}
+            saving={save.isPending}
+            canSave={dirty && ready([name, productName], [price, priceRule])}
+            saveLabel={t(product ? "common.save" : "common.create")}
+            discardLabel={t(product ? "common.discard" : "common.cancel")}
+            onDiscard={discard}
+          />
+        )}
+      </FormSections>
+    </form>
   );
 }
 
@@ -109,11 +119,14 @@ export default function ProductPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const editable = can(user, "products", creating ? "create" : "update");
   useCrumb(creating ? t("products.new") : product?.name);
+  const format = useFormatDate();
+  const subtitle = product && `${t("common.created_at")} ${format(product.created_at)} · ${t("common.updated_at").toLowerCase()} ${format(product.updated_at)}`;
 
   return (
     <>
       <PageHeader
         title={creating ? t("products.new") : (product?.name ?? t("nav.products"))}
+        description={subtitle || undefined}
       />
       <PageBody>
         {loading ? (

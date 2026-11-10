@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -99,17 +100,71 @@ export function IconAction({ label, target, className, onClick, children }: { la
   );
 }
 
+/**
+ * One part of a form or detail page: title and help beside the content on wide
+ * screens, above it on narrow ones. Plain fields stay at a readable width;
+ * `wide` lets tables and matrices take the room they need.
+ */
+export function FormSection({ title, description, wide = false, danger = false, children }: {
+  title: string;
+  description?: string;
+  wide?: boolean;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="grid gap-3 border-t pt-8 first:border-t-0 first:pt-0 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10">
+      <div className="space-y-1">
+        <h2 className={cn("font-heading text-base font-semibold", danger && "text-destructive")}>{title}</h2>
+        {description && <p className="text-sm text-muted-foreground">{description}</p>}
+      </div>
+      <div className={cn("min-w-0", !wide && "max-w-2xl")}>{children}</div>
+    </section>
+  );
+}
+
+/** Sections of one page, split by a thin rule. */
+export function FormSections({ children }: { children: React.ReactNode }) {
+  return <div className="space-y-8">{children}</div>;
+}
+
+/**
+ * The page's one save control, sticky at the bottom while there is something to
+ * save. Inside a form, `submit` makes Save the form's submit button, so Enter saves.
+ */
+export function SaveBar({ label, error, saving, canSave, saveLabel, discardLabel, onSave, onDiscard, submit = false }: {
+  label: string;
+  error?: string | null;
+  saving: boolean;
+  canSave: boolean;
+  saveLabel: string;
+  discardLabel: string;
+  onSave?: () => void;
+  onDiscard: () => void;
+  submit?: boolean;
+}) {
+  return (
+    <div role="region" aria-label={label} className="sticky bottom-4 z-10 flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-lg">
+      <span className="flex-1 text-sm font-medium">{label}</span>
+      {error && <div className="basis-full"><FormError message={error} /></div>}
+      <Button type="button" variant="ghost" disabled={saving} onClick={onDiscard}>{discardLabel}</Button>
+      <Button type={submit ? "submit" : "button"} disabled={saving || !canSave} onClick={submit ? undefined : onSave}>
+        {saving && <Loader2 className="size-4 animate-spin" />}
+        {saveLabel}
+      </Button>
+    </div>
+  );
+}
+
 /** The page's destructive action, kept apart at the bottom so it is never the first button in sight. */
-/** className widens it to match a full-width page; the default lines up with narrow forms. */
-export function DangerZone({ description, label, onClick, className }: { description: string; label: string; onClick: () => void; className?: string }) {
+export function DangerZone({ description, label, onClick }: { description: string; label: string; onClick: () => void }) {
   const { t } = useI18n();
   return (
-    <section aria-labelledby="danger-zone" className={cn("mt-8 flex max-w-xl flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 p-4", className)}>
-      <div className="min-w-0 flex-1 space-y-1">
-        <h2 id="danger-zone" className="text-sm font-medium text-destructive">{t("common.danger_zone")}</h2>
-        <p className="text-sm text-muted-foreground">{description}</p>
+    <FormSection title={t("common.danger_zone")} danger>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 p-4">
+        <p className="min-w-0 flex-1 text-sm text-muted-foreground">{description}</p>
+        <Button variant="destructive" onClick={onClick}>{label}</Button>
       </div>
-      <Button variant="destructive" onClick={onClick}>{label}</Button>
-    </section>
+    </FormSection>
   );
 }

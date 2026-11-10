@@ -3,16 +3,16 @@
 import { useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Search, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
-import { DangerZone, FormError, PageBody, PageHeader, StatusBadge, useFormatDate } from "@/components/bits";
+import { DangerZone, FormSection, FormSections, PageBody, PageHeader, SaveBar, StatusBadge, useFormatDate } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
 import { TablePagination, emptyPageFallback } from "@/components/table-pagination";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -71,9 +71,8 @@ function GeneralCard({ name, nameOk, enabled, isDefault, editable, onName, onEna
 }) {
   const { t } = useI18n();
   return (
-    <Card>
-      <CardHeader><CardTitle>{t("roles.general")}</CardTitle></CardHeader>
-      <CardContent className="space-y-4">
+    <FormSection title={t("roles.general")} description={t("roles.general_desc")}>
+      <div className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="name">{t("auth.name")}</Label>
           {/* Flagged as soon as it breaks the rule; an empty field only blocks saving. */}
@@ -91,8 +90,8 @@ function GeneralCard({ name, nameOk, enabled, isDefault, editable, onName, onEna
           {t("roles.make_default")}
         </label>
         <p className="text-xs text-muted-foreground">{t(isDefault ? "roles.default_note" : "roles.make_default_hint")}</p>
-      </CardContent>
-    </Card>
+      </div>
+    </FormSection>
   );
 }
 
@@ -116,11 +115,9 @@ function PermissionsCard({ all, draft, editable, onChange }: { all: boolean; dra
   const actionLabel = (a: Action) => t(`action.${a}` as MessageKey);
 
   return (
+    <FormSection title={t("roles.permissions")} description={t("roles.permissions_desc")} wide={!all}>
     <Card>
-      <CardHeader>
-        <CardTitle>{t("roles.permissions")}</CardTitle>
-        <CardDescription>{t(all ? "roles.all_permissions_desc" : "roles.permissions_desc")}</CardDescription>
-      </CardHeader>
+      {all && <CardContent className="text-sm text-muted-foreground">{t("roles.all_permissions_desc")}</CardContent>}
       {!all && (
         <CardContent>
           {resources.isPending ? (
@@ -235,6 +232,7 @@ function PermissionsCard({ all, draft, editable, onChange }: { all: boolean; dra
         </CardContent>
       )}
     </Card>
+    </FormSection>
   );
 }
 
@@ -295,8 +293,7 @@ function RoleEditor({ role: saved, editable }: { role: Role | null; editable: bo
 
   return (
     <>
-      <div className="grid items-start gap-6 2xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <div className="space-y-6">
+      <FormSections>
           <GeneralCard
             name={name}
             nameOk={nameOk}
@@ -308,20 +305,20 @@ function RoleEditor({ role: saved, editable }: { role: Role | null; editable: bo
             onDefault={(on) => { setIsDefault(on); if (on) setEnabled(true); }}
           />
           {saved && <MembersCard roleId={saved.id} editable={editable} />}
-        </div>
         <PermissionsCard all={all} draft={draft} editable={editable} onChange={setDraft} />
-      </div>
       {editable && (dirty || !saved) && (
-        <div role="region" aria-label={t("roles.unsaved")} className="sticky bottom-4 z-10 flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-lg">
-          <span className="flex-1 text-sm font-medium">{t(saved ? "roles.unsaved" : "roles.new")}</span>
-          {error && <div className="basis-full"><FormError message={error} /></div>}
-          <Button variant="ghost" disabled={save.isPending} onClick={discard}>{t(saved ? "common.discard" : "common.cancel")}</Button>
-          <Button disabled={save.isPending || !nameOk} onClick={() => save.mutate()}>
-            {save.isPending && <Loader2 className="size-4 animate-spin" />}
-            {t(saved ? "common.save" : "common.create")}
-          </Button>
-        </div>
+        <SaveBar
+          label={t(saved ? "roles.unsaved" : "roles.new")}
+          error={error}
+          saving={save.isPending}
+          canSave={nameOk}
+          saveLabel={t(saved ? "common.save" : "common.create")}
+          discardLabel={t(saved ? "common.discard" : "common.cancel")}
+          onSave={() => save.mutate()}
+          onDiscard={discard}
+        />
       )}
+      </FormSections>
     </>
   );
 }
@@ -395,12 +392,10 @@ function MembersCard({ roleId, editable }: { roleId: string; editable: boolean }
   const canAdd = editable && can(user, "users", "read");
 
   return (
+    <FormSection title={t("roles.members")} description={t("roles.members_desc")}>
     <Card>
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
-        <CardTitle>{t("roles.members")}</CardTitle>
-        {canAdd && <Button variant="outline" size="sm" onClick={() => setAdding(true)}><Plus className="size-4" />{t("roles.add_member")}</Button>}
-      </CardHeader>
       <CardContent className="space-y-3">
+        {canAdd && <div className="flex justify-end"><Button variant="outline" size="sm" onClick={() => setAdding(true)}><Plus className="size-4" />{t("roles.add_member")}</Button></div>}
         {(members.data?.pagination.total_items !== 0 || q) && (
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -446,6 +441,7 @@ function MembersCard({ roleId, editable }: { roleId: string; editable: boolean }
       </CardContent>
       {adding && <AddMemberDialog roleId={roleId} onClose={() => setAdding(false)} />}
     </Card>
+    </FormSection>
   );
 }
 
@@ -489,7 +485,7 @@ export default function RoleDetailPage() {
           <RoleEditor key={role.id} role={role} editable={editable} />
         )}
         {role && !role.is_default && can(user, "roles", "delete") && (
-          <DangerZone className="max-w-none" description={t("roles.delete_desc")} label={t("roles.delete")} onClick={() => setConfirmDelete(true)} />
+          <DangerZone description={t("roles.delete_desc")} label={t("roles.delete")} onClick={() => setConfirmDelete(true)} />
         )}
       </PageBody>
       <ConfirmDialog

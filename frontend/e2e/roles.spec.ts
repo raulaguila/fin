@@ -11,7 +11,7 @@ test("a role keeps the permissions it was saved with", async ({ page }) => {
 
   await page.getByRole("checkbox", { name: "Produtos: Ler" }).click();
   await page.getByRole("checkbox", { name: "Produtos: Editar" }).click();
-  await page.getByRole("region", { name: "Alterações não salvas" }).getByRole("button", { name: /Salvar|Criar/ }).click();
+  await page.getByRole("region", { name: /Alterações não salvas|Novo papel/ }).getByRole("button", { name: /Salvar|Criar/ }).click();
   await expect(page).toHaveURL(/\/admin\/roles$/); // a new role goes back to the list
 
   await page.getByRole("link", { name }).click();

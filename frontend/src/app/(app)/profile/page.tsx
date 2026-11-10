@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { Loader2, Monitor, Smartphone } from "lucide-react";
 import { toast } from "sonner";
-import { FieldNote, FormError, PageBody, PageHeader, initials, useFormatDate } from "@/components/bits";
+import { FieldNote, FormError, FormSection, FormSections, PageBody, SaveBar, PageHeader, initials, useFormatDate } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { PasswordInput } from "@/components/password-input";
 import { QueryErrorState } from "@/components/query-error-state";
@@ -13,7 +13,7 @@ import { ListSkeleton } from "@/components/skeletons";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -82,26 +82,29 @@ function NameCard() {
     },
     onError: (err) => setError(errorMessage(err, "profile.save_failed", t)),
   });
+  const dirty = name.trim() !== user?.name;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("profile.account")}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form className="max-w-md space-y-4" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
-          <FormError message={error} />
+    <FormSection title={t("profile.account")} description={t("profile.account_desc")}>
+    <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="name">{t("auth.name")}</Label>
             <Input id="name" required maxLength={80} aria-invalid={!!personName(name)} aria-describedby="name-note" value={name} onChange={(e) => setName(e.target.value)} />
             <FieldNote id="name-note" error={personName(name) && t(personName(name)!)} />
           </div>
-          <Button type="submit" disabled={save.isPending || name.trim() === user?.name || !ready([name, personName])}>
-            {save.isPending && <Loader2 className="size-4 animate-spin" />}
-            {t("common.save")}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    {dirty && (
+      <SaveBar
+        submit
+        label={t("roles.unsaved")}
+        error={error}
+        saving={save.isPending}
+        canSave={ready([name, personName])}
+        saveLabel={t("common.save")}
+        discardLabel={t("common.discard")}
+        onDiscard={() => { setName(user?.name ?? ""); setError(null); }}
+      />
+    )}
+    </form>
+    </FormSection>
   );
 }
 
@@ -129,13 +132,8 @@ function PasswordCard() {
     change.mutate();
   };
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("profile.password")}</CardTitle>
-        <CardDescription>{t("profile.password_hint")}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="max-w-md space-y-4" onSubmit={submit}>
+    <FormSection title={t("profile.password")} description={t("profile.password_hint")}>
+        <form className="space-y-4" onSubmit={submit}>
           <FormError message={error} />
           <div className="space-y-2">
             <Label htmlFor="current">{t("profile.current_password")}</Label>
@@ -152,13 +150,15 @@ function PasswordCard() {
             <PasswordInput id="confirm" autoComplete="new-password" required aria-invalid={!!sameAs(next)(confirm)} aria-describedby="confirm-note" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
             <FieldNote id="confirm-note" error={sameAs(next)(confirm) && t("auth.password_mismatch")} />
           </div>
-          <Button type="submit" disabled={change.isPending || !ready([current], [next, newPassword], [confirm, sameAs(next)])}>
-            {change.isPending && <Loader2 className="size-4 animate-spin" />}
-            {t("profile.change_password")}
-          </Button>
+          {/* Changing the password is an action, not a draft: it keeps its own button. */}
+          <div className="flex justify-end">
+            <Button type="submit" disabled={change.isPending || !ready([current], [next, newPassword], [confirm, sameAs(next)])}>
+              {change.isPending && <Loader2 className="size-4 animate-spin" />}
+              {t("profile.change_password")}
+            </Button>
+          </div>
         </form>
-      </CardContent>
-    </Card>
+    </FormSection>
   );
 }
 
@@ -172,11 +172,8 @@ function PreferencesCard() {
   const languages = Object.fromEntries(LOCALES.map((l) => [l.value, l.label])) as Record<Language, string>;
   if (!user) return null;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("profile.preferences")}</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4 sm:grid-cols-2">
+    <FormSection title={t("profile.preferences")} description={t("profile.preferences_desc")}>
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>{t("common.theme")}</Label>
           <Select
@@ -209,8 +206,8 @@ function PreferencesCard() {
             </SelectContent>
           </Select>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </FormSection>
   );
 }
 
@@ -231,15 +228,10 @@ function SessionsCard() {
   const others = sessions.data?.items.filter((s) => !s.current).length ?? 0;
 
   return (
+    <FormSection title={t("profile.sessions")} description={t("profile.sessions_hint")}>
     <Card>
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
-        <div>
-          <CardTitle>{t("profile.sessions")}</CardTitle>
-          <CardDescription className="mt-1.5">{t("profile.sessions_hint")}</CardDescription>
-        </div>
-        {others > 0 && <Button variant="outline" size="sm" onClick={() => setConfirmOthers(true)}>{t("profile.revoke_others")}</Button>}
-      </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        {others > 0 && <div className="flex justify-end"><Button variant="outline" size="sm" onClick={() => setConfirmOthers(true)}>{t("profile.revoke_others")}</Button></div>}
         {sessions.isPending ? (
           <ListSkeleton rows={2} />
         ) : sessions.isError ? (
@@ -285,6 +277,7 @@ function SessionsCard() {
         }}
       />
     </Card>
+    </FormSection>
   );
 }
 
@@ -298,14 +291,12 @@ export default function ProfilePage() {
         {user ? (
           <>
             <ProfileHeader />
-            <div className="grid items-start gap-6 lg:grid-cols-2">
-              <div className="space-y-6">
-                <NameCard />
-                <PreferencesCard />
-              </div>
+            <FormSections>
+              <NameCard />
               <PasswordCard />
-            </div>
-            <SessionsCard />
+              <PreferencesCard />
+              <SessionsCard />
+            </FormSections>
           </>
         ) : (
           <ListSkeleton rows={4} />

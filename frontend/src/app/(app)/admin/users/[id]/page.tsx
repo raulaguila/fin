@@ -6,14 +6,13 @@ import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
-import { ActiveBadge, FieldNote, FormError, PageBody, PageHeader, StatusBadge, useFormatDate } from "@/components/bits";
+import { ActiveBadge, FieldNote, FormError, FormSection, FormSections, SaveBar, PageBody, PageHeader, StatusBadge, useFormatDate } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -57,12 +56,8 @@ function RolesCard({ user }: { user: UserDetails }) {
   const toggle = (id: string, on: boolean) => setDraft((d) => (on ? [...d, id] : d.filter((x) => x !== id)));
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("nav.roles")}</CardTitle>
-        {manage && <CardDescription>{t("users.roles_hint")}</CardDescription>}
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <FormSection title={t("nav.roles")} description={t(manage ? "users.roles_hint" : "users.roles_desc")}>
+      <div className="space-y-4">
         {!manage ? (
           <div className="flex flex-wrap gap-1.5">
             {user.roles.length === 0 ? <span className="text-sm text-muted-foreground">-</span> : user.roles.map((r) => (
@@ -87,17 +82,23 @@ function RolesCard({ user }: { user: UserDetails }) {
                 </li>
               ))}
             </ul>
-            <div className="flex justify-end gap-2">
-              {dirty && <Button variant="ghost" disabled={save.isPending} onClick={() => setDraft(saved)}>{t("common.discard")}</Button>}
-              <Button disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
-                {save.isPending && <Loader2 className="size-4 animate-spin" />}
-                {t("common.save")}
-              </Button>
-            </div>
           </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    {dirty && (
+      <div className="mt-6">
+        <SaveBar
+          label={t("roles.unsaved")}
+          saving={save.isPending}
+          canSave
+          saveLabel={t("common.save")}
+          discardLabel={t("common.discard")}
+          onSave={() => save.mutate()}
+          onDiscard={() => setDraft(saved)}
+        />
+      </div>
+    )}
+    </FormSection>
   );
 }
 
@@ -123,46 +124,49 @@ function InviteForm() {
     onError: (err) => setError(errorMessage(err, "common.save_failed", t)),
   });
 
-  return (
-    <Card className="max-w-xl">
-      <CardHeader>
-        <CardTitle>{t("users.invite")}</CardTitle>
-        <CardDescription>{t("users.invite_desc")}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {link ? (
+  if (link) {
+    return (
+      <FormSection title={t("users.link_title")} description={t("users.activation_link")}>
           <div className="space-y-4 text-sm">
-            <p className="text-muted-foreground">{t("users.activation_link")}</p>
-            <Input readOnly value={link} className="font-mono text-xs" onFocus={(e) => e.target.select()} />
+            <Input readOnly aria-label={t("users.link_title")} value={link} className="font-mono text-xs" onFocus={(e) => e.target.select()} />
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => void navigator.clipboard.writeText(link).then(() => toast.success(t("common.copied")))}>{t("common.copy")}</Button>
               <Button onClick={() => router.push("/admin/users")}>{t("common.done")}</Button>
             </div>
           </div>
-        ) : (
-          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); invite.mutate(); }}>
-            <FormError message={error} />
-            <div className="space-y-2">
-              <Label htmlFor="i-name">{t("auth.name")}</Label>
-              <Input id="i-name" required autoFocus maxLength={80} aria-invalid={!!personName(name)} aria-describedby="i-name-note" value={name} onChange={(e) => setName(e.target.value)} />
-              <FieldNote id="i-name-note" error={personName(name) && t(personName(name)!)} />
+      </FormSection>
+    );
+  }
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); invite.mutate(); }}>
+      <FormSections>
+        <FormSection title={t("users.invite_person")} description={t("users.invite_desc")}>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="i-name">{t("auth.name")}</Label>
+                <Input id="i-name" required autoFocus maxLength={80} aria-invalid={!!personName(name)} aria-describedby="i-name-note" value={name} onChange={(e) => setName(e.target.value)} />
+                <FieldNote id="i-name-note" error={personName(name) && t(personName(name)!)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="i-email">{t("auth.email")}</Label>
+                <Input id="i-email" type="email" required maxLength={254} aria-invalid={!!emailRule(email)} aria-describedby="i-email-note" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <FieldNote id="i-email-note" error={emailRule(email) && t(emailRule(email)!)} />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="i-email">{t("auth.email")}</Label>
-              <Input id="i-email" type="email" required maxLength={254} aria-invalid={!!emailRule(email)} aria-describedby="i-email-note" value={email} onChange={(e) => setEmail(e.target.value)} />
-              <FieldNote id="i-email-note" error={emailRule(email) && t(emailRule(email)!)} />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" disabled={invite.isPending} onClick={() => router.push("/admin/users")}>{t("common.cancel")}</Button>
-              <Button type="submit" disabled={invite.isPending || !ready([name, personName], [email, emailRule])}>
-                {invite.isPending && <Loader2 className="size-4 animate-spin" />}
-                {t("users.send_invite")}
-              </Button>
-            </div>
-          </form>
-        )}
-      </CardContent>
-    </Card>
+        </FormSection>
+        <SaveBar
+          submit
+          label={t("users.invite")}
+          error={error}
+          saving={invite.isPending}
+          canSave={ready([name, personName], [email, emailRule])}
+          saveLabel={t("users.send_invite")}
+          discardLabel={t("common.cancel")}
+          onDiscard={() => router.push("/admin/users")}
+        />
+      </FormSections>
+    </form>
   );
 }
 
@@ -263,17 +267,15 @@ function UserDetail({ id }: { id: string }) {
         ) : detail.isError ? (
           <QueryErrorState error={detail.error} onRetry={() => void detail.refetch()} />
         ) : (
-          <div className="grid items-start gap-6 lg:grid-cols-2">
+          <FormSections>
           {blocked && (
-            <div role="status" className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 lg:col-span-2 dark:text-amber-200">
+            <div role="status" className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
               <ShieldAlert className="mt-0.5 size-4 shrink-0" />
               <span>{t("users.login_blocked")}</span>
             </div>
           )}
-          <Card>
-            <CardHeader><CardTitle>{t("users.details")}</CardTitle></CardHeader>
-            <CardContent>
-              <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-[8rem_1fr]">
+          <FormSection title={t("users.details")} description={t("users.details_desc")}>
+              <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-[10rem_1fr]">
                 <dt className="text-muted-foreground">{t("users.status")}</dt>
                 <dd><StatusBadge status={detail.data.status} /></dd>
                 <dt className="text-muted-foreground">{t("common.created_at")}</dt>
@@ -284,7 +286,7 @@ function UserDetail({ id }: { id: string }) {
               {a && (
                 <>
                   <h3 className="mt-6 mb-3 text-sm font-semibold">{t("users.access")}</h3>
-                  <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-[8rem_1fr]">
+                  <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-[10rem_1fr]">
                     <dt className="text-muted-foreground">{t("users.last_login")}</dt>
                     <dd>{a.last_login_at ? format(a.last_login_at) : t("users.never")}</dd>
                     <dt className="text-muted-foreground">{t("users.active_sessions")}</dt>
@@ -306,10 +308,9 @@ function UserDetail({ id }: { id: string }) {
                   </dl>
                 </>
               )}
-            </CardContent>
-          </Card>
+          </FormSection>
           <RolesCard user={detail.data} />
-          </div>
+          </FormSections>
         )}
       </PageBody>
       <ConfirmDialog

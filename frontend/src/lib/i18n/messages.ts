@@ -380,6 +380,16 @@ const ptBR = {
   "error.msg.already_activated": "Esta conta já foi ativada.",
   "error.msg.own_account": "Você não pode desativar a própria conta.",
   "error.msg.own_sessions": "Encerre suas próprias sessões pelo perfil.",
+  "products.details_desc": "Nome e preço mostrados na lista de produtos.",
+  "products.status_desc": "Produtos inativos continuam cadastrados, mas saem das opções de escolha.",
+  "products.status": "Situação",
+  "users.invite_person": "Pessoa",
+  "roles.general_desc": "Nome, situação e se novos usuários recebem este papel.",
+  "roles.members_desc": "Quem recebe as permissões deste papel.",
+  "profile.account_desc": "Seu nome aparece para os administradores e na auditoria.",
+  "profile.preferences_desc": "Tema e idioma ficam salvos na sua conta.",
+  "users.roles_desc": "O que esta pessoa pode fazer na plataforma.",
+  "users.details_desc": "Situação da conta e uso recente.",
 } as const;
 
 export type MessageKey = keyof typeof ptBR;
@@ -756,6 +766,16 @@ const enUS: Record<MessageKey, string> = {
   "error.msg.already_activated": "This account is already activated.",
   "error.msg.own_account": "You cannot disable your own account.",
   "error.msg.own_sessions": "End your own sessions from your profile.",
+  "products.details_desc": "Name and price shown in the product list.",
+  "products.status_desc": "Inactive products stay on file but leave the pick lists.",
+  "products.status": "Status",
+  "users.invite_person": "Person",
+  "roles.general_desc": "Name, status and whether new users get this role.",
+  "roles.members_desc": "Who gets this role's permissions.",
+  "profile.account_desc": "Your name shows to administrators and in the audit log.",
+  "profile.preferences_desc": "Theme and language are saved to your account.",
+  "users.roles_desc": "What this person can do on the platform.",
+  "users.details_desc": "Account status and recent use.",
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { "pt-BR": ptBR, "en-US": enUS };

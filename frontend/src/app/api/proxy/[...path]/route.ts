@@ -14,8 +14,10 @@ const PASSTHROUGH = ["content-type", "content-disposition", "retry-after", "x-re
 
 async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
-  const joined = path.join("/");
-  if (TOKEN_PATHS.test(joined)) return NextResponse.json({ code: "NOT_FOUND", message: "use /api/auth" }, { status: 404 });
+  // Checked after URL parsing: fetch would turn "v1/%2e%2e/v1/auth/login" into a token path.
+  const target = new URL(apiUrl("/" + path.join("/")) + req.nextUrl.search);
+  const routed = target.pathname.slice(new URL(apiUrl("/")).pathname.length);
+  if (!routed.startsWith("v1/") || TOKEN_PATHS.test(routed)) return NextResponse.json({ code: "NOT_FOUND", message: "use /api/auth" }, { status: 404 });
 
   const { session, present } = await readSession();
   if (!session) return unauthorized(present);
@@ -24,7 +26,6 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   if (body && body.length > MAX_BODY) return NextResponse.json({ code: "INVALID_INPUT", message: "request body too large" }, { status: 413 });
 
   const headers = forwardHeaders(req);
-  const target = apiUrl("/" + joined) + req.nextUrl.search;
   const send = (token: string) =>
     fetch(target, {
       method: req.method,

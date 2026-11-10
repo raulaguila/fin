@@ -2684,7 +2684,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "The old link stops working and no email is sent. The token comes back\nwhatever the delivery mode, so only an administrator with users:update gets it.",
+                "description": "The old link stops working and no email is sent. The token comes back\nwhatever the delivery mode. Needs users:update and roles:update: the account may hold roles already.",
                 "produces": [
                     "application/json"
                 ],

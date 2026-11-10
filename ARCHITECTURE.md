@@ -96,7 +96,7 @@ Every query reads only what its caller uses. A hot path pays for each extra colu
 | GET | `/v1/users`, `search`, `status`, `role_id`, `sort` (`name`, `email`, `status`, `created_at`), `order` and pagination (`users:read`) |
 | POST | `/v1/users`, invite: creates a pending account and sends the activation email; a taken email is 409 (`users:create`) |
 | POST | `/v1/users/:id/invite`, sends a pending account a new activation email and ends the old link; 409 once activated, 429 inside the email cooldown (`users:update`) |
-| POST | `/v1/users/:id/activation-link`, the same without the email: returns the token and `expires_at` in any delivery mode, for the admin to hand over; audited as `user.activation_link`, shares the email throttle (`users:update`). `GET /v1/users/:id` shows `access.activation_expires_at` |
+| POST | `/v1/users/:id/activation-link`, the same without the email: returns the token and `expires_at` in any delivery mode, for the admin to hand over; audited as `user.activation_link`, shares the email throttle (`users:update` and `roles:update`: the account may already hold roles, and the link signs in as it). `GET /v1/users/:id` shows `access.activation_expires_at` |
 | DELETE | `/v1/users/:id/sessions`, ends every session of another user (`users:update`) |
 | GET | `/v1/users/:id`, with roles and `access`: last login, counted failures in the email window, lock end, live sessions (`users:read`) |
 | POST | `/v1/users/disable`, `/v1/users/enable`, body `{"ids": [...]}` (1 to 100), all or none (`users:update`) |

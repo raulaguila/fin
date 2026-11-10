@@ -237,7 +237,7 @@ function UserDetail({ id }: { id: string }) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-auto min-w-48">
                   <DropdownMenuItem onClick={() => reinvite.mutate()}>{t("users.resend_email")}</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setLinking(true)}>{t("users.copy_link")}</DropdownMenuItem>
+                  {can(me, "roles", "update") && <DropdownMenuItem onClick={() => setLinking(true)}>{t("users.copy_link")}</DropdownMenuItem>}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}

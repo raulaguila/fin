@@ -36,7 +36,8 @@ func (h *Handler) Routes(r fiber.Router, authz input.Authorizer) {
 	r.Get("/", read, h.List)
 	r.Post("/", middleware.Require(authz, domain.ResourceUsers, domain.ActionCreate), h.Invite)
 	r.Post("/:id/invite", update, h.Reinvite)
-	r.Post("/:id/activation-link", update, h.ActivationLink)
+	// The link signs in as the account, roles included; only who may grant roles may hold it.
+	r.Post("/:id/activation-link", update, middleware.Require(authz, domain.ResourceRoles, domain.ActionUpdate), h.ActivationLink)
 	r.Get("/:id", read, h.Get)
 	r.Post("/disable", update, h.Disable)
 	r.Post("/enable", update, h.Enable)
@@ -287,7 +288,7 @@ func (h *Handler) Reinvite(c fiber.Ctx) error {
 
 // @Summary Make a new activation link for a pending user, to hand over by hand
 // @Description The old link stops working and no email is sent. The token comes back
-// @Description whatever the delivery mode, so only an administrator with users:update gets it.
+// @Description whatever the delivery mode. Needs users:update and roles:update: the account may hold roles already.
 // @Tags Users
 // @Produce json
 // @Param id path string true "User ID"

@@ -45,7 +45,7 @@ Fonte: `Routes` de cada handler em `internal/adapter/inbound/http/rest/`, montad
 | POST | `/v1/users/unlock` | `users:update`; `{"ids": [...]}` (1 a 100); tudo ou nada; encerra o bloqueio, `locked` volta a `active`, zera as falhas da janela | global |
 | POST | `/v1/users` | `users:create`; convite: conta pendente + e-mail de ativação; e-mail já usado = 409 | global |
 | POST | `/v1/users/:id/invite` | `users:update`; só conta pendente (senão 409); novo e-mail de ativação, o link antigo deixa de valer; 429 dentro do intervalo entre e-mails | global |
-| POST | `/v1/users/:id/activation-link` | `users:update`; como o anterior, mas sem e-mail: devolve o token e `expires_at` mesmo com entrega por e-mail, para o admin repassar; auditado como `user.activation_link` | global |
+| POST | `/v1/users/:id/activation-link` | `users:update` e `roles:update` (a conta pendente pode já ter papéis, e o link entra como ela); como o anterior, mas sem e-mail: devolve o token e `expires_at` mesmo com entrega por e-mail, para o admin repassar; auditado como `user.activation_link` | global |
 | DELETE | `/v1/users/:id/sessions` | `users:update`; não a própria conta; não `is_superuser` | global |
 | GET | `/v1/audit` | `audit:read`; filtros `action` (prefixo), `user_id`, `from`, `to` | global |
 | GET | `/v1/audit/export` | `audit:read`; CSV com os mesmos filtros, até 10 000 registros (acima disso 400); células com cara de fórmula ganham `'` | global |

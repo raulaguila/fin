@@ -65,6 +65,28 @@ func TestEveryRouteNeedsItsPermission(t *testing.T) {
 	}
 }
 
+// onlyUsers grants every users action and nothing else.
+type onlyUsers struct{}
+
+func (onlyUsers) Authorize(_ context.Context, _ domain.Principal, resource string, _ domain.Action) error {
+	if resource == domain.ResourceUsers {
+		return nil
+	}
+	return apperror.New(apperror.CodeForbidden, "forbidden")
+}
+
+// A pending account may already hold roles, and its link signs in as it: users
+// rights alone must not hand that over.
+func TestActivationLinkNeedsRoleRights(t *testing.T) {
+	resp, err := newApp(nil, onlyUsers{}).Test(httptest.NewRequest("POST", "/users/u1/activation-link", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != fiber.StatusForbidden {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+}
+
 type stubUsers struct {
 	input.UserService
 	filter domain.UserFilter

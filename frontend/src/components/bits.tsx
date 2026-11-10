@@ -113,22 +113,22 @@ export function FormSection({ title, description, wide = false, danger = false, 
   children: React.ReactNode;
 }) {
   return (
-    <section className="grid gap-3 border-t pt-8 first:border-t-0 first:pt-0 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10">
+    <section className="grid gap-3 border-t pt-8 first:border-t-0 first:pt-0 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-10">
       <div className="space-y-1">
         <h2 className={cn("font-heading text-base font-semibold", danger && "text-destructive")}>{title}</h2>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
-      <div className={cn("min-w-0", !wide && "max-w-2xl")}>{children}</div>
+      <div className={cn("min-w-0", !wide && "max-w-3xl")}>{children}</div>
     </section>
   );
 }
 
 /**
  * The page's form surface: one card holding every section, split by thin rules.
- * Capped in width, since a form gains nothing from a wide screen.
+ * Full width like the rest of the platform; FormSection keeps the fields readable.
  */
 export function FormSections({ danger = false, children }: { danger?: boolean; children: React.ReactNode }) {
-  return <div className={cn("max-w-5xl space-y-8 rounded-xl border bg-card p-6 text-card-foreground shadow-xs sm:p-8", danger && "border-destructive/40")}>{children}</div>;
+  return <div className={cn("space-y-8 rounded-xl border bg-card p-6 text-card-foreground shadow-xs sm:p-8", danger && "border-destructive/40")}>{children}</div>;
 }
 
 /**

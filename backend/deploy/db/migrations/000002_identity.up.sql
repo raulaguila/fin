@@ -8,6 +8,9 @@ CREATE TABLE usr.usr_user (
     status     TEXT        NOT NULL DEFAULT 'pending',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- When the user last set a profile picture; NULL means none. The image itself
+    -- lives in the file store under avatars/<user id>.
+    avatar_at  TIMESTAMPTZ NULL,
     CONSTRAINT chk_usr_user_name_len CHECK (char_length(name) BETWEEN 2 AND 80),
     CONSTRAINT chk_usr_user_status CHECK (status IN ('pending', 'active', 'locked', 'disabled'))
 );
@@ -92,10 +95,13 @@ CREATE INDEX idx_usr_login_attempt_created ON usr.usr_login_attempt (created_at)
 -- RBAC. actions is an INT4 mask: create=1 read=2 update=4 delete=8. Bits 4-30 are
 -- free, bit 31 is the sign. Never reuse an index. The view does not expand the
 -- sentinel '*' and leaves is_superuser out: the application applies both.
+-- usr_resource.actions lists the actions its routes check, so a role cannot hold
+-- a grant that does nothing (audit is read-only; users are disabled, never deleted).
 CREATE TABLE usr.usr_resource (
     code        VARCHAR(100) PRIMARY KEY,
     description TEXT         NOT NULL DEFAULT '',
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    actions     INTEGER      NOT NULL DEFAULT 15,
     CONSTRAINT chk_usr_resource_code CHECK (code ~ '^[a-z0-9_-]{2,100}$')
 );
 
@@ -192,10 +198,10 @@ CREATE TRIGGER trg_usr_role_set_updated_at BEFORE UPDATE ON usr.usr_role
 CREATE TRIGGER trg_usr_preference_set_updated_at BEFORE UPDATE ON usr.usr_preference
     FOR EACH ROW EXECUTE FUNCTION public.fn_set_updated_at();
 
-INSERT INTO usr.usr_resource (code, description) VALUES
-    ('users', 'Accounts and profile'),
-    ('roles', 'RBAC roles'),  -- reading the catalog is part of roles:read
-    ('audit', 'Audit log of administrative changes');
+INSERT INTO usr.usr_resource (code, description, actions) VALUES
+    ('users', 'Accounts and profile', 7),
+    ('roles', 'RBAC roles', 15),  -- reading the catalog is part of roles:read
+    ('audit', 'Audit log of administrative changes', 2);
 
 INSERT INTO usr.usr_role (name, is_default, is_superuser) VALUES
     ('user',  true,  false),

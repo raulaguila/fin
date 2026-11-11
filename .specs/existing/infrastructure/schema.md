@@ -1,14 +1,14 @@
 # Schema
 
-Fonte: `deploy/db/migrations`. Schema `usr` = identidade; `sys` = outbox; `app` = products. `public` guarda extensões e `fn_set_updated_at`. Clock de negócio na aplicação; o trigger só preenche `updated_at`. Volume local antigo: `make compose-remove`.
+Fonte: `deploy/db/migrations`. Schema `usr` = identidade; `sys` = outbox, jobs e rate limit; `app` = products. `public` guarda extensões e `fn_set_updated_at`. Clock de negócio na aplicação; o trigger só preenche `updated_at`. Volume local antigo: `make compose-remove`.
 
 ## Ordem
 
 ```text
 000001_foundation  # citext, schemas usr/sys/app, fn_set_updated_at, role authenticity_app
 000002_identity    # tabelas usr, RBAC, view, usr_resource, papeis user/admin, notificações, auditoria
-000003_outbox      # sys.outbox, sys.fn_cleanup, pg_cron
-000004_products    # app.product e recurso products no catalogo
+000003_system      # sys.outbox, sys.job, sys.rate_limit, sys.fn_cleanup, pg_cron
+000004_products    # app.product (com version) e recurso products no catalogo
 ```
 
 ## Status (`usr_user.status`)

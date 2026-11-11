@@ -5,6 +5,9 @@ CREATE TABLE app.product (
     name       TEXT           NOT NULL,
     price      NUMERIC(12, 2) NOT NULL,
     enabled    BOOLEAN        NOT NULL DEFAULT true,
+    -- Optimistic concurrency: every update bumps it, and an update that names the
+    -- version it read is refused when someone else changed the row since.
+    version    INTEGER        NOT NULL DEFAULT 1,
     created_at TIMESTAMPTZ    NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ    NOT NULL DEFAULT now(),
     CONSTRAINT chk_app_product_name_len CHECK (char_length(name) BETWEEN 1 AND 120),

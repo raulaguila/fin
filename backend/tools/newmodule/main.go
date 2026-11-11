@@ -163,8 +163,7 @@ func copyTree(src, dst string, n names) error {
 	})
 }
 
-// migration writes the next numbered pair. It is the products schema plus the
-// version column that products received later in its own migration.
+// migration writes the next numbered pair from the products schema.
 func migration(backend string, n names) error {
 	dir := filepath.Join(backend, "deploy/db/migrations")
 	entries, err := os.ReadDir(dir)
@@ -184,12 +183,7 @@ func migration(backend string, n names) error {
 		if err != nil {
 			return err
 		}
-		text := n.apply(string(data))
-		if suffix == ".up.sql" {
-			text = strings.Replace(text, "    enabled    BOOLEAN        NOT NULL DEFAULT true,\n",
-				"    enabled    BOOLEAN        NOT NULL DEFAULT true,\n    version    INTEGER        NOT NULL DEFAULT 1,\n", 1)
-		}
-		if err := os.WriteFile(base+suffix, []byte(text), 0o644); err != nil { //nolint:gosec // repository source files; names are checked and paths come from the template
+		if err := os.WriteFile(base+suffix, []byte(n.apply(string(data))), 0o644); err != nil { //nolint:gosec // repository source files; names are checked and paths come from the template
 			return err
 		}
 	}

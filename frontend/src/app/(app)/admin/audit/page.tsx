@@ -22,6 +22,7 @@ import { useMe } from "@/lib/context/me";
 import { useDebounced } from "@/lib/hooks/use-debounced";
 import { can, permissionsText } from "@/lib/permissions";
 import type { AuditRecord } from "@/lib/api/types";
+import { targetHref } from "@/lib/audit";
 import { errorMessage } from "@/lib/errors";
 import { useGoToPage, useListParams } from "@/lib/hooks/use-list-params";
 import type { MessageKey } from "@/lib/i18n/messages";
@@ -37,13 +38,6 @@ function dayStart(day: string, plusDays = 0): string | undefined {
   const d = new Date(`${day}T00:00:00`);
   d.setDate(d.getDate() + plusDays);
   return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
-}
-
-function targetHref(r: AuditRecord): string | undefined {
-  if (!r.target_id) return undefined;
-  if (r.action.startsWith("user.") || r.action.startsWith("admin.")) return `/admin/users/${r.target_id}`;
-  if (r.action.startsWith("role.")) return `/admin/roles/${r.target_id}`;
-  if (r.action.startsWith("product.") && r.action !== "product.delete") return `/products/${r.target_id}`;
 }
 
 /** Detail keys and values in the app language; an unknown key or shape stays as the API sent it. */
@@ -71,7 +65,7 @@ function DateField({ label, value, min, max, onChange }: { label: string; value:
   const input = useRef<HTMLInputElement>(null);
   const shown = DAY.test(value) ? new Date(`${value}T00:00:00`).toLocaleDateString(locale, { dateStyle: "medium" }) : "";
   return (
-    <span className="relative inline-flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+    <span className="relative inline-flex min-w-0 items-center gap-2 text-sm text-muted-foreground max-sm:col-span-2">
       {label}
       <Button
         type="button"

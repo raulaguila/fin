@@ -13,6 +13,7 @@ describe("validation rules", () => {
     expect(email("ana@acme.io")).toBeNull();
     expect(price("12,5")).toBeNull();
     expect(price("12.345")).toBe("error.msg.price_format");
+    expect(price("-5")).toBe("error.msg.price_negative");
     expect(roleName("Gestores")).toBe("error.msg.role_name");
     expect(roleName("gestores")).toBeNull();
     expect(newPassword("short")).toBe("error.msg.password_short");

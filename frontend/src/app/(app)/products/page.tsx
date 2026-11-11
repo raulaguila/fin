@@ -92,12 +92,12 @@ export default function ProductsPage() {
             <Input type="search" aria-label={t("common.search")} placeholder={t("products.search")} className="pl-9" value={search} onChange={(e) => { setSearch(e.target.value); set({ q: e.target.value.trim(), page: 1 }); }} />
           </div>
           <Select value={state} items={stateItems} onValueChange={(v) => set({ state: v as State, page: 1 })}>
-            <SelectTrigger className="w-44 max-sm:w-full" aria-label={t("roles.state")}><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-44 max-sm:col-span-2 max-sm:w-full" aria-label={t("roles.state")}><SelectValue /></SelectTrigger>
             <SelectContent>
               {Object.entries(stateItems).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <SortSelect fields={[{ field: "name", label: t("auth.name") }, { field: "price", label: t("products.price") }, { field: "created_at", label: t("common.created_at") }]} {...sortProps} />
+          <SortSelect fields={[{ field: "name", label: t("auth.name") }, { field: "price", label: t("products.price") }, { field: "created_at", label: t("common.created_at") }]} {...sortProps} className="max-sm:col-span-2" />
         </div>
 
         {list.isPending ? (
@@ -127,8 +127,8 @@ export default function ProductsPage() {
                 {items.map((p) => (
                   <TableRow key={p.id} className="cursor-pointer" onClick={() => open(p.id)}>
                     {canDelete && <SelectCell selection={selection} id={p.id} label={p.name} />}
-                    <TableCell data-label={t("auth.name")} data-cell="name">
-                      <Link href={`/products/${p.id}`} className="font-medium hover:underline" onClick={(e) => e.stopPropagation()}>{p.name}</Link>
+                    <TableCell data-label={t("auth.name")} data-cell="name" className="w-full max-w-0">
+                      <Link href={`/products/${p.id}`} className="block truncate font-medium hover:underline" title={p.name} onClick={(e) => e.stopPropagation()}>{p.name}</Link>
                     </TableCell>
                     <TableCell data-label={t("products.price")} data-cell="sub" className="text-right font-mono tabular-nums">{money.format(Number(p.price))}</TableCell>
                     <TableCell data-label={t("roles.state")} data-cell="status">

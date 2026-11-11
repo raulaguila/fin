@@ -77,7 +77,8 @@ function GeneralCard({ name, nameOk, enabled, isDefault, editable, onName, onEna
         <div className="space-y-2">
           <Label htmlFor="name">{t("auth.name")}</Label>
           {/* Flagged as soon as it breaks the rule; an empty field only blocks saving. */}
-          <Input id="name" required maxLength={40} aria-describedby="name-hint" aria-invalid={name !== "" && !nameOk} disabled={!editable} value={name} onChange={(e) => onName(e.target.value)} />
+          {/* Typed as written ("Gerente Vendas") and kept in the allowed form (gerente-vendas). */}
+          <Input id="name" required autoFocus={!name} maxLength={40} aria-describedby="name-hint" aria-invalid={name !== "" && !nameOk} disabled={!editable} value={name} onChange={(e) => onName(e.target.value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s/g, "-"))} />
           <p id="name-hint" className={cn("text-xs", name !== "" && !nameOk ? "text-destructive" : "text-muted-foreground")}>{t("roles.name_hint")}</p>
         </div>
         <label className="flex items-center gap-3 text-sm">

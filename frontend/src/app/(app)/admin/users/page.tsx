@@ -85,14 +85,14 @@ export default function UsersPage() {
             />
           </div>
           <Select value={status || "all"} items={statusItems} onValueChange={(v) => set({ status: v === "all" ? "" : (v as string), page: 1 })}>
-            <SelectTrigger className="w-44 max-sm:w-full" aria-label={t("users.status")}><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-44 max-sm:col-span-2 max-sm:w-full" aria-label={t("users.status")}><SelectValue /></SelectTrigger>
             <SelectContent>
               {Object.entries(statusItems).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
             </SelectContent>
           </Select>
           {canRoles && (
             <Select value={role || "all"} items={roleItems} onValueChange={(v) => set({ role: v === "all" ? "" : (v as string), page: 1 })}>
-              <SelectTrigger className="w-48 max-sm:w-full" aria-label={t("users.role")}><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-48 max-sm:col-span-2 max-sm:w-full" aria-label={t("users.role")}><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.entries(roleItems).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
               </SelectContent>
@@ -128,11 +128,11 @@ export default function UsersPage() {
                 {list.data.items.map((u) => (
                   <TableRow key={u.id} className="cursor-pointer" onClick={() => router.push(`/admin/users/${u.id}`)}>
                     {canBulk && <SelectCell selection={selection} id={u.id} label={u.name} disabled={u.id === user?.id} />}
-                    <TableCell data-label={t("auth.name")} data-cell="name">
+                    <TableCell data-label={t("auth.name")} data-cell="name" className="w-1/2 max-w-0">
                       {/* the keyboard way into the record on phones, where the action button is hidden */}
-                      <Link href={`/admin/users/${u.id}`} className="block truncate font-medium hover:underline lg:max-w-48 xl:max-w-64 2xl:max-w-80" title={u.name} onClick={(e) => e.stopPropagation()}>{u.name}</Link>
+                      <Link href={`/admin/users/${u.id}`} className="block truncate font-medium hover:underline" title={u.name} onClick={(e) => e.stopPropagation()}>{u.name}</Link>
                     </TableCell>
-                    <TableCell data-label={t("auth.email")} data-cell="sub" className="text-muted-foreground lg:text-foreground"><span className="block truncate lg:max-w-48 xl:max-w-64 2xl:max-w-80" title={u.email}>{u.email}</span></TableCell>
+                    <TableCell data-label={t("auth.email")} data-cell="sub" className="w-1/2 max-w-0 text-muted-foreground lg:text-foreground"><span className="block truncate" title={u.email}>{u.email}</span></TableCell>
                     <TableCell data-label={t("users.status")} data-cell="status"><StatusBadge status={u.status} /></TableCell>
                     <TableCell data-label={t("common.created_at")} data-cell="date" className="text-muted-foreground">{format(u.created_at)}</TableCell>
                     <TableCell data-cell="action" className="text-right">

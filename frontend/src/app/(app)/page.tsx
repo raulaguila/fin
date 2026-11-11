@@ -6,6 +6,7 @@ import { Lock, UserRoundPlus, type LucideIcon } from "lucide-react";
 import { PageBody, PageHeader, useFormatDate } from "@/components/bits";
 import { Card } from "@/components/ui/card";
 import { audit, products, roles, users } from "@/lib/api/endpoints";
+import { targetHref } from "@/lib/audit";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { useMe } from "@/lib/context/me";
 import { useI18n } from "@/lib/i18n/provider";
@@ -57,7 +58,7 @@ function RecentActivity() {
           <li key={r.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2 text-sm">
             <span className="min-w-0 truncate">
               <span className="font-medium">{label(r.action)}</span>
-              {r.target_label && <> · {r.target_label}</>}{" "}
+              {r.target_label && <> · {targetHref(r) ? <Link href={targetHref(r)!} className="hover:underline">{r.target_label}</Link> : r.target_label}</>}{" "}
               <span className="text-muted-foreground">{t("home.by")} {r.actor_name || r.actor_email || t("audit.system")}</span>
             </span>
             <span className="text-xs text-muted-foreground tabular-nums">{format(r.created_at)}</span>

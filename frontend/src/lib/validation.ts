@@ -12,7 +12,8 @@ export const personName: Rule = (v) => (filled(v) && (chars(v) < 2 || chars(v) >
 export const email: Rule = (v) => (filled(v) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? "error.msg.email" : null);
 export const productName: Rule = (v) => (chars(v) > 120 ? "error.msg.product_name" : null);
 // Dot or comma: the form shows the language's decimal mark.
-export const price: Rule = (v) => (filled(v) && !/^\d{1,10}([.,]\d{1,2})?$/.test(v.trim()) ? "error.msg.price_format" : null);
+export const price: Rule = (v) =>
+  !filled(v) ? null : v.trim().startsWith("-") ? "error.msg.price_negative" : !/^\d{1,10}([.,]\d{1,2})?$/.test(v.trim()) ? "error.msg.price_format" : null;
 export const roleName: Rule = (v) => (filled(v) && !/^[a-z0-9_-]{2,40}$/.test(v.trim()) ? "error.msg.role_name" : null);
 // Common passwords and the account's own name stay a server check.
 export const newPassword: Rule = (v) =>

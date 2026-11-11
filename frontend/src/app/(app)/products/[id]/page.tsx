@@ -160,7 +160,7 @@ export default function ProductPage() {
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title={t("products.delete")}
-        description={product?.name}
+        description={`${product?.name ?? ""}. ${t("products.delete_hint")}`}
         destructive
         confirmLabel={t("common.delete")}
         onConfirm={async () => {

@@ -83,6 +83,9 @@ function RolesCard({ user }: { user: UserDetails }) {
                 </li>
               ))}
             </ul>
+            {user.status === "pending" && all.data.items.some((r) => r.is_default) && (
+              <p className="text-xs text-muted-foreground">{t("users.default_on_activation")}</p>
+            )}
           </>
         )}
       </div>

@@ -15,6 +15,12 @@ CREATE TABLE usr.usr_user (
     CONSTRAINT chk_usr_user_status CHECK (status IN ('pending', 'active', 'locked', 'disabled'))
 );
 
+-- The user list sorts by these, and its search is a substring match on name and email.
+CREATE INDEX idx_usr_user_name ON usr.usr_user (name, id);
+CREATE INDEX idx_usr_user_created ON usr.usr_user (created_at DESC, id);
+CREATE INDEX idx_usr_user_name_trgm ON usr.usr_user USING gin (name gin_trgm_ops);
+CREATE INDEX idx_usr_user_email_trgm ON usr.usr_user USING gin ((email::text) gin_trgm_ops);
+
 -- password_hash is a PHC string, so it names its algorithm. NULL until activation.
 CREATE TABLE usr.usr_credential (
     user_id               UUID        PRIMARY KEY REFERENCES usr.usr_user (id) ON DELETE CASCADE,
@@ -187,6 +193,8 @@ CREATE TABLE usr.usr_audit_log (
 CREATE INDEX idx_usr_audit_log_created ON usr.usr_audit_log (created_at);
 CREATE INDEX idx_usr_audit_log_target ON usr.usr_audit_log (target_id, created_at);
 CREATE INDEX idx_usr_audit_log_actor ON usr.usr_audit_log (actor_id, created_at);
+-- The action filter is a prefix (LIKE 'product.%'): without it a rare action reads the whole log.
+CREATE INDEX idx_usr_audit_log_action ON usr.usr_audit_log (action text_pattern_ops, created_at DESC);
 REVOKE UPDATE, DELETE ON usr.usr_audit_log FROM authenticity_app;
 
 CREATE TRIGGER trg_usr_user_set_updated_at BEFORE UPDATE ON usr.usr_user

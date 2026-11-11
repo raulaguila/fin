@@ -87,6 +87,7 @@ const ptBR = {
   "common.save_failed": "Não foi possível salvar.",
   "common.saved": "Alterações salvas.",
   "common.search": "Buscar",
+  "common.search_min": "Digite ao menos 3 caracteres para buscar.",
   "common.theme": "Tema",
   "common.updated_at": "Atualizado em",
 
@@ -493,6 +494,7 @@ const enUS: Record<MessageKey, string> = {
   "common.save_failed": "Could not save.",
   "common.saved": "Changes saved.",
   "common.search": "Search",
+  "common.search_min": "Type at least 3 characters to search.",
   "common.theme": "Theme",
   "common.updated_at": "Updated",
 

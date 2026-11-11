@@ -7,23 +7,29 @@ import { PageBody, PageHeader, useFormatDate } from "@/components/bits";
 import { Card } from "@/components/ui/card";
 import { audit, products, roles, users } from "@/lib/api/endpoints";
 import { targetHref } from "@/lib/audit";
+import type { UserCounts } from "@/lib/api/types";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { useMe } from "@/lib/context/me";
 import { useI18n } from "@/lib/i18n/provider";
 import { ADMIN_NAV, MAIN_NAV } from "@/lib/navigation";
 import { can } from "@/lib/permissions";
 
-type Total = { key: readonly unknown[]; fn: () => Promise<{ pagination: { total_items: number } }> };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- each total picks its number from its own answer
+type Total = { key: readonly unknown[]; fn: () => Promise<any>; pick: (data: any) => number };
+
+const listTotal = (data: { pagination: { total_items: number } }) => data.pagination.total_items;
+// The three user cards share one query: one count pass instead of three.
+const userCounts = (pick: (c: UserCounts) => number): Total => ({ key: ["users", "counts"], fn: users.counts, pick });
 
 // One row of each list is enough: the total comes back in the pagination.
 const totals: Record<string, Total> = {
-  "/products": { key: ["products", "total"], fn: () => products.list({ page: 1, limit: 1 }) },
-  "/admin/users": { key: ["users", "total"], fn: () => users.list({ page: 1, limit: 1 }) },
-  "/admin/roles": { key: ["roles", "list", "total"], fn: () => roles.list({ page: 1, limit: 1 }) },
+  "/products": { key: ["products", "total"], fn: () => products.list({ page: 1, limit: 1 }), pick: listTotal },
+  "/admin/users": userCounts((c) => c.total),
+  "/admin/roles": { key: ["roles", "list", "total"], fn: () => roles.list({ page: 1, limit: 1 }), pick: listTotal },
 };
 
 function StatCard({ href, label, icon: Icon, total }: { href: string; label: string; icon: LucideIcon; total: Total }) {
-  const count = useQuery({ queryKey: total.key, queryFn: total.fn });
+  const count = useQuery({ queryKey: total.key, queryFn: total.fn, select: total.pick });
   return (
     <Link href={href} className="group rounded-lg focus-visible:outline-2 focus-visible:outline-ring">
       <Card className="h-full gap-2 p-4 transition-colors group-hover:bg-muted">
@@ -31,7 +37,7 @@ function StatCard({ href, label, icon: Icon, total }: { href: string; label: str
           <span className="text-sm text-muted-foreground">{label}</span>
           <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         </div>
-        <span className="text-2xl font-semibold tabular-nums">{count.data?.pagination.total_items ?? "—"}</span>
+        <span className="text-2xl font-semibold tabular-nums">{count.data ?? "—"}</span>
       </Card>
     </Link>
   );
@@ -73,14 +79,8 @@ export default function HomePage() {
   const { t } = useI18n();
   const { user } = useMe();
   const items = [...MAIN_NAV, ...ADMIN_NAV].filter((item) => totals[item.href] && (!item.needs || can(user, ...item.needs)));
-  const pending: Total = {
-    key: ["users", "total", "pending"],
-    fn: () => users.list({ page: 1, limit: 1, status: "pending" }),
-  };
-  const locked: Total = {
-    key: ["users", "total", "locked"],
-    fn: () => users.list({ page: 1, limit: 1, status: "locked" }),
-  };
+  const pending = userCounts((c) => c.pending);
+  const locked = userCounts((c) => c.locked);
   return (
     <>
       <PageHeader title={user ? `${t("home.greeting")}, ${user.name.split(" ")[0]}` : t("nav.home")} description={t("home.subtitle")} />

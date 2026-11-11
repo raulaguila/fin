@@ -71,8 +71,8 @@ type roleRow struct {
 // memberCount counts the members of role s the API may see. It visits every
 // member, and the default role holds nearly every user: only screens that show
 // the number ask for it.
-const memberCount = `(SELECT count(*) FROM usr.usr_user u JOIN usr.usr_user_role m ON m.user_id = u.id
-	WHERE m.role_id = s.id AND ` + shared.Unprotected + `)`
+const memberCount = `(SELECT count(*) FROM usr.usr_user_role m
+	WHERE m.role_id = s.id AND m.user_id NOT IN (` + shared.ProtectedIDs + `))`
 
 // load reads the roles of source with their permissions in one round trip, in
 // the given order of the alias r. MemberCount stays 0 unless members is set.

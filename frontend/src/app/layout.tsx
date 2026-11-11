@@ -19,6 +19,7 @@ const ibmPlexMono = localFont({
   ],
   variable: "--font-ibm-plex-mono",
   display: "swap",
+  preload: false, // only prices and codes inside the app use it; the sign-in pages need not wait for it
 });
 
 export const metadata: Metadata = {

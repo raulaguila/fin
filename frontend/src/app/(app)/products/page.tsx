@@ -23,6 +23,7 @@ import type { SortOrder } from "@/lib/api/types";
 import { CURRENCY } from "@/lib/brand";
 import { useMe } from "@/lib/context/me";
 import { useDebounced } from "@/lib/hooks/use-debounced";
+import { searchTerm } from "@/lib/utils";
 import { useGoToPage, useListParams } from "@/lib/hooks/use-list-params";
 import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n/provider";
@@ -45,7 +46,7 @@ export default function ProductsPage() {
   const [search, setSearch] = useState(params.q);
   const [hidden, setHidden] = useState<string[]>([]);
   const router = useRouter();
-  const q = useDebounced(params.q);
+  const q = searchTerm(useDebounced(params.q));
   const list = useQuery({
     queryKey: ["products", page, limit, q, sort, order, state],
     queryFn: ({ signal }) => products.list({ page, limit, search: q, sort, order, enabled: state === "all" ? undefined : state === "on" }, signal),
@@ -98,6 +99,7 @@ export default function ProductsPage() {
             </SelectContent>
           </Select>
           <SortSelect fields={[{ field: "name", label: t("auth.name") }, { field: "price", label: t("products.price") }, { field: "created_at", label: t("common.created_at") }]} {...sortProps} className="max-sm:col-span-2" />
+          {search.trim() !== "" && !searchTerm(search) && <p className="basis-full text-xs text-muted-foreground max-sm:col-span-2" role="status">{t("common.search_min")}</p>}
         </div>
 
         {list.isPending ? (

@@ -23,6 +23,7 @@ import { roles, users } from "@/lib/api/endpoints";
 import type { SortOrder, UserStatus } from "@/lib/api/types";
 import { useMe } from "@/lib/context/me";
 import { useDebounced } from "@/lib/hooks/use-debounced";
+import { searchTerm } from "@/lib/utils";
 import { useGoToPage, useListParams } from "@/lib/hooks/use-list-params";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/provider";
@@ -47,7 +48,7 @@ export default function UsersPage() {
   const sort = SORTS.includes(params.sort) ? params.sort : "name";
   const order: SortOrder = params.order === "desc" ? "desc" : "asc";
   const [search, setSearch] = useState(params.q);
-  const q = useDebounced(params.q);
+  const q = searchTerm(useDebounced(params.q));
   const list = useQuery({
     queryKey: ["users", page, limit, q, status, role, sort, order],
     queryFn: ({ signal }) => users.list({ page, limit, search: q, status, role_id: role, sort, order }, signal),
@@ -99,6 +100,7 @@ export default function UsersPage() {
             </Select>
           )}
           <SortSelect fields={[{ field: "name", label: t("auth.name") }, { field: "email", label: t("auth.email") }, { field: "status", label: t("users.status") }, { field: "created_at", label: t("common.created_at") }]} className="max-sm:col-span-2" {...sortProps} />
+          {search.trim() !== "" && !searchTerm(search) && <p className="basis-full text-xs text-muted-foreground max-sm:col-span-2" role="status">{t("common.search_min")}</p>}
         </div>
 
         {list.isPending ? (

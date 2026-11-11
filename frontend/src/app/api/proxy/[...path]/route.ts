@@ -11,6 +11,16 @@ export const dynamic = "force-dynamic";
 const MAX_BODY = 104 * 1024; // the backend refuses more: a 100 KB picture is its largest body
 const TOKEN_PATHS = /^v1\/auth\/(login|refresh|logout|register|activate|password-reset)(\/|$)/;
 const PASSTHROUGH = ["content-type", "content-disposition", "retry-after", "x-request-id"];
+const COMPRESSIBLE = /^(application\/json|text\/)/;
+const MIN_GZIP = 1024; // below this the gzip header costs more than it saves
+
+/** Gzips JSON and text when the browser takes it: Next compresses pages, not route handler streams. */
+function compressed(req: NextRequest, upstream: Response): ReadableStream<Uint8Array> | null {
+  const length = Number(upstream.headers.get("content-length") ?? Infinity);
+  if (!upstream.body || length < MIN_GZIP || !COMPRESSIBLE.test(upstream.headers.get("content-type") ?? "")) return null;
+  if (!/\bgzip\b/.test(req.headers.get("accept-encoding") ?? "")) return null;
+  return upstream.body.pipeThrough(new CompressionStream("gzip"));
+}
 
 async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
@@ -61,7 +71,12 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
     return out;
   }
 
-  const out = new NextResponse(upstream.body, { status: upstream.status });
+  const gzip = compressed(req, upstream);
+  const out = new NextResponse(gzip ?? upstream.body, { status: upstream.status });
+  if (gzip) {
+    out.headers.set("content-encoding", "gzip");
+    out.headers.set("vary", "accept-encoding");
+  }
   for (const name of PASSTHROUGH) {
     const value = upstream.headers.get(name);
     if (value) out.headers.set(name, value);

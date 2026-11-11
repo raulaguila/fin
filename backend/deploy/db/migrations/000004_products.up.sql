@@ -17,6 +17,7 @@ CREATE TABLE app.product (
 CREATE INDEX idx_app_product_name ON app.product (name);
 CREATE INDEX idx_app_product_name_trgm ON app.product USING gin (name gin_trgm_ops);
 CREATE INDEX idx_app_product_cursor ON app.product (created_at DESC, id DESC);
+CREATE INDEX idx_app_product_price ON app.product (price, id);
 
 CREATE TRIGGER trg_app_product_set_updated_at BEFORE UPDATE ON app.product
     FOR EACH ROW EXECUTE FUNCTION public.fn_set_updated_at();

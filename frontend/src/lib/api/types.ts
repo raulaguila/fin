@@ -88,6 +88,13 @@ export interface User {
   updated_at: string;
 }
 
+/** The user list's size: everyone it shows, and those waiting on an action. */
+export interface UserCounts {
+  total: number;
+  pending: number;
+  locked: number;
+}
+
 export interface UserDetails extends User {
   roles: { id: string; name: string }[];
   access?: {

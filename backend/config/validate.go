@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/ed25519"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -19,14 +20,14 @@ const ServiceMailer = "mailer"
 
 func validateEnvironment(env *Environment) error {
 	if env == nil {
-		return fmt.Errorf("environment is required")
+		return errors.New("environment is required")
 	}
 
 	if _, err := aescrypt.ParseKey(env.SMTP.MasterKey); err != nil {
 		return fmt.Errorf("SMTP_MASTER_KEY: %w", err)
 	}
 	if u, err := url.Parse(env.SMTP.AppURL); env.SMTP.AppURL != "" && (err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "") {
-		return fmt.Errorf("SMTP_APP_URL must be an http or https address")
+		return errors.New("SMTP_APP_URL must be an http or https address")
 	}
 
 	if isProtectedEnvironment(env.Environment) {
@@ -53,7 +54,7 @@ func validateEnvironment(env *Environment) error {
 		return err
 	}
 	if env.Postgres.MaxConns <= 0 {
-		return fmt.Errorf("POSTGRES_MAX_CONNS must be greater than 0")
+		return errors.New("POSTGRES_MAX_CONNS must be greater than 0")
 	}
 	return validateStorage(env.Storage)
 }
@@ -62,58 +63,58 @@ func validateStorage(cfg StorageConfig) error {
 	switch cfg.Driver {
 	case "", "local": // empty only in hand-built configs; the loader defaults to local
 		if cfg.Driver == "local" && cfg.LocalDir == "" {
-			return fmt.Errorf("STORAGE_LOCAL_DIR is required when STORAGE_DRIVER is local")
+			return errors.New("STORAGE_LOCAL_DIR is required when STORAGE_DRIVER is local")
 		}
 	case "s3":
 		if u, err := url.Parse(cfg.S3Endpoint); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-			return fmt.Errorf("STORAGE_S3_ENDPOINT must be an http or https address")
+			return errors.New("STORAGE_S3_ENDPOINT must be an http or https address")
 		}
 		if cfg.S3Bucket == "" || cfg.S3Region == "" || cfg.S3AccessKey == "" || cfg.S3SecretKey == "" {
-			return fmt.Errorf("STORAGE_S3_BUCKET, STORAGE_S3_REGION, STORAGE_S3_ACCESS_KEY and STORAGE_S3_SECRET_KEY are required when STORAGE_DRIVER is s3")
+			return errors.New("STORAGE_S3_BUCKET, STORAGE_S3_REGION, STORAGE_S3_ACCESS_KEY and STORAGE_S3_SECRET_KEY are required when STORAGE_DRIVER is s3")
 		}
 	default:
-		return fmt.Errorf("STORAGE_DRIVER must be local or s3")
+		return errors.New("STORAGE_DRIVER must be local or s3")
 	}
 	return nil
 }
 
 func validateAPIConfig(cfg APIConfig) error {
 	if cfg.GlobalRateLimit <= 0 || cfg.AuthRateLimit <= 0 || cfg.PasswordRateLimit <= 0 {
-		return fmt.Errorf("API_RATE_LIMIT_* must be greater than 0")
+		return errors.New("API_RATE_LIMIT_* must be greater than 0")
 	}
 	if cfg.RequestTimeout <= 0 {
-		return fmt.Errorf("API_REQUEST_TIMEOUT must be greater than 0")
+		return errors.New("API_REQUEST_TIMEOUT must be greater than 0")
 	}
 	return nil
 }
 
 func validateAuthConfig(cfg AuthConfig) error {
 	if cfg.AccessExpiration <= 0 || cfg.RefreshExpiration <= 0 || cfg.RegistrationTokenTTL <= 0 || cfg.PasswordResetTokenTTL <= 0 {
-		return fmt.Errorf("token expiration durations must be greater than 0")
+		return errors.New("token expiration durations must be greater than 0")
 	}
 	if cfg.LoginAttemptEmailWindow <= 0 || cfg.LoginAttemptIPWindow <= 0 || cfg.EmailTokenCooldown < 0 || cfg.EmailTokenHourlyMax < 0 {
-		return fmt.Errorf("login windows must be positive; email cooldown and cap cannot be negative")
+		return errors.New("login windows must be positive; email cooldown and cap cannot be negative")
 	}
 	if cfg.MaxFailedLoginAttempts <= 0 {
-		return fmt.Errorf("AUTH_MAX_FAILED_LOGIN_ATTEMPTS must be greater than 0")
+		return errors.New("AUTH_MAX_FAILED_LOGIN_ATTEMPTS must be greater than 0")
 	}
 	if cfg.LoginAttemptPairMaxFailures <= 0 {
-		return fmt.Errorf("AUTH_LOGIN_ATTEMPT_PAIR_MAX must be greater than 0")
+		return errors.New("AUTH_LOGIN_ATTEMPT_PAIR_MAX must be greater than 0")
 	}
 	if cfg.LoginAttemptEmailMaxFailures <= 0 || cfg.LoginAttemptIPMaxFailures <= 0 { // 0 would refuse every login
-		return fmt.Errorf("AUTH_LOGIN_ATTEMPT_EMAIL_MAX and AUTH_LOGIN_ATTEMPT_IP_MAX must be greater than 0")
+		return errors.New("AUTH_LOGIN_ATTEMPT_EMAIL_MAX and AUTH_LOGIN_ATTEMPT_IP_MAX must be greater than 0")
 	}
 	if cfg.SessionMaxLifetime <= 0 {
-		return fmt.Errorf("AUTH_SESSION_MAX_LIFETIME must be greater than 0")
+		return errors.New("AUTH_SESSION_MAX_LIFETIME must be greater than 0")
 	}
 	if cfg.AccountLockDuration <= 0 {
-		return fmt.Errorf("AUTH_ACCOUNT_LOCK_DURATION must be greater than 0")
+		return errors.New("AUTH_ACCOUNT_LOCK_DURATION must be greater than 0")
 	}
 	// With one key an access token passes as a refresh token, and the reverse.
 	for _, access := range []ed25519.PrivateKey{cfg.AccessPrivateKey, cfg.AccessPreviousKey} {
 		for _, refresh := range []ed25519.PrivateKey{cfg.RefreshPrivateKey, cfg.RefreshPreviousKey} {
 			if access != nil && refresh != nil && access.Equal(refresh) {
-				return fmt.Errorf("the access keys (ACCESS_TOKEN, ACCESS_TOKEN_PREVIOUS) and the refresh keys (REFRESH_TOKEN, REFRESH_TOKEN_PREVIOUS) must differ")
+				return errors.New("the access keys (ACCESS_TOKEN, ACCESS_TOKEN_PREVIOUS) and the refresh keys (REFRESH_TOKEN, REFRESH_TOKEN_PREVIOUS) must differ")
 			}
 		}
 	}

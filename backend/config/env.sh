@@ -21,7 +21,7 @@ API_LOGGER='1'                                  # Log all requests; 0 keeps serv
 CORS_ORIGINS='*'                                # CORS allowed origins
 API_TRUSTED_PROXIES=''                          # Reverse proxy IPs/CIDRs, comma separated (empty = no proxy)
 API_PROXY_HEADER='X-Real-IP'                    # Client IP header, must be overwritten by the proxy
-API_RATE_LIMIT_GLOBAL='100'                     # Requests per client per minute, all routes
+API_RATE_LIMIT_GLOBAL='300'                     # Requests per client IP per minute, all routes (an office behind NAT shares one)
 API_RATE_LIMIT_AUTH='10'                        # Requests per client per minute on register, activate and login
 API_RATE_LIMIT_PASSWORD='3'                     # Requests per client per minute on password reset
 API_READ_TIMEOUT='30s'                          # Server read timeout

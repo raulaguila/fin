@@ -232,6 +232,7 @@ func (h *Handler) Login(c fiber.Ctx) error {
 // @Failure 400 {object} mapper.errorBody
 // @Failure 401 {object} mapper.errorBody
 // @Failure 409 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
 // @Router /v1/auth/refresh [post]
 func (h *Handler) Refresh(c fiber.Ctx) error {
 	var body refreshDTO
@@ -251,6 +252,7 @@ func (h *Handler) Refresh(c fiber.Ctx) error {
 // @Security BearerAuth
 // @Success 204
 // @Failure 401 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
 // @Router /v1/auth/logout [post]
 func (h *Handler) Logout(c fiber.Ctx) error {
 	if err := h.svc.Logout(c.Context(), middleware.SessionID(c)); err != nil {
@@ -284,6 +286,7 @@ func (h *Handler) Me(c fiber.Ctx) error {
 // @Success 200 {object} meDTO
 // @Failure 400 {object} mapper.errorBody
 // @Failure 401 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
 // @Router /v1/me [patch]
 func (h *Handler) Rename(c fiber.Ctx) error {
 	var body renameDTO
@@ -304,6 +307,7 @@ func (h *Handler) Rename(c fiber.Ctx) error {
 // @Success 200 {file} binary
 // @Failure 401 {object} mapper.errorBody
 // @Failure 404 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
 // @Router /v1/me/avatar [get]
 func (h *Handler) Avatar(c fiber.Ctx) error {
 	image, contentType, err := h.account.Avatar(c.Context(), middleware.UserID(c))
@@ -326,6 +330,7 @@ func (h *Handler) Avatar(c fiber.Ctx) error {
 // @Success 204
 // @Failure 400 {object} mapper.errorBody
 // @Failure 401 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
 // @Router /v1/me/avatar [put]
 func (h *Handler) SetAvatar(c fiber.Ctx) error {
 	if err := h.account.SetAvatar(c.Context(), middleware.UserID(c), c.Body()); err != nil {
@@ -339,6 +344,7 @@ func (h *Handler) SetAvatar(c fiber.Ctx) error {
 // @Security BearerAuth
 // @Success 204
 // @Failure 401 {object} mapper.errorBody
+// @Failure 429 {object} mapper.errorBody
 // @Router /v1/me/avatar [delete]
 func (h *Handler) RemoveAvatar(c fiber.Ctx) error {
 	if err := h.account.RemoveAvatar(c.Context(), middleware.UserID(c)); err != nil {

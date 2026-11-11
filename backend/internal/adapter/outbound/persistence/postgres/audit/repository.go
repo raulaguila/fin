@@ -81,12 +81,17 @@ func (r *Repository) List(ctx context.Context, filter domain.AuditFilter) ([]dom
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT a.id::text AS id, a.created_at, a.actor_id::text AS actor_id, au.name AS actor_name, au.email::text AS actor_email,
 		       a.request_id, a.action, a.target_id::text AS target_id,
-		       COALESCE(tu.email::text, tr.name, tp.name) AS target_label, a.details
+		       COALESCE(tu.email::text, tr.name, (
+		         -- Any other target (every module): the newest name the log recorded for it,
+		         -- which outlives a delete and needs no join per module.
+		         SELECT n.details->>'name' FROM usr.usr_audit_log n
+		         WHERE n.target_id = a.target_id AND n.details->>'name' IS NOT NULL
+		         ORDER BY n.created_at DESC LIMIT 1
+		       )) AS target_label, a.details
 		FROM usr.usr_audit_log a
 		LEFT JOIN usr.usr_user au ON au.id = a.actor_id
 		LEFT JOIN usr.usr_user tu ON tu.id = a.target_id
 		LEFT JOIN usr.usr_role tr ON tr.id = a.target_id
-		LEFT JOIN app.product tp ON tp.id = a.target_id
 		WHERE `+where+`
 		ORDER BY a.created_at DESC, a.id
 		LIMIT ? OFFSET ?

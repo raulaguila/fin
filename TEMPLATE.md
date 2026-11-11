@@ -39,7 +39,7 @@ if the core imports an adapter, GORM, Fiber or the config.
 | 2. Resource | `internal/core/domain/action.go` | Constant with the resource code, equal to the row in `usr.usr_resource`. |
 | 3. Domain | `internal/core/domain/product.go` | Entity, filter and patch types. No tags, no imports from adapters. |
 | 4. Ports | `internal/core/port/input/product.go`, `internal/core/port/output/product.go` | The service the handler calls and the repository the service needs. |
-| 5. Use case | `internal/core/usecase/product/service.go` | Validation and rules. Errors are `apperror` codes. Administrative changes call `policy.Audit` inside the transaction. |
+| 5. Use case | `internal/core/usecase/product/service.go` | Validation and rules. Errors are `apperror` codes. Administrative changes call `policy.Audit` inside the transaction; record `"name"` in the details (create, rename, delete) so the audit log can label the record, even after it is deleted. |
 | 6. Repository | `internal/adapter/outbound/persistence/postgres/product/repository.go` | SQL with GORM; wrap errors with `shared.WrapError`. |
 | 7. Handler | `internal/adapter/inbound/http/rest/handler/product/handler.go` | Routes with `middleware.Require(authz, resource, action)`, request and response types, `swag` annotations. |
 | 8. Wiring | `internal/core/port/input/application.go`, `internal/composition/wire.go`, `internal/adapter/inbound/http/rest/server.go` | Field in `Application`, construction, and the route group behind `bearer`. |

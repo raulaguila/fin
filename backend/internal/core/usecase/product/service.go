@@ -157,11 +157,13 @@ func (s *Service) DeleteMany(ctx context.Context, ids []string) error {
 		}
 	}
 	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
-		if err := uow.Products().DeleteMany(ctx, ids); err != nil {
+		names, err := uow.Products().DeleteMany(ctx, ids)
+		if err != nil {
 			return err
 		}
 		for _, id := range ids {
-			if err := policy.Audit(ctx, uow, "product.delete", id, nil); err != nil {
+			// The name stays readable in the log once the row is gone.
+			if err := policy.Audit(ctx, uow, "product.delete", id, map[string]any{"name": names[id]}); err != nil {
 				return err
 			}
 		}

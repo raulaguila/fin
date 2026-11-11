@@ -335,6 +335,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
                         }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
                     }
                 }
             }
@@ -487,6 +493,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
                         }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
                     }
                 }
             }
@@ -627,6 +639,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
                         }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
                     }
                 }
             }
@@ -662,6 +680,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
                         }
@@ -710,6 +734,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
                         }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
                     }
                 }
             },
@@ -729,6 +759,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
                         }

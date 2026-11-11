@@ -182,16 +182,22 @@ func (r *Repository) missOrStale(ctx context.Context, id string, version *int) e
 }
 
 // DeleteMany is one statement: the count check and the delete see the same snapshot.
-func (r *Repository) DeleteMany(ctx context.Context, ids []string) error {
-	res := r.db.WithContext(ctx).Exec(`
+func (r *Repository) DeleteMany(ctx context.Context, ids []string) (map[string]string, error) {
+	var rows []row
+	err := r.db.WithContext(ctx).Raw(`
 		DELETE FROM app.product WHERE id IN ?
 		AND (SELECT count(*) FROM app.product WHERE id IN ?) = ?
-	`, ids, ids, len(ids))
-	if res.Error != nil {
-		return shared.WrapError(res.Error, "product")
+		RETURNING id, name
+	`, ids, ids, len(ids)).Find(&rows).Error
+	if err != nil {
+		return nil, shared.WrapError(err, "product")
 	}
-	if res.RowsAffected == 0 {
-		return shared.WrapError(gorm.ErrRecordNotFound, "product")
+	if len(rows) == 0 {
+		return nil, shared.WrapError(gorm.ErrRecordNotFound, "product")
 	}
-	return nil
+	names := make(map[string]string, len(rows))
+	for _, m := range rows {
+		names[m.ID.String()] = m.Name
+	}
+	return names, nil
 }

@@ -35,7 +35,7 @@ type APIConfig struct {
 	TrustedProxies string `env:"API_TRUSTED_PROXIES" default:""`
 	ProxyHeader    string `env:"API_PROXY_HEADER" default:"X-Real-IP"`
 
-	GlobalRateLimit   int `env:"API_RATE_LIMIT_GLOBAL" default:"100"`
+	GlobalRateLimit   int `env:"API_RATE_LIMIT_GLOBAL" default:"300"` // per IP: behind NAT a whole office shares it
 	AuthRateLimit     int `env:"API_RATE_LIMIT_AUTH" default:"10"`
 	PasswordRateLimit int `env:"API_RATE_LIMIT_PASSWORD" default:"3"`
 

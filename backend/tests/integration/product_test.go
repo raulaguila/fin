@@ -209,6 +209,10 @@ func TestProductChangesAreAudited(t *testing.T) {
 	for _, r := range records {
 		if r.TargetID == p.ID {
 			got = append(got, r.Action)
+			// The row is gone, so every label comes from the name the delete recorded.
+			if r.TargetLabel != p.Name {
+				t.Errorf("%s label %q, want %q", r.Action, r.TargetLabel, p.Name)
+			}
 		}
 	}
 	if want := []string{"product.delete", "product.update", "product.create"}; !slices.Equal(got, want) {

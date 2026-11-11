@@ -179,7 +179,7 @@ export default function AuditPage() {
           {user && (
             <Badge variant="secondary" className="gap-1 max-sm:col-span-2 max-sm:justify-self-start">
               {picked.data ? picked.data.email : t("audit.filtered_user")}
-              <button type="button" aria-label={t("audit.clear_user")} className="rounded-sm hover:text-foreground" onClick={() => set({ user: "", page: 1 })}>
+              <button type="button" aria-label={t("audit.clear_user")} className="-my-1 -mr-1.5 grid size-6 place-items-center rounded-sm hover:text-foreground" onClick={() => set({ user: "", page: 1 })}>
                 <X className="size-3" />
               </button>
             </Badge>
@@ -191,7 +191,11 @@ export default function AuditPage() {
         ) : list.isError ? (
           <QueryErrorState error={list.error} onRetry={() => void list.refetch()} />
         ) : list.data.items.length === 0 ? (
-          <EmptyState icon={ScrollText} title={t(action || user || from || to ? "common.no_results" : "audit.empty")} />
+          <EmptyState
+            icon={ScrollText}
+            title={t(action || user || from || to ? "common.no_results" : "audit.empty")}
+            action={(action || user || from || to) && <Button variant="outline" onClick={() => set({ action: "", user: "", from: "", to: "", page: 1 })}>{t("common.clear_filters")}</Button>}
+          />
         ) : (
           <Card className="gap-0 overflow-hidden p-0">
             <Table data-responsive data-compact>

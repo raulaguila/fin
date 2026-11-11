@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
-import { ActiveBadge, FieldNote, FormError, FormSection, FormSections, SaveBar, PageBody, PageHeader, StatusBadge, useFormatDate } from "@/components/bits";
+import { ActiveBadge, DangerZone, FieldNote, FormError, FormSection, FormSections, SaveBar, PageBody, PageHeader, StatusBadge, useFormatDate } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
@@ -56,6 +56,7 @@ function RolesCard({ user }: { user: UserDetails }) {
   const toggle = (id: string, on: boolean) => setDraft((d) => (on ? [...d, id] : d.filter((x) => x !== id)));
 
   return (
+    <>
     <FormSection title={t("nav.roles")} description={t(manage ? "users.roles_hint" : "users.roles_desc")}>
       <div className="space-y-4">
         {!manage ? (
@@ -85,20 +86,21 @@ function RolesCard({ user }: { user: UserDetails }) {
           </>
         )}
       </div>
-    {dirty && (
-      <div className="mt-6">
-        <SaveBar
-          label={t("roles.unsaved")}
-          saving={save.isPending}
-          canSave
-          saveLabel={t("common.save")}
-          discardLabel={t("common.discard")}
-          onSave={() => save.mutate()}
-          onDiscard={() => setDraft(saved)}
-        />
-      </div>
-    )}
     </FormSection>
+    {/* Last child of the page's FormSections, so it docks as the card footer like every other form. */}
+    {dirty && (
+      <SaveBar
+        footer
+        label={t("roles.unsaved")}
+        saving={save.isPending}
+        canSave
+        saveLabel={t("common.save")}
+        discardLabel={t("common.discard")}
+        onSave={() => save.mutate()}
+        onDiscard={() => setDraft(saved)}
+      />
+    )}
+    </>
   );
 }
 
@@ -254,10 +256,8 @@ function UserDetail({ id }: { id: string }) {
             {canToggle && (a?.active_sessions ?? 0) > 0 && (
               <Button variant="outline" onClick={() => setRevoking(true)}>{t("users.revoke_sessions")}</Button>
             )}
-            {canToggle && (
-              <Button variant={disabled ? "default" : "destructive"} onClick={() => setConfirm(true)}>
-                {t(disabled ? "users.enable" : "users.disable")}
-              </Button>
+            {canToggle && disabled && (
+              <Button onClick={() => setConfirm(true)}>{t("users.enable")}</Button>
             )}
           </div>
         )}
@@ -266,7 +266,7 @@ function UserDetail({ id }: { id: string }) {
         {detail.isPending ? (
           <ListSkeleton rows={3} />
         ) : detail.error instanceof ApiError && detail.error.code === "NOT_FOUND" ? (
-          <EmptyState title={t("error.not_found")} />
+          <EmptyState title={t("error.not_found")} description={t("error.record_gone")} action={<Button variant="outline" nativeButton={false} render={<Link href="/admin/users" />}>{t("common.back_to_list")}</Button>} />
         ) : detail.isError ? (
           <QueryErrorState error={detail.error} onRetry={() => void detail.refetch()} />
         ) : (
@@ -315,6 +315,9 @@ function UserDetail({ id }: { id: string }) {
           </FormSection>
           <RolesCard user={detail.data} />
           </FormSections>
+          {canToggle && !disabled && (
+            <DangerZone description={t("users.disable_desc")} label={t("users.disable")} onClick={() => setConfirm(true)} />
+          )}
           </>
         )}
       </PageBody>

@@ -45,7 +45,7 @@ function Form({ action, title, subtitle, submitLabel, doneTitle, doneBody }: {
   const [done, setDone] = useState(false);
   const confirmErr = sameAs(password)(confirm);
 
-  const footer = <Link href="/login" className="font-medium text-primary hover:underline">{t("auth.back_to_login")}</Link>;
+  const footer = <Link href="/login" className="inline-block py-1 font-medium text-primary hover:underline">{t("auth.back_to_login")}</Link>;
 
   if (done) {
     return (

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -479,7 +480,7 @@ export default function RoleDetailPage() {
         ) : detail.isPending ? (
           <ListSkeleton rows={4} />
         ) : detail.error instanceof ApiError && detail.error.code === "NOT_FOUND" ? (
-          <EmptyState title={t("error.not_found")} />
+          <EmptyState title={t("error.not_found")} description={t("error.record_gone")} action={<Button variant="outline" nativeButton={false} render={<Link href="/admin/roles" />}>{t("common.back_to_list")}</Button>} />
         ) : detail.isError || !role ? (
           <QueryErrorState error={detail.error} onRetry={() => void detail.refetch()} />
         ) : (

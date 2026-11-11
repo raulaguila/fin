@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { ActiveBadge, IconAction, PageBody, PageHeader, useFormatDate } from "@/components/bits";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
-import { SortHead } from "@/components/sort-head";
+import { SortHead, SortSelect } from "@/components/sort-head";
 import { SelectAllHead, SelectCell, SelectionBar, useSelection } from "@/components/selection";
 import { ListSkeleton } from "@/components/skeletons";
 import { TablePagination, emptyPageFallback } from "@/components/table-pagination";
@@ -97,6 +97,7 @@ export default function ProductsPage() {
               {Object.entries(stateItems).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
             </SelectContent>
           </Select>
+          <SortSelect fields={[{ field: "name", label: t("auth.name") }, { field: "price", label: t("products.price") }, { field: "created_at", label: t("common.created_at") }]} {...sortProps} />
         </div>
 
         {list.isPending ? (
@@ -104,7 +105,11 @@ export default function ProductsPage() {
         ) : list.isError ? (
           <QueryErrorState error={list.error} onRetry={() => void list.refetch()} />
         ) : items.length === 0 ? (
-          <EmptyState icon={Package} title={t(q || state !== "all" ? "common.no_results" : "products.empty")} />
+          <EmptyState
+            icon={Package}
+            title={t(q || state !== "all" ? "common.no_results" : "products.empty")}
+            action={(q || state !== "all") && <Button variant="outline" onClick={() => { setSearch(""); set({ q: "", state: "all", page: 1 }); }}>{t("common.clear_filters")}</Button>}
+          />
         ) : (
           <Card className="gap-0 overflow-hidden p-0">
             <Table data-responsive data-compact>

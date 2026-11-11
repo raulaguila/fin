@@ -102,6 +102,7 @@ export function CommandPalette() {
               role="combobox"
               aria-expanded
               aria-controls="palette-list"
+              aria-label={t("palette.placeholder")}
               aria-activedescendant={hits.length ? `palette-${current}` : undefined}
               placeholder={t("palette.placeholder")}
               className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"

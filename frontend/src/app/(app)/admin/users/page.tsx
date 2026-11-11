@@ -10,7 +10,7 @@ import { IconAction, PageBody, PageHeader, StatusBadge, useFormatDate } from "@/
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
-import { SortHead } from "@/components/sort-head";
+import { SortHead, SortSelect } from "@/components/sort-head";
 import { SelectAllHead, SelectCell, SelectionBar, useSelection } from "@/components/selection";
 import { ListSkeleton } from "@/components/skeletons";
 import { TablePagination, emptyPageFallback } from "@/components/table-pagination";
@@ -98,6 +98,7 @@ export default function UsersPage() {
               </SelectContent>
             </Select>
           )}
+          <SortSelect fields={[{ field: "name", label: t("auth.name") }, { field: "email", label: t("auth.email") }, { field: "status", label: t("users.status") }, { field: "created_at", label: t("common.created_at") }]} className="max-sm:col-span-2" {...sortProps} />
         </div>
 
         {list.isPending ? (
@@ -105,7 +106,11 @@ export default function UsersPage() {
         ) : list.isError ? (
           <QueryErrorState error={list.error} onRetry={() => void list.refetch()} />
         ) : list.data.items.length === 0 ? (
-          <EmptyState icon={Users} title={t(q || status || role ? "common.no_results" : "users.empty")} />
+          <EmptyState
+            icon={Users}
+            title={t(q || status || role ? "common.no_results" : "users.empty")}
+            action={(q || status || role) && <Button variant="outline" onClick={() => { setSearch(""); set({ q: "", status: "", role: "", page: 1 }); }}>{t("common.clear_filters")}</Button>}
+          />
         ) : (
           <Card className="gap-0 overflow-hidden p-0">
             <Table data-responsive data-compact>

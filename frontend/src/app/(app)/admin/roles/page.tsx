@@ -9,7 +9,7 @@ import { Eye, KeyRound, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { ActiveBadge, IconAction, PageBody, PageHeader, useFormatDate } from "@/components/bits";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
-import { SortHead } from "@/components/sort-head";
+import { SortHead, SortSelect } from "@/components/sort-head";
 import { SelectAllHead, SelectCell, SelectionBar, useSelection } from "@/components/selection";
 import { ListSkeleton } from "@/components/skeletons";
 import { TablePagination, emptyPageFallback } from "@/components/table-pagination";
@@ -96,16 +96,23 @@ export default function RolesPage() {
         action={can(user, "roles", "create") && <Button onClick={() => router.push("/admin/roles/new")}><Plus className="size-4" />{t("roles.new")}</Button>}
       />
       <PageBody>
-        <div className="relative max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input type="search" aria-label={t("common.search")} placeholder={t("roles.search")} className="pl-9" value={search} onChange={(e) => { setSearch(e.target.value); set({ q: e.target.value.trim(), page: 1 }); }} />
+        <div className="flex flex-wrap gap-2 max-sm:grid max-sm:grid-cols-2">
+          <div className="relative min-w-56 flex-1 sm:max-w-sm max-sm:col-span-2 max-sm:min-w-0">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input type="search" aria-label={t("common.search")} placeholder={t("roles.search")} className="pl-9" value={search} onChange={(e) => { setSearch(e.target.value); set({ q: e.target.value.trim(), page: 1 }); }} />
+          </div>
+          <SortSelect fields={[{ field: "name", label: t("auth.name") }, { field: "created_at", label: t("common.created_at") }]} className="max-sm:col-span-2" {...sortProps} />
         </div>
         {list.isPending ? (
           <ListSkeleton />
         ) : list.isError ? (
           <QueryErrorState error={list.error} onRetry={() => void list.refetch()} />
         ) : items.length === 0 ? (
-          <EmptyState icon={KeyRound} title={t(q ? "common.no_results" : "roles.empty")} />
+          <EmptyState
+            icon={KeyRound}
+            title={t(q ? "common.no_results" : "roles.empty")}
+            action={q && <Button variant="outline" onClick={() => { setSearch(""); set({ q: "", page: 1 }); }}>{t("common.clear_filters")}</Button>}
+          />
         ) : (
           <Card className="gap-0 overflow-hidden p-0">
             <Table data-responsive data-compact>

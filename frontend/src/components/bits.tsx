@@ -1,12 +1,24 @@
 "use client";
 
+import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { APP_NAME } from "@/lib/brand";
 import { useI18n } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages";
 import type { UserStatus } from "@/lib/api/types";
+
+/**
+ * Names the browser tab after the screen. An effect, not a <title> tag: Next keeps
+ * the last screens mounted but hidden, and their hoisted tags would pile up.
+ */
+export function useDocumentTitle(title?: string) {
+  useEffect(() => {
+    if (title) document.title = `${title} - ${APP_NAME}`;
+  }, [title]);
+}
 
 export function PageHeader({
   title,
@@ -17,6 +29,7 @@ export function PageHeader({
   description?: string;
   action?: React.ReactNode;
 }) {
+  useDocumentTitle(title);
   return (
     <div data-ui-page-header className="border-b px-[var(--space-page)] py-[var(--space-page-y)] sm:py-4">
       <div className="flex w-full flex-col gap-[var(--space-row)] sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">

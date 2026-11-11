@@ -1,6 +1,9 @@
+"use client";
+
 import { AuthBrandPanel } from "@/components/auth-brand-panel";
 import { BrandWordmark } from "@/components/brand-wordmark";
 import { PublicControls } from "@/components/public-controls";
+import { useDocumentTitle } from "@/components/bits";
 
 export function AuthCard({
   title,
@@ -13,6 +16,7 @@ export function AuthCard({
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
+  useDocumentTitle(title);
   return (
     <div data-ui-auth-card className="relative bg-card dark:bg-background">
       {/* Mobile brand strip */}

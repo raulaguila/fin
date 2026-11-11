@@ -67,7 +67,7 @@ function ProfileHeader() {
       </Avatar>
       <div className="min-w-0 flex-1">
         <div className="truncate text-lg font-semibold">{user.name}</div>
-        <div className="truncate text-sm text-muted-foreground">{user.email}</div>
+        <div className="text-sm break-all text-muted-foreground">{user.email}</div>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           {user.roles.map((r) => <Badge key={r} variant="secondary">{r}</Badge>)}
           <span>{t("profile.member_since")} {new Date(user.created_at).toLocaleDateString(locale, { dateStyle: "medium" })}</span>
@@ -228,7 +228,7 @@ function PreferencesCard() {
     <FormSection title={t("profile.preferences")} description={t("profile.preferences_desc")}>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label>{t("common.theme")}</Label>
+          <Label id="pref-theme">{t("common.theme")}</Label>
           <Select
             value={user.preferences.theme}
             items={themes}
@@ -237,14 +237,14 @@ function PreferencesCard() {
               save({ theme: v as Theme });
             }}
           >
-            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full" aria-labelledby="pref-theme"><SelectValue /></SelectTrigger>
             <SelectContent>
               {Object.entries(themes).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>{t("common.language")}</Label>
+          <Label id="pref-language">{t("common.language")}</Label>
           <Select
             value={user.preferences.language}
             items={languages}
@@ -253,7 +253,7 @@ function PreferencesCard() {
               save({ language: v as Language });
             }}
           >
-            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full" aria-labelledby="pref-language"><SelectValue /></SelectTrigger>
             <SelectContent>
               {LOCALES.map((l) => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
             </SelectContent>

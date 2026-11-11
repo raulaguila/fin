@@ -22,7 +22,6 @@ const ibmPlexMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: { default: APP_NAME, template: `${APP_NAME} - %s` },
   icons: { icon: [{ url: "/favicon.svg", type: "image/svg+xml" }] },
 };
 
@@ -35,6 +34,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang={locale} suppressHydrationWarning className={`${ibmPlexSans.variable} ${ibmPlexMono.variable} h-full antialiased`}>
       <head>
+        {/* Not in metadata: Next would reset it on every navigation over the per-screen title (useDocumentTitle). */}
+        <title>{APP_NAME}</title>
         <script dangerouslySetInnerHTML={{ __html: prePaint }} />
       </head>
       <body className="flex min-h-full flex-col font-sans">

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,6 +11,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -144,7 +146,7 @@ export default function ProductPage() {
         ) : detail.isPending ? (
           <ListSkeleton rows={3} />
         ) : detail.error instanceof ApiError && detail.error.code === "NOT_FOUND" ? (
-          <EmptyState title={t("error.not_found")} />
+          <EmptyState title={t("error.not_found")} description={t("error.record_gone")} action={<Button variant="outline" nativeButton={false} render={<Link href="/products" />}>{t("common.back_to_list")}</Button>} />
         ) : detail.isError || !product ? (
           <QueryErrorState error={detail.error} onRetry={() => void detail.refetch()} />
         ) : (

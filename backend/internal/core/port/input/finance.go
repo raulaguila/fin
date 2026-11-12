@@ -23,7 +23,8 @@ type FinanceService interface {
 
 	Summary(ctx context.Context, userID string, month time.Time) (*domain.MonthSummary, error)
 	Transactions(ctx context.Context, userID string, filter domain.TransactionFilter) ([]domain.Transaction, int64, error)
-	SetCategory(ctx context.Context, userID, transactionID, categoryID string) error
+	// SetCategory returns the keyword a rule for this merchant would use; empty when none fits.
+	SetCategory(ctx context.Context, userID, transactionID, categoryID string) (string, error)
 	// Recategorize runs the rules and the automatic categorization again over
 	// the history, leaving choices made by hand alone. It returns how many changed.
 	Recategorize(ctx context.Context, userID string) (int64, error)

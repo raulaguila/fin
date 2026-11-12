@@ -123,13 +123,14 @@ function ByCategory({ s }: { s: Summary }) {
   const f = useFinanceFormat();
   const rows = s.categories.filter((c) => c.kind === "expense" && c.total < 0).sort((a, b) => a.total - b.total);
   const top = rows[0] ? -rows[0].total : 0;
-  const rising = rows.find((c) => c.previous < 0 && c.total < c.previous * 1.2 && c.total - c.previous < -5000);
+  // Uncategorized money growing means rows to sort, not spending: it never counts as rising.
+  const rising = rows.find((c) => c.category_id && c.previous < 0 && c.total < c.previous * 1.2 && c.total - c.previous < -5000);
   return (
     <Card className="gap-3 p-4">
       <h2 className="text-sm font-medium">{t("fin.dash.by_category")}</h2>
       {rising && (
         <p className="text-sm text-amber-800 dark:text-amber-300">
-          {fill(t("fin.dash.above_prev"), { c: rising.name || t("fin.uncategorized"), p: Math.round((rising.total / rising.previous - 1) * 100) })}
+          {fill(t("fin.dash.above_prev"), { c: rising.name, p: Math.round((rising.total / rising.previous - 1) * 100) })}
         </p>
       )}
       {rows.length === 0 && <p className="text-sm text-muted-foreground">{t("fin.dash.nothing")}</p>}

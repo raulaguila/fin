@@ -1897,6 +1897,9 @@ const docTemplate = `{
                 "consumes": [
                     "application/json"
                 ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Transactions"
                 ],
@@ -1920,8 +1923,16 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "204": {
-                        "description": "No Content"
+                    "200": {
+                        "description": "keyword: what a rule for this merchant would match; empty when none fits",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "keyword": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     },
                     "400": {
                         "description": "Bad Request",
@@ -6218,6 +6229,10 @@ const docTemplate = `{
             "name": "Categories"
         },
         {
+            "description": "Savings goals, tracked by an account balance or an amount typed in",
+            "name": "Goals"
+        },
+        {
             "description": "Questions about the user's finances, answered by the configured model",
             "name": "Assistant"
         },
@@ -6226,7 +6241,7 @@ const docTemplate = `{
             "name": "Webhooks"
         },
         {
-            "description": "Product catalog",
+            "description": "Example module, not used by the Fin screens: the model ` + "`" + `make module` + "`" + ` copies to start a new one. Keep it as long as the generator is in use",
             "name": "Products"
         }
     ],
@@ -6268,12 +6283,13 @@ const docTemplate = `{
                 "Connections",
                 "Transactions",
                 "Categories",
+                "Goals",
                 "Assistant",
                 "Webhooks"
             ]
         },
         {
-            "name": "Catalog",
+            "name": "Template",
             "tags": [
                 "Products"
             ]
@@ -6288,7 +6304,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Fin API",
-	Description:      "Identity service. Logging in from this page fills Authorize with the access token.",
+	Description:      "Fin, a self-hosted personal finance assistant. Logging in from this page fills Authorize with the access token.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

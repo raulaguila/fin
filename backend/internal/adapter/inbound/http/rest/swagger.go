@@ -11,7 +11,7 @@ import (
 )
 
 //	@title						Fin API
-//	@description				Identity service. Logging in from this page fills Authorize with the access token.
+//	@description				Fin, a self-hosted personal finance assistant. Logging in from this page fills Authorize with the access token.
 //	@BasePath					/
 //	@securityDefinitions.apikey	BearerAuth
 //	@in							header
@@ -48,13 +48,15 @@ import (
 //	@tag.description	Transactions and the month dashboard
 //	@tag.name			Categories
 //	@tag.description	Categories, monthly limits and categorization rules
+//	@tag.name			Goals
+//	@tag.description	Savings goals, tracked by an account balance or an amount typed in
 //	@tag.name			Assistant
 //	@tag.description	Questions about the user's finances, answered by the configured model
 //	@tag.name			Webhooks
 //	@tag.description	Events from the Open Finance provider
 //	@tag.name			Products
-//	@tag.description	Product catalog
-//	@x-tagGroups		[{"name":"System","tags":["Health"]},{"name":"Authentication","tags":["Auth","Registration","Password reset"]},{"name":"Account","tags":["Profile","Sessions","Preferences","Notifications"]},{"name":"Administration","tags":["Users","Roles","Audit"]},{"name":"Finance","tags":["Connections","Transactions","Categories","Assistant","Webhooks"]},{"name":"Catalog","tags":["Products"]}]
+//	@tag.description	Example module, not used by the Fin screens: the model `make module` copies to start a new one. Keep it as long as the generator is in use
+//	@x-tagGroups		[{"name":"System","tags":["Health"]},{"name":"Authentication","tags":["Auth","Registration","Password reset"]},{"name":"Account","tags":["Profile","Sessions","Preferences","Notifications"]},{"name":"Administration","tags":["Users","Roles","Audit"]},{"name":"Finance","tags":["Connections","Transactions","Categories","Goals","Assistant","Webhooks"]},{"name":"Template","tags":["Products"]}]
 
 var (
 	//go:embed docs/swagger.css

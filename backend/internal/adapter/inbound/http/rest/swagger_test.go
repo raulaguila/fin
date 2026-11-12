@@ -77,6 +77,11 @@ func TestSwaggerMatchesTheRoutes(t *testing.T) {
 			if len(op.Tags) == 0 {
 				t.Errorf("%s %s has no group", method, path)
 			}
+			for _, tag := range op.Tags {
+				if !slices.Contains(order, tag) {
+					t.Errorf("%s %s: tag %q has no @tag.name in swagger.go, so it sits in no group", method, path, tag)
+				}
+			}
 			documented[strings.ToUpper(method)+" "+path] = true
 		}
 	}

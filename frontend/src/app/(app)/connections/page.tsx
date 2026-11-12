@@ -43,20 +43,29 @@ function usePluggyConnect() {
     setOpening(true);
     try {
       const [{ PluggyConnect }, { access_token }] = await Promise.all([import("pluggy-connect-sdk"), finance.connectToken(connection?.id)]);
+      // MeuPluggy makes one item per bank shared in one sign-in, but onSuccess reports only one: keep every item the events show.
+      const items = new Set<string>();
       const widget = new PluggyConnect({
         connectToken: access_token,
         includeSandbox: process.env.NODE_ENV !== "production",
         updateItem: connection?.item_id,
         connectorIds: CONNECTORS.length ? CONNECTORS : undefined,
+        onEvent: (e) => {
+          if ("item" in e && e.item?.id) items.add(e.item.id);
+        },
         onSuccess: async ({ item }) => {
-          try {
-            if (connection) await finance.sync(connection.id);
-            else {
-              const added = await finance.addConnection(item.id);
-              toast.success(fill(t("fin.conn.added"), { b: added.institution }));
+          items.add(item.id);
+          if (connection) {
+            await finance.sync(connection.id).catch((err) => toast.error(errorMessage(err, "common.save_failed", t)));
+          } else {
+            for (const id of items) {
+              try {
+                const added = await finance.addConnection(id);
+                toast.success(fill(t("fin.conn.added"), { b: added.institution }));
+              } catch (err) {
+                toast.error(errorMessage(err, "common.save_failed", t));
+              }
             }
-          } catch (err) {
-            toast.error(errorMessage(err, "common.save_failed", t));
           }
           await client.invalidateQueries({ queryKey: ["finance"] });
         },

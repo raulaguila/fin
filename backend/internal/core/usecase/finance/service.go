@@ -361,16 +361,20 @@ func (s *Service) Transactions(ctx context.Context, userID string, f domain.Tran
 	return s.repo().Transactions(ctx, userID, f)
 }
 
-func (s *Service) SetCategory(ctx context.Context, userID, transactionID, categoryID string) error {
+func (s *Service) SetCategory(ctx context.Context, userID, transactionID, categoryID string) (string, error) {
 	if err := validate.ID(transactionID); err != nil {
-		return err
+		return "", err
 	}
 	if categoryID != "" {
 		if _, err := s.ownCategory(ctx, userID, categoryID); err != nil {
-			return err
+			return "", err
 		}
 	}
-	return s.repo().SetTransactionCategory(ctx, userID, transactionID, categoryID)
+	desc, err := s.repo().SetTransactionCategory(ctx, userID, transactionID, categoryID)
+	if err != nil || categoryID == "" {
+		return "", err
+	}
+	return suggestKeyword(desc), nil
 }
 
 // ---- categories ----

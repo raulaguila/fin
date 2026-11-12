@@ -153,7 +153,9 @@ func (c *Client) send(ctx context.Context, method, path, key string, body, out a
 }
 
 func (c *Client) ConnectToken(ctx context.Context, clientUserID, itemID string) (string, error) {
-	options := map[string]any{"clientUserId": clientUserID, "avoidDuplicates": true}
+	// No avoidDuplicates: MeuPluggy shares one bank per item under the same sign-in, so
+	// Pluggy took a second bank for a duplicate. AddConnection already dedupes by item id.
+	options := map[string]any{"clientUserId": clientUserID}
 	if c.webhookURL != "" {
 		options["webhookUrl"] = c.webhookURL
 	}

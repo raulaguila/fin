@@ -27,12 +27,6 @@ import { cn, searchTerm } from "@/lib/utils";
 
 const NONE = "none";
 
-/** The words a rule would match: the start of the description, without numbers. */
-function suggestKeyword(description: string): string {
-  const words = description.replace(/[0-9*#/\\-]+/g, " ").split(/\s+/).filter((w) => w.length > 1);
-  return words.slice(0, 2).join(" ");
-}
-
 function CategoryPicker({ tx, categories, onPick }: { tx: Transaction; categories: Category[]; onPick: (tx: Transaction, id: string) => void }) {
   const { t } = useI18n();
   const items: Record<string, string> = { [NONE]: t("fin.uncategorized") };
@@ -123,11 +117,11 @@ export default function TransactionsPage() {
 
   const setCategory = useMutation({
     mutationFn: ({ tx, categoryId }: { tx: Transaction; categoryId: string }) => finance.setCategory(tx.id, categoryId),
-    onSuccess: (_, { tx, categoryId }) => {
+    onSuccess: ({ keyword }, { categoryId }) => {
       void client.invalidateQueries({ queryKey: ["finance"] });
+      // The server picks the merchant out of the description ("Pagamento de Pix … Uber" gives "uber").
       const cat = categories.data?.items.find((c) => c.id === categoryId);
-      const keyword = suggestKeyword(tx.description);
-      setSuggestion(cat && keyword.length >= 2 ? { keyword, categoryId, categoryName: cat.name } : null);
+      setSuggestion(cat && keyword ? { keyword, categoryId, categoryName: cat.name } : null);
       toast.success(t("fin.tx.saved"));
     },
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
@@ -229,8 +223,8 @@ export default function TransactionsPage() {
                     <TableCell data-label={t("fin.tx.category")} data-cell="sub">
                       <CategoryPicker tx={tx} categories={categories.data?.items ?? []} onPick={(tx, categoryId) => setCategory.mutate({ tx, categoryId })} />
                     </TableCell>
-                    <TableCell data-label={t("fin.tx.amount")} data-cell="sub" className={cn("text-right font-mono tabular-nums", amountClass(tx.amount))}>{f.money(tx.amount)}</TableCell>
-                    <TableCell data-cell="sub" className="text-right">
+                    <TableCell data-label={t("fin.tx.amount")} data-cell="status" className={cn("text-right font-mono tabular-nums", amountClass(tx.amount))}>{f.money(tx.amount)}</TableCell>
+                    <TableCell data-cell="meta" className="text-right">
                       {tx.split_of ? (
                         <Button size="icon" variant="ghost" aria-label={`${t("fin.split.undo")}: ${tx.description}`} title={t("fin.split.undo")}
                           disabled={unsplit.isPending} onClick={() => unsplit.mutate(tx.split_of)}><Undo2 className="size-4" /></Button>

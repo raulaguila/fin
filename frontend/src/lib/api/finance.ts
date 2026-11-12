@@ -221,7 +221,7 @@ export const finance = {
   recategorize: () => apiFetch<{ changed: number }>(`${base}/recategorize`, { method: "POST" }),
   transactions: (p: TransactionQuery, signal?: AbortSignal) => apiFetch<Paged<Transaction>>(`${base}/transactions${query(p)}`, { signal }),
   setCategory: (transactionId: string, categoryId: string) =>
-    apiFetch<void>(`${base}/transactions/${id(transactionId)}`, { method: "PATCH", json: { category_id: categoryId } }),
+    apiFetch<{ keyword: string }>(`${base}/transactions/${id(transactionId)}`, { method: "PATCH", json: { category_id: categoryId } }),
 
   categories: () => apiFetch<{ items: Category[] }>(`${base}/categories`),
   createCategory: (c: Omit<Category, "id">) => apiFetch<Category>(`${base}/categories`, { method: "POST", json: c }),

@@ -48,7 +48,8 @@ type FinanceRepository interface {
 	// Spending returns the transactions in [from, to) not in a transfer
 	// category, up to limit, newest first: input for recurring and insights.
 	Spending(ctx context.Context, userID string, from, to time.Time, limit int) ([]domain.Transaction, error)
-	SetTransactionCategory(ctx context.Context, userID, id, categoryID string) error
+	// SetTransactionCategory returns the transaction description.
+	SetTransactionCategory(ctx context.Context, userID, id, categoryID string) (string, error)
 	// Categorizable returns, newest first, the transactions not categorized by
 	// hand (id, description, amount, provider category, category, source).
 	Categorizable(ctx context.Context, userID string, limit int) ([]domain.Transaction, error)

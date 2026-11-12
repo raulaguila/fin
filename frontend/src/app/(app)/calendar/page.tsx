@@ -58,14 +58,14 @@ export default function CalendarPage() {
                     {c.events.map((e, i) => {
                       const Icon = ICONS[e.kind];
                       return (
-                        <li key={`${e.date}${e.name}${i}`} className="flex items-center gap-3 px-4 py-3 text-sm">
+                        <li key={`${e.date}${e.name}${i}`} className="flex items-center gap-3 px-4 py-3 text-sm max-sm:flex-wrap">
                           <span className="w-14 shrink-0 tabular-nums text-muted-foreground">{f.day(e.date)}</span>
                           <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                           <div className="min-w-0 flex-1">
                             <p className="truncate font-medium">{e.name}</p>
                             <p className="text-xs text-muted-foreground">{t(`fin.cal.kind.${e.kind}` as MessageKey)}</p>
                           </div>
-                          <div className="shrink-0 text-right">
+                          <div className="shrink-0 text-right max-sm:w-full max-sm:pl-24 max-sm:text-left">
                             <p className={cn("font-mono tabular-nums", amountClass(e.amount))}>{f.money(e.amount)}</p>
                             <p className={cn("text-xs font-mono tabular-nums text-muted-foreground", e.balance < 0 && "text-red-700 dark:text-red-400")}>
                               {fill(t("fin.cal.balance"), { v: f.money(e.balance) })}

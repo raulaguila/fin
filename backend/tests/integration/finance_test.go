@@ -212,10 +212,10 @@ func TestFinanceSyncSummaryRulesAndAlerts(t *testing.T) {
 
 	// The user's own choice survives a sync.
 	uber, _, _ := svc.Transactions(ctx, userID, domain.TransactionFilter{Search: "uber", Page: domain.NewPage(1, 10)})
-	if err := svc.SetCategory(ctx, userID, uber[0].ID, food); err != nil {
-		t.Fatal(err)
+	if kw, err := svc.SetCategory(ctx, userID, uber[0].ID, food); err != nil || kw != "uber" {
+		t.Fatalf("set category: keyword %q, %v", kw, err)
 	}
-	if err := svc.SetCategory(ctx, other, uber[0].ID, ""); !apperror.IsNotFound(err) {
+	if _, err := svc.SetCategory(ctx, other, uber[0].ID, ""); !apperror.IsNotFound(err) {
 		t.Fatalf("set category of another user's transaction: %v", err)
 	}
 	if err := svc.Jobs()[finance.JobSync](ctx, payload); err != nil {

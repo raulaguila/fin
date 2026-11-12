@@ -494,7 +494,8 @@ type setCategoryDTO struct {
 // @Param id path string true "Transaction ID"
 // @Param body body setCategoryDTO true "Category"
 // @Security BearerAuth
-// @Success 204
+// @Produce json
+// @Success 200 {object} object{keyword=string} "keyword: what a rule for this merchant would match; empty when none fits"
 // @Failure 400 {object} mapper.errorBody
 // @Failure 401 {object} mapper.errorBody
 // @Failure 404 {object} mapper.errorBody
@@ -504,10 +505,11 @@ func (h *Handler) SetCategory(c fiber.Ctx) error {
 	if err := c.Bind().Body(&body); err != nil {
 		return mapper.WriteError(c, invalidBody())
 	}
-	if err := h.svc.SetCategory(c.Context(), middleware.UserID(c), c.Params("id"), body.CategoryID); err != nil {
+	keyword, err := h.svc.SetCategory(c.Context(), middleware.UserID(c), c.Params("id"), body.CategoryID)
+	if err != nil {
 		return mapper.WriteError(c, err)
 	}
-	return c.SendStatus(fiber.StatusNoContent)
+	return c.JSON(fiber.Map{"keyword": keyword})
 }
 
 // @Summary Run the automatic categorization again over the history; hand and rule choices stay

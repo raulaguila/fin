@@ -340,11 +340,7 @@ func (r *Repository) Transactions(ctx context.Context, userID string, f domain.T
 	if err != nil {
 		return nil, 0, shared.WrapError(err, "transaction")
 	}
-	out := make([]domain.Transaction, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, row.toDomain())
-	}
-	return out, total, nil
+	return scanTransactions(rows), total, nil
 }
 
 func (r *Repository) Spending(ctx context.Context, userID string, from, to time.Time, limit int) ([]domain.Transaction, error) {
@@ -357,24 +353,21 @@ func (r *Repository) Spending(ctx context.Context, userID string, from, to time.
 	if err != nil {
 		return nil, shared.WrapError(err, "transaction")
 	}
-	out := make([]domain.Transaction, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, row.toDomain())
-	}
-	return out, nil
+	return scanTransactions(rows), nil
 }
 
-func (r *Repository) SetTransactionCategory(ctx context.Context, userID, id, categoryID string) error {
-	res := r.db.WithContext(ctx).Exec(`
+func (r *Repository) SetTransactionCategory(ctx context.Context, userID, id, categoryID string) (string, error) {
+	var desc []string
+	err := r.db.WithContext(ctx).Raw(`
 		UPDATE app.fin_transaction SET category_id = NULLIF(?, '')::uuid, category_source = 'user'
-		WHERE id = ? AND user_id = ?`, categoryID, id, userID)
-	if res.Error != nil {
-		return shared.WrapError(res.Error, "transaction")
+		WHERE id = ? AND user_id = ? RETURNING description`, categoryID, id, userID).Find(&desc).Error
+	if err != nil {
+		return "", shared.WrapError(err, "transaction")
 	}
-	if res.RowsAffected == 0 {
-		return notFound("transaction")
+	if len(desc) == 0 {
+		return "", notFound("transaction")
 	}
-	return nil
+	return desc[0], nil
 }
 
 func scanTransactions(rows []transactionRow) []domain.Transaction {

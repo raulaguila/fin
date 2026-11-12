@@ -241,15 +241,20 @@ func (s *Service) People(ctx context.Context, userID string) ([]domain.Person, e
 }
 
 // forecast projects the end of the current month: what came in and went out,
-// plus recurring charges not seen yet and the salary still to come (as much as
-// last month's, less what already arrived).
-func forecast(now time.Time, sum *domain.MonthSummary, salary, salaryBefore domain.Money) *domain.Forecast {
+// plus recurring charges and registered subscriptions not seen yet and the
+// salary still to come (as much as last month's, less what already arrived).
+func forecast(now time.Time, sum *domain.MonthSummary, salary, salaryBefore domain.Money, subs []domain.Subscription) *domain.Forecast {
 	from := monthStart(now)
 	last := from.AddDate(0, 1, -1)
 	f := &domain.Forecast{DaysLeft: last.Day() - now.Day(), ExpectedIncome: max(0, salaryBefore-salary)}
 	for _, r := range sum.Recurring {
 		if r.LastDate.Before(from) {
 			f.PendingBills += r.Amount
+		}
+	}
+	for _, s := range subs {
+		if !s.Paid && !s.NextDue.After(last) {
+			f.PendingBills -= s.Amount
 		}
 	}
 	f.Projected = sum.Income + sum.Expense + f.ExpectedIncome + f.PendingBills

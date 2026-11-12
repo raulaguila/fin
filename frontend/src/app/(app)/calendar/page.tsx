@@ -14,7 +14,7 @@ import type { MessageKey } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
 
-const ICONS: Record<CalendarEvent["kind"], LucideIcon> = { bill: CreditCard, recurring: Repeat, income: ArrowDownLeft };
+const ICONS: Record<CalendarEvent["kind"], LucideIcon> = { bill: CreditCard, recurring: Repeat, subscription: Repeat, income: ArrowDownLeft };
 
 export default function CalendarPage() {
   const { t } = useI18n();

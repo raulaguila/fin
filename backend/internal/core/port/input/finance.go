@@ -61,6 +61,12 @@ type FinanceService interface {
 	// becomes the account balance. It returns how many were new.
 	Import(ctx context.Context, userID, accountID string, txs []domain.Transaction, balance *domain.Money) (int, error)
 
+	Subscriptions(ctx context.Context, userID string) (*domain.Subscriptions, error)
+	CreateSubscription(ctx context.Context, userID string, s domain.Subscription) (*domain.Subscription, error)
+	UpdateSubscription(ctx context.Context, userID, id string, s domain.Subscription) (*domain.Subscription, error)
+	DeleteSubscription(ctx context.Context, userID, id string) error
+	// IgnoreRecurring keeps a detected charge out of the lists and the forecasts.
+	IgnoreRecurring(ctx context.Context, userID, key string) error
 	Goals(ctx context.Context, userID string) ([]domain.Goal, error)
 	CreateGoal(ctx context.Context, userID string, g domain.Goal) (*domain.Goal, error)
 	UpdateGoal(ctx context.Context, userID, id string, g domain.Goal) (*domain.Goal, error)

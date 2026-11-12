@@ -20,6 +20,7 @@ Princípios:
 | **Transações** | Tudo que entrou e saiu, com busca, filtro por conta e categoria e troca de categoria em um clique. Uma compra pode ser **dividida** entre categorias, e o que não deve contar (uma cobrança duplicada, por exemplo) vai para **Ignoradas**. |
 | **Próximos 30 dias** | Faturas, contas recorrentes e salário previstos, com o saldo da conta dia a dia e o aviso de quando ele ficaria negativo. |
 | **Orçamento** | Limite mensal por categoria, com barra de quanto já foi usado. |
+| **Assinaturas** | Assinaturas e contas fixas cadastradas (mensais ou anuais), com o status do mês (paga, a vencer, não apareceu) conferido no extrato e o custo por mês e por ano. Lista também as cobranças que se repetem e ainda não foram cadastradas: um clique cadastra, outro descarta. Entram na previsão e em Próximos 30 dias. |
 | **Metas** | Objetivos de economia (reserva de emergência, viagem), com o progresso seguindo o saldo de uma conta ou um valor informado, e quanto guardar por mês até a data. |
 | **Relatório anual** | O ano por categoria e por mês, com saúde e educação destacadas, para conferir a declaração do Imposto de Renda. |
 | **Pessoas** | Pix e TED por pessoa nos últimos 12 meses: quanto enviou e recebeu. Um botão marca o que alguém te devolve como **reembolso**, que abate a despesa em vez de inflar a receita. |

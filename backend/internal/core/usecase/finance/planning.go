@@ -1,6 +1,7 @@
 package finance
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -101,18 +102,24 @@ func (s *Service) Calendar(ctx context.Context, userID string) (*domain.Calendar
 			}
 		}
 	}
-	return calendar(today, accounts, spending, incomes), nil
+	subs, ignored, err := s.subscriptions(ctx, userID, spending, today)
+	if err != nil {
+		return nil, err
+	}
+	return calendar(today, accounts, spending, incomes, subs, ignored), nil
 }
 
 // calendar projects the bank balance through the card bills, the recurring
-// charges of bank accounts (card charges are inside the bill) and the salaries
-// expected a month after the last ones.
-func calendar(today time.Time, accounts []domain.Account, spending, incomes []domain.Transaction) *domain.Calendar {
+// charges of bank accounts and the registered subscriptions (card charges are
+// inside the bill) and the salaries expected a month after the last ones.
+func calendar(today time.Time, accounts []domain.Account, spending, incomes []domain.Transaction, subs []domain.Subscription, ignored []string) *domain.Calendar {
 	end := today.AddDate(0, 0, calendarDays)
 	inWindow := func(d time.Time) bool { return !d.Before(today) && !d.After(end) }
 	cal := &domain.Calendar{}
 	var events []domain.CalendarEvent
+	card := map[string]bool{}
 	for _, a := range accounts {
+		card[a.ID] = a.Type == domain.AccountCredit
 		switch a.Type {
 		case domain.AccountBank:
 			cal.Start += a.Balance
@@ -128,7 +135,19 @@ func calendar(today time.Time, accounts []domain.Account, spending, incomes []do
 			bank = append(bank, t)
 		}
 	}
-	for _, r := range recurring(bank) {
+	for _, s := range subs {
+		if paidWith := cmp.Or(s.AccountID, s.LastAccount); card[paidWith] {
+			continue // paid by card: it is inside the bill
+		}
+		for next := s.NextDue; !next.After(end); next = nextDue(s, next) {
+			date := next
+			if date.Before(today) {
+				date = today // late: still to come
+			}
+			events = append(events, domain.CalendarEvent{Date: date, Kind: "subscription", Name: s.Name, Amount: -s.Amount})
+		}
+	}
+	for _, r := range detected(recurring(bank), subs, ignored) {
 		next := r.LastDate.AddDate(0, 1, 0)
 		if next.Before(today) {
 			next = today // late this month: still to come
@@ -297,16 +316,22 @@ func (s *Service) checkGoal(ctx context.Context, userID string, g *domain.Goal) 
 	if g.AccountID == "" {
 		return nil
 	}
+	_, err = s.ownAccount(ctx, userID, g.AccountID)
+	return err
+}
+
+// ownAccount finds an account of the user, imported or from a bank.
+func (s *Service) ownAccount(ctx context.Context, userID, id string) (*domain.Account, error) {
 	accounts, err := s.repo().Accounts(ctx, userID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, a := range accounts {
-		if a.ID == g.AccountID {
-			return nil
+		if a.ID == id {
+			return &a, nil
 		}
 	}
-	return apperror.New(apperror.CodeNotFound, "account not found").WithDetails("resource", "account")
+	return nil, apperror.New(apperror.CodeNotFound, "account not found").WithDetails("resource", "account")
 }
 
 func (s *Service) CreateGoal(ctx context.Context, userID string, g domain.Goal) (*domain.Goal, error) {

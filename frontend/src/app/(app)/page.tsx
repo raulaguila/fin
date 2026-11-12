@@ -219,8 +219,9 @@ function Commitments({ s }: { s: Summary }) {
         <Card className="gap-3 p-4">
           <div className="flex items-baseline justify-between gap-2">
             <h2 className="text-sm font-medium">{t("fin.dash.recurring")}</h2>
-            <span className="text-xs text-muted-foreground tabular-nums">{fill(t("fin.dash.recurring_total"), { v: f.money(-s.recurring.reduce((n, r) => n + (r.changed ? r.last : r.amount), 0)) })}</span>
+            <Link href="/subscriptions" className="text-sm text-muted-foreground hover:underline">{t("fin.dash.see_all")}</Link>
           </div>
+          <p className="-mt-2 text-xs text-muted-foreground tabular-nums">{fill(t("fin.dash.recurring_total"), { v: f.money(-s.recurring.reduce((n, r) => n + (r.changed ? r.last : r.amount), 0)) })}</p>
           <ul className="divide-y">
             {s.recurring.map((r) => (
               <li key={r.name} className="flex items-center justify-between gap-3 py-2 text-sm">

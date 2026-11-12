@@ -372,6 +372,37 @@ func TestFinanceSyncSummaryRulesAndAlerts(t *testing.T) {
 		t.Fatalf("delete of another user's goal: %v", err)
 	}
 
+	// Subscriptions: the statement line pays the period; another user's account is refused.
+	uberSub := domain.Subscription{Name: "Uber One", Amount: 3550, Day: day(0).Day(), Keyword: "uber", AccountID: conns[0].Accounts[0].ID}
+	if _, err := svc.CreateSubscription(ctx, other, uberSub); !apperror.IsNotFound(err) {
+		t.Fatalf("subscription on another user's account: %v", err)
+	}
+	sub, err := svc.CreateSubscription(ctx, userID, uberSub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if list, err := svc.Subscriptions(ctx, userID); err != nil || len(list.Items) != 1 || !list.Items[0].Paid || list.Items[0].LastAmount == 0 || list.Monthly != 3550 { // two Uber charges share the day
+		t.Fatalf("subscriptions: %+v %v", list, err)
+	}
+	uberSub.Month = int(day(0).Month())
+	if _, err := svc.UpdateSubscription(ctx, userID, sub.ID, uberSub); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := svc.Subscriptions(ctx, userID); list.Monthly != 3550/12 {
+		t.Fatalf("a yearly one costs a twelfth a month: %d", list.Monthly)
+	}
+	for range 2 { // dismissing twice is harmless
+		if err := svc.IgnoreRecurring(ctx, userID, "padaria sao joao"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := svc.DeleteSubscription(ctx, other, sub.ID); !apperror.IsNotFound(err) {
+		t.Fatalf("delete of another user's subscription: %v", err)
+	}
+	if err := svc.DeleteSubscription(ctx, userID, sub.ID); err != nil {
+		t.Fatal(err)
+	}
+
 	// Deleting the connection removes its accounts and transactions.
 	if err := svc.DeleteConnection(ctx, other, conn.ID); !apperror.IsNotFound(err) {
 		t.Fatalf("delete by another user: %v", err)

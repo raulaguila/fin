@@ -1,6 +1,7 @@
 package finance
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -189,7 +190,7 @@ func TestForecastAndNextBill(t *testing.T) {
 		{Amount: -5000, LastDate: day("2026-10-20")}, // not charged yet this month
 		{Amount: -3000, LastDate: day("2026-11-02")},
 	}}
-	f := forecast(now, sum, 100000, 300000)
+	f := forecast(now, sum, 100000, 300000, nil)
 	if f.DaysLeft != 18 || f.PendingBills != -5000 || f.ExpectedIncome != 200000 || f.Projected != 100000-40000+200000-5000 {
 		t.Fatalf("forecast: %+v", f)
 	}
@@ -215,7 +216,7 @@ func TestCalendar(t *testing.T) {
 			domain.Transaction{Date: d(m, 1), Description: "NETFLIX", Amount: -5590, AccountType: domain.AccountCredit})
 	}
 	incomes := []domain.Transaction{{Date: d(11, 5), Description: "SALARIO", Amount: 500000}}
-	cal := calendar(today, accounts, spending, incomes)
+	cal := calendar(today, accounts, spending, incomes, nil, nil)
 	// Dec 5: salary first, then rent; Nov 20: card bill.
 	want := []struct {
 		kind    string
@@ -245,5 +246,68 @@ func TestImportIDRepeatsAreDistinctButStable(t *testing.T) {
 	line.ExternalID = "FIT1"
 	if importID("acc", line, seen) != "import:acc:FIT1" {
 		t.Fatal("the file's own id wins")
+	}
+}
+
+func TestBankNameFromAccountCode(t *testing.T) {
+	accs := []domain.OFAccount{{Type: domain.AccountCredit}, {BankCode: "0260"}}
+	if got := bankName(accs); got != "Nubank" {
+		t.Fatalf("bankName = %q, want Nubank", got)
+	}
+	if got := bankName([]domain.OFAccount{{BankCode: "999"}}); got != "" {
+		t.Fatalf("unknown code must give no name, got %q", got)
+	}
+}
+
+func TestSubscriptionStatus(t *testing.T) {
+	today := day("2026-11-12")
+	spending := []domain.Transaction{ // newest first
+		{Date: day("2026-10-30"), Description: "NETFLIX.COM 1030", Amount: -5990},
+		{Date: day("2026-10-08"), Description: "SMARTFIT MENSAL", Amount: -9990},
+		{Date: day("2026-01-15"), Description: "Amazon Prime anual", Amount: -16680},
+	}
+	subs := []domain.Subscription{
+		{Name: "Netflix", Keyword: "Netflix.com", Amount: 5590, Day: 1}, // charged Oct 30 for Nov 1
+		{Name: "Academia", Keyword: "smartfit", Amount: 9990, Day: 8},   // Nov 8 not charged: late
+		{Name: "Prime", Keyword: "amazon prime", Amount: 16680, Day: 15, Month: 1},
+		{Name: "Luz", Keyword: "enel", Amount: 20000, Day: 20}, // due later this month
+	}
+	subscriptionStatus(subs, spending, today)
+	check := func(i int, paid, isLate bool, next string) {
+		t.Helper()
+		if s := subs[i]; s.Paid != paid || s.Late != isLate || s.NextDue.Format(time.DateOnly) != next {
+			t.Fatalf("%s: paid %v late %v next %s", s.Name, s.Paid, s.Late, s.NextDue.Format(time.DateOnly))
+		}
+	}
+	check(0, true, false, "2026-12-01")
+	check(1, false, true, "2026-11-08")
+	check(2, false, false, "2027-01-15") // January's has long passed: waits for next year
+	check(3, false, false, "2026-11-20")
+	if subs[0].LastAmount != 5990 {
+		t.Fatalf("last charge: %d", subs[0].LastAmount)
+	}
+	if a := subscriptionAlerts(subs, spending, today); len(a) != 1 || a[0].kind != NotifySubscription {
+		t.Fatalf("only the gym is late: %+v", a)
+	}
+	f := forecast(today, &domain.MonthSummary{}, 0, 0, subs)
+	if f.PendingBills != -(9990 + 20000) {
+		t.Fatalf("pending this month: gym (late) and power: %d", f.PendingBills)
+	}
+
+	found := []domain.Recurring{{Key: "netflix com", Name: "NETFLIX.COM"}, {Key: "spotify", Name: "SPOTIFY"}, {Key: "padaria", Name: "PADARIA"}}
+	if got := detected(found, subs, []string{"padaria"}); len(got) != 1 || got[0].Key != "spotify" {
+		t.Fatalf("registered and dismissed charges leave the detected list: %+v", got)
+	}
+
+	// The power bill is due in the window; the gym, late, is expected today; a card one stays in the bill.
+	accounts := []domain.Account{{ID: "bank", Type: domain.AccountBank, Balance: 100000}, {ID: "card", Type: domain.AccountCredit}}
+	subs[0].LastAccount = "card" // charged on the card last time, no account registered
+	cal := calendar(today, accounts, nil, nil, subs, nil)
+	var names []string
+	for _, e := range cal.Events {
+		names = append(names, e.Date.Format("01-02")+" "+e.Name)
+	}
+	if got := strings.Join(names, ", "); got != "11-12 Academia, 11-20 Luz, 12-08 Academia" {
+		t.Fatalf("calendar events: %s", got)
 	}
 }

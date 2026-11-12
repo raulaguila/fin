@@ -85,6 +85,9 @@ func fake(t *testing.T) (*httptest.Server, *atomic.Int32) {
 		}
 		_, _ = w.Write([]byte(`{"page":1,"totalPages":1,"results":[{"id":"i1","name":" CDB Banco X ","type":"FIXED_INCOME","balance":10500.25}]}`))
 	}))
+	mux.HandleFunc("PATCH /items/{id}", authed(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message":"MeuPluggy item cant be updated","code":400}`, http.StatusBadRequest)
+	}))
 	mux.HandleFunc("DELETE /items/{id}", authed(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "{}", http.StatusNotFound)
 	}))
@@ -146,6 +149,9 @@ func TestClientFlow(t *testing.T) {
 		t.Fatalf("investments: %+v, %v", inv, err)
 	}
 
+	if err := c.RefreshItem(ctx, "meupluggy"); err != nil {
+		t.Fatalf("a MeuPluggy item refreshes itself; asking must not fail the sync: %v", err)
+	}
 	if err := c.DeleteItem(ctx, "gone"); err != nil {
 		t.Fatalf("delete of a missing item must succeed: %v", err)
 	}

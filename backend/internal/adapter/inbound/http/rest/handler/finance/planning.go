@@ -11,7 +11,7 @@ import (
 	"github.com/raulaguila/fin/internal/core/domain"
 )
 
-// planningRoutes are the year report, calendar, splits, imports and goals.
+// planningRoutes are the year report, calendar, splits, imports, subscriptions and goals.
 func (h *Handler) planningRoutes(r fiber.Router) {
 	r.Post("/transactions/:id/split", h.Split)
 	r.Delete("/transactions/:id/split", h.Unsplit)
@@ -19,6 +19,11 @@ func (h *Handler) planningRoutes(r fiber.Router) {
 	r.Get("/calendar", h.Calendar)
 	r.Post("/accounts", h.CreateManualAccount)
 	r.Post("/accounts/:id/import", h.Import)
+	r.Get("/subscriptions", h.Subscriptions)
+	r.Post("/subscriptions", h.CreateSubscription)
+	r.Post("/subscriptions/ignore", h.IgnoreRecurring)
+	r.Put("/subscriptions/:id", h.UpdateSubscription)
+	r.Delete("/subscriptions/:id", h.DeleteSubscription)
 	r.Get("/goals", h.Goals)
 	r.Post("/goals", h.CreateGoal)
 	r.Put("/goals/:id", h.UpdateGoal)

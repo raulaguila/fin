@@ -100,7 +100,7 @@ export interface Summary {
   accounts: Account[];
   institutions: Record<string, string>;
   recent: Transaction[];
-  recurring: { name: string; amount: Cents; months: number; last_date: string; changed: boolean; previous: Cents; last: Cents }[];
+  recurring: Recurring[];
   installments: { description: string; amount: Cents; remaining: number }[];
   /** Only for the current month. */
   forecast: { days_left: number; pending_bills: Cents; expected_income: Cents; projected: Cents } | null;
@@ -123,9 +123,42 @@ export interface YearReport {
   months: MonthTotal[];
 }
 
+/** A charge seen in several of the last months. Amounts are negative. */
+export interface Recurring {
+  /** Send to ignoreRecurring to dismiss it. */
+  key: string;
+  name: string;
+  amount: Cents;
+  months: number;
+  last_date: string;
+  changed: boolean;
+  previous: Cents;
+  last: Cents;
+}
+
+/** A subscription or fixed bill the user registered. Amounts are positive. */
+export interface Subscription {
+  id: string;
+  name: string;
+  amount: Cents;
+  day: number;
+  /** 0 every month; 1-12 once a year in that month. */
+  month: number;
+  keyword: string;
+  category_id: string;
+  account_id: string;
+  last_paid: string;
+  last_amount: Cents;
+  paid: boolean;
+  late: boolean;
+  next_due: string;
+}
+
+export type SubscriptionInput = Pick<Subscription, "name" | "amount" | "day" | "month" | "keyword" | "category_id" | "account_id">;
+
 export interface CalendarEvent {
   date: string;
-  kind: "bill" | "recurring" | "income";
+  kind: "bill" | "recurring" | "subscription" | "income";
   name: string;
   amount: Cents;
   /** Bank balance after this event. */
@@ -245,6 +278,11 @@ export const finance = {
     apiFetch<Account>(`${base}/accounts`, { method: "POST", json: a }),
   importLines: (accountId: string, transactions: ImportLine[], balance?: Cents) =>
     apiFetch<{ inserted: number }>(`${base}/accounts/${id(accountId)}/import`, { method: "POST", json: { transactions, balance } }),
+  subscriptions: () => apiFetch<{ items: Subscription[]; detected: Recurring[]; monthly: Cents }>(`${base}/subscriptions`),
+  createSubscription: (s: SubscriptionInput) => apiFetch<Subscription>(`${base}/subscriptions`, { method: "POST", json: s }),
+  updateSubscription: (subId: string, s: SubscriptionInput) => apiFetch<Subscription>(`${base}/subscriptions/${id(subId)}`, { method: "PUT", json: s }),
+  removeSubscription: (subId: string) => apiFetch<void>(`${base}/subscriptions/${id(subId)}`, { method: "DELETE" }),
+  ignoreRecurring: (key: string) => apiFetch<void>(`${base}/subscriptions/ignore`, { method: "POST", json: { key } }),
   goals: () => apiFetch<{ items: Goal[] }>(`${base}/goals`),
   createGoal: (g: Omit<Goal, "id" | "current">) => apiFetch<Goal>(`${base}/goals`, { method: "POST", json: g }),
   updateGoal: (goalId: string, g: Omit<Goal, "id" | "current">) => apiFetch<Goal>(`${base}/goals/${id(goalId)}`, { method: "PUT", json: g }),

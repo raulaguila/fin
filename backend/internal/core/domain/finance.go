@@ -146,6 +146,7 @@ type CategoryTotal struct {
 
 // Recurring is a charge seen in most recent months with a similar amount.
 type Recurring struct {
+	Key      string // the merchant key; the user may mark it as not recurring
 	Name     string
 	Amount   Money // typical amount, negative
 	Months   int
@@ -233,6 +234,33 @@ type Goal struct {
 	Current   Money
 }
 
+// Subscription is a subscription or fixed bill the user registered.
+type Subscription struct {
+	ID         string
+	Name       string
+	Amount     Money // what it costs, positive
+	Day        int   // day of the month it is due
+	Month      int   // 0 every month; 1-12 once a year in that month
+	Keyword    string
+	CategoryID string
+	AccountID  string
+	// Read from the transactions, not stored.
+	LastPaid    *time.Time
+	LastAmount  Money  // last charge, positive
+	LastAccount string // account of the last charge
+	Paid        bool   // charged in the current period
+	Late        bool   // due a few days ago and not charged
+	NextDue     time.Time
+}
+
+// Subscriptions lists the registered ones and the recurring charges found
+// in the history that are neither registered nor dismissed.
+type Subscriptions struct {
+	Items    []Subscription
+	Detected []Recurring
+	Monthly  Money // what the registered ones cost a month, yearly ones spread over 12
+}
+
 // CalendarEvent is money expected on a day of the next weeks.
 type CalendarEvent struct {
 	Date    time.Time
@@ -290,6 +318,7 @@ type OFAccount struct {
 	BillDueDate   *time.Time
 	LastBillDue   *time.Time
 	LastBill      *Money
+	BankCode      string // COMPE code of a bank account ("341" is Itaú), empty for cards
 }
 
 type OFInvestment struct {

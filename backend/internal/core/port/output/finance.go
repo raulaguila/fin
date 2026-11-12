@@ -97,6 +97,13 @@ type FinanceRepository interface {
 	UpsertInvestments(ctx context.Context, userID, connectionID string, list []domain.OFInvestment) error
 	Investments(ctx context.Context, userID string) ([]domain.Investment, error)
 
+	Subscriptions(ctx context.Context, userID string) ([]domain.Subscription, error)
+	CreateSubscription(ctx context.Context, userID string, s *domain.Subscription) error
+	UpdateSubscription(ctx context.Context, userID string, s *domain.Subscription) error
+	DeleteSubscription(ctx context.Context, userID, id string) error
+	// IgnoredRecurring lists the merchant keys the user said are not recurring.
+	IgnoredRecurring(ctx context.Context, userID string) ([]string, error)
+	IgnoreRecurring(ctx context.Context, userID, key string) error
 	Goals(ctx context.Context, userID string) ([]domain.Goal, error)
 	CreateGoal(ctx context.Context, userID string, g *domain.Goal) error
 	UpdateGoal(ctx context.Context, userID string, g *domain.Goal) error

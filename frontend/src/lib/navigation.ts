@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Bot, CalendarDays, FileText, Flag, HandCoins, KeyRound, LayoutDashboard, Plug, ScrollText, Tags, Target, Users, type LucideIcon } from "lucide-react";
+import { ArrowLeftRight, Bot, CalendarDays, Repeat, FileText, Flag, HandCoins, KeyRound, LayoutDashboard, Plug, ScrollText, Tags, Target, Users, type LucideIcon } from "lucide-react";
 import type { Action } from "@/lib/api/types";
 import type { MessageKey } from "@/lib/i18n/messages";
 
@@ -15,6 +15,7 @@ export const MAIN_NAV: NavItem[] = [
   { href: "/transactions", key: "nav.transactions", icon: ArrowLeftRight },
   { href: "/calendar", key: "nav.calendar", icon: CalendarDays },
   { href: "/budget", key: "nav.budget", icon: Target },
+  { href: "/subscriptions", key: "nav.subscriptions", icon: Repeat },
   { href: "/goals", key: "nav.goals", icon: Flag },
   { href: "/people", key: "nav.people", icon: HandCoins },
   { href: "/report", key: "nav.report", icon: FileText },

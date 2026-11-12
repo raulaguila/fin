@@ -284,6 +284,7 @@ type categoryTotalDTO struct {
 }
 
 type recurringDTO struct {
+	Key      string `json:"key"` // send to /subscriptions/ignore to dismiss it
 	Name     string `json:"name"`
 	Amount   int64  `json:"amount"`
 	Months   int    `json:"months"`
@@ -291,6 +292,10 @@ type recurringDTO struct {
 	Changed  bool   `json:"changed"`
 	Previous int64  `json:"previous"`
 	Last     int64  `json:"last"`
+}
+
+func toRecurring(r domain.Recurring) recurringDTO {
+	return recurringDTO{Key: r.Key, Name: r.Name, Amount: r.Amount, Months: r.Months, LastDate: r.LastDate.Format(time.DateOnly), Changed: r.Changed, Previous: r.Previous, Last: r.Last}
 }
 
 type forecastDTO struct {
@@ -370,7 +375,7 @@ func (h *Handler) Summary(c fiber.Ctx) error {
 		out.Accounts = append(out.Accounts, toAccount(a))
 	}
 	for _, r := range s.Recurring {
-		out.Recurring = append(out.Recurring, recurringDTO{Name: r.Name, Amount: r.Amount, Months: r.Months, LastDate: r.LastDate.Format(time.DateOnly), Changed: r.Changed, Previous: r.Previous, Last: r.Last})
+		out.Recurring = append(out.Recurring, toRecurring(r))
 	}
 	if f := s.Forecast; f != nil {
 		out.Forecast = &forecastDTO{DaysLeft: f.DaysLeft, PendingBills: f.PendingBills, ExpectedIncome: f.ExpectedIncome, Projected: f.Projected}

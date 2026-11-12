@@ -57,10 +57,15 @@ func (s *Service) Summary(ctx context.Context, userID string, month time.Time) (
 	if err != nil {
 		return nil, err
 	}
+	now := s.Clock.Now()
+	subs, ignored, err := s.subscriptions(ctx, userID, spending, monthDay(now))
+	if err != nil {
+		return nil, err
+	}
 
 	sum := &domain.MonthSummary{
 		Month: from, Previous: map[string]domain.Money{}, Institutions: map[string]string{},
-		Recent: recent, Recurring: recurring(spending), Installments: installments(spending, from, to), Investments: investments,
+		Recent: recent, Recurring: detected(recurring(spending), subs, ignored), Installments: installments(spending, from, to), Investments: investments,
 	}
 	sum.Income, sum.Expense, sum.Categories = combine(cats, totals)
 	for _, t := range prevTotals {
@@ -72,8 +77,8 @@ func (s *Service) Summary(ctx context.Context, userID string, month time.Time) (
 		sum.Institutions[c.ID] = c.Institution
 		sum.Accounts = append(sum.Accounts, c.Accounts...)
 	}
-	if now := s.Clock.Now(); monthStart(now).Equal(from) {
-		sum.Forecast = forecast(now, sum, categoryTotal(totals, cats, catSalary), categoryTotal(prevTotals, cats, catSalary))
+	if monthStart(now).Equal(from) {
+		sum.Forecast = forecast(now, sum, categoryTotal(totals, cats, catSalary), categoryTotal(prevTotals, cats, catSalary), subs)
 	}
 	return sum, nil
 }
@@ -119,13 +124,19 @@ var (
 	noiseMarks  = regexp.MustCompile(`[^\p{L} ]+`)
 )
 
-// merchantKey groups descriptions of the same merchant: "NETFLIX.COM 0412" and
-// "Netflix.com 0511" share one key.
-func merchantKey(desc string) string {
+// normText keeps the words of a description, lower case, without digits or marks:
+// "NETFLIX.COM 0412" gives "netflix com".
+func normText(desc string) string {
 	s := strings.ToLower(desc)
 	s = noiseDigits.ReplaceAllString(s, " ")
 	s = noiseMarks.ReplaceAllString(s, " ")
-	words := strings.Fields(s)
+	return strings.Join(strings.Fields(s), " ")
+}
+
+// merchantKey groups descriptions of the same merchant: "NETFLIX.COM 0412" and
+// "Netflix.com 0511" share one key.
+func merchantKey(desc string) string {
+	words := strings.Fields(normText(desc))
 	if len(words) > 3 {
 		words = words[:3]
 	}
@@ -170,7 +181,7 @@ func recurring(spending []domain.Transaction) []domain.Recurring {
 		for _, t := range g.charge {
 			amounts = append(amounts, t.Amount)
 		}
-		r := domain.Recurring{Name: g.name, Amount: median(amounts), Months: len(g.months), LastDate: g.charge[0].Date, Last: g.charge[0].Amount}
+		r := domain.Recurring{Key: key, Name: g.name, Amount: median(amounts), Months: len(g.months), LastDate: g.charge[0].Date, Last: g.charge[0].Amount}
 		if len(g.charge) > 1 {
 			last, prev := g.charge[0].Amount, g.charge[1].Amount
 			if diff := last - prev; prev != 0 && abs(diff)*10 > abs(prev) {

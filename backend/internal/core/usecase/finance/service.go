@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -213,8 +214,33 @@ func connStatus(status string) string {
 	}
 }
 
+// meuPluggy is the connector that shares banks linked at meu.pluggy.ai: one item per
+// bank, all with this name, so the bank comes from the accounts instead (bankName).
+const meuPluggy = "MeuPluggy"
+
+// banks names the COMPE codes of the banks people use most; others keep the connector name.
+var banks = map[string]string{
+	"001": "Banco do Brasil", "033": "Santander", "041": "Banrisul", "070": "BRB", "077": "Inter",
+	"104": "Caixa", "208": "BTG Pactual", "212": "Banco Original", "237": "Bradesco", "260": "Nubank",
+	"290": "PagBank", "323": "Mercado Pago", "336": "C6 Bank", "341": "Itaú", "380": "PicPay",
+	"422": "Safra", "748": "Sicredi", "756": "Sicoob",
+}
+
+// bankName is the bank of the first account whose code is known, or "".
+func bankName(accounts []domain.OFAccount) string {
+	for _, a := range accounts {
+		if code, err := strconv.Atoi(a.BankCode); err == nil && banks[fmt.Sprintf("%03d", code)] != "" {
+			return banks[fmt.Sprintf("%03d", code)] // "0341" and "341" are the same bank
+		}
+	}
+	return ""
+}
+
 func applyItem(c *domain.Connection, item *domain.OFItem) {
-	c.Institution, c.ImageURL = validate.Text(item.Institution, 200), validate.Text(item.ImageURL, 500)
+	if item.Institution != meuPluggy || c.Institution == "" {
+		c.Institution = validate.Text(item.Institution, 200) // a MeuPluggy item keeps the bank name sync gave it
+	}
+	c.ImageURL = validate.Text(item.ImageURL, 500)
 	c.Status, c.ConsentExpiresAt = connStatus(item.Status), item.ConsentExpiresAt
 	c.Error = ""
 	if c.Status != domain.ConnOK && c.Status != domain.ConnSyncing {
@@ -262,6 +288,9 @@ func (s *Service) sync(ctx context.Context, connectionID string) (*domain.Connec
 	accounts, err := s.OF.Accounts(ctx, c.ItemID)
 	if err != nil {
 		return nil, err
+	}
+	if name := bankName(accounts); name != "" && item.Institution == meuPluggy {
+		c.Institution = name
 	}
 	inserted := 0
 	for _, a := range accounts {

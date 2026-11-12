@@ -97,8 +97,13 @@ func (s *Service) Alerts(ctx context.Context, userID string) error {
 	if err != nil {
 		return err
 	}
+	subs, _, err := s.subscriptions(ctx, userID, spending, day)
+	if err != nil {
+		return err
+	}
 	alerts = append(alerts, largeSpendAlerts(spending, day)...)
 	alerts = append(alerts, spendingAlerts(spending, day)...)
+	alerts = append(alerts, subscriptionAlerts(subs, spending, day)...)
 	for _, a := range alerts {
 		if err := s.notify(ctx, userID, a); err != nil {
 			return err

@@ -1750,6 +1750,239 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/finance/subscriptions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "List registered subscriptions with their status, and recurring charges found in the history",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/finance.subscriptionsDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Register a subscription or fixed bill",
+                "parameters": [
+                    {
+                        "description": "Name, amount, due day, month for a yearly one, keyword, category and account",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/finance.subscriptionDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/finance.subscriptionDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/subscriptions/ignore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Mark a detected charge as not recurring: it leaves the lists and the forecasts",
+                "parameters": [
+                    {
+                        "description": "The key of the detected charge",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "key": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/subscriptions/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Replace a subscription or fixed bill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subscription ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Every field of the subscription",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/finance.subscriptionDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/finance.subscriptionDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Delete a subscription or fixed bill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subscription ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/finance/summary": {
             "get": {
                 "security": [
@@ -5410,6 +5643,10 @@ const docTemplate = `{
                 "changed": {
                     "type": "boolean"
                 },
+                "key": {
+                    "description": "send to /subscriptions/ignore to dismiss it",
+                    "type": "string"
+                },
                 "last": {
                     "type": "integer"
                 },
@@ -5482,6 +5719,83 @@ const docTemplate = `{
                 },
                 "category_id": {
                     "type": "string"
+                }
+            }
+        },
+        "finance.subscriptionDTO": {
+            "type": "object",
+            "properties": {
+                "account_id": {
+                    "description": "optional; a card account keeps it out of the bank forecast",
+                    "type": "string"
+                },
+                "amount": {
+                    "description": "what it costs, positive cents",
+                    "type": "integer"
+                },
+                "category_id": {
+                    "description": "optional",
+                    "type": "string"
+                },
+                "day": {
+                    "description": "due day of the month, 1-31",
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "keyword": {
+                    "description": "words of the statement line that identify the charge",
+                    "type": "string"
+                },
+                "last_amount": {
+                    "description": "read only: that charge, positive cents",
+                    "type": "integer"
+                },
+                "last_paid": {
+                    "description": "read only: date of the last charge found, or empty",
+                    "type": "string"
+                },
+                "late": {
+                    "description": "read only: due a few days ago and not charged",
+                    "type": "boolean"
+                },
+                "month": {
+                    "description": "0 every month; 1-12 once a year in that month",
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "next_due": {
+                    "description": "read only: YYYY-MM-DD",
+                    "type": "string"
+                },
+                "paid": {
+                    "description": "read only: charged in the current period",
+                    "type": "boolean"
+                }
+            }
+        },
+        "finance.subscriptionsDTO": {
+            "type": "object",
+            "properties": {
+                "detected": {
+                    "description": "recurring charges neither registered nor dismissed",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/finance.recurringDTO"
+                    }
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/finance.subscriptionDTO"
+                    }
+                },
+                "monthly": {
+                    "description": "monthly cost of the registered ones, yearly spread over 12",
+                    "type": "integer"
                 }
             }
         },
@@ -6233,6 +6547,10 @@ const docTemplate = `{
             "name": "Goals"
         },
         {
+            "description": "Subscriptions and fixed bills: the registered ones with their status, and recurring charges found in the history",
+            "name": "Subscriptions"
+        },
+        {
             "description": "Questions about the user's finances, answered by the configured model",
             "name": "Assistant"
         },
@@ -6284,6 +6602,7 @@ const docTemplate = `{
                 "Transactions",
                 "Categories",
                 "Goals",
+                "Subscriptions",
                 "Assistant",
                 "Webhooks"
             ]

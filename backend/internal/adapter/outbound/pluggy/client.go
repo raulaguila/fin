@@ -207,7 +207,12 @@ func (c *Client) Item(ctx context.Context, id string) (*domain.OFItem, error) {
 }
 
 func (c *Client) RefreshItem(ctx context.Context, id string) error {
-	return c.do(ctx, http.MethodPatch, "/items/"+url.PathEscape(id), map[string]any{}, nil)
+	err := c.do(ctx, http.MethodPatch, "/items/"+url.PathEscape(id), map[string]any{}, nil)
+	var status statusError
+	if errors.As(err, &status) && status.code == http.StatusBadRequest && strings.Contains(status.body, "MeuPluggy") {
+		return nil // MeuPluggy refreshes its items itself every 24 h; reading the last data is all we can do
+	}
+	return err
 }
 
 func (c *Client) DeleteItem(ctx context.Context, id string) error {
@@ -227,7 +232,10 @@ type accountJSON struct {
 	MarketingName string      `json:"marketingName"`
 	Number        string      `json:"number"`
 	Balance       json.Number `json:"balance"`
-	CreditData    *struct {
+	BankData      *struct {
+		TransferNumber string `json:"transferNumber"` // "341/0001/12345-6": bank/branch/account
+	} `json:"bankData"`
+	CreditData *struct {
 		CreditLimit          json.Number `json:"creditLimit"`
 		AvailableCreditLimit json.Number `json:"availableCreditLimit"`
 		BalanceCloseDate     string      `json:"balanceCloseDate"`
@@ -248,6 +256,9 @@ func (c *Client) Accounts(ctx context.Context, itemID string) ([]domain.OFAccoun
 		if a.MarketingName != "" {
 			acc.Name = a.MarketingName
 		}
+		if bank, _, ok := strings.Cut(bankTransfer(a), "/"); ok {
+			acc.BankCode = bank
+		}
 		if cd := a.CreditData; cd != nil {
 			acc.CreditLimit = optionalCents(cd.CreditLimit)
 			acc.Available = optionalCents(cd.AvailableCreditLimit)
@@ -257,6 +268,13 @@ func (c *Client) Accounts(ctx context.Context, itemID string) ([]domain.OFAccoun
 		accounts = append(accounts, acc)
 	}
 	return accounts, nil
+}
+
+func bankTransfer(a accountJSON) string {
+	if a.BankData == nil {
+		return ""
+	}
+	return a.BankData.TransferNumber
 }
 
 func (c *Client) LastBill(ctx context.Context, accountID string) (*time.Time, *domain.Money, error) {

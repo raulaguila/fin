@@ -19,6 +19,10 @@ import { useI18n } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { cn } from "@/lib/utils";
 
+// Connector ids the widget lists; empty lists every one. A Pluggy trial account
+// reaches real banks only through MeuPluggy (200), next to the sandbox (2).
+const CONNECTORS = (process.env.NEXT_PUBLIC_PLUGGY_CONNECTORS ?? "").split(",").map(Number).filter((n) => n > 0);
+
 const STATUS_CLS: Record<ConnectionStatus, string> = {
   ok: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300",
   syncing: "bg-sky-500/15 text-sky-800 dark:text-sky-300",
@@ -42,6 +46,7 @@ function usePluggyConnect() {
         connectToken: access_token,
         includeSandbox: process.env.NODE_ENV !== "production",
         updateItem: connection?.item_id,
+        connectorIds: CONNECTORS.length ? CONNECTORS : undefined,
         onSuccess: async ({ item }) => {
           try {
             if (connection) await finance.sync(connection.id);

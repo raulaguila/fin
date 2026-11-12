@@ -11,4 +11,5 @@ WEB_IP='172.30.98.10'                           # Container address; must equal 
 API_PORT='9979'                                 # Backend PORT; dev calls http://localhost:API_PORT, Docker http://backend:API_PORT
 SESSION_SECRET='${session_secret}'              # Signs the session cookie - PRIVATE TOKEN
 COOKIE_SECURE=''                                # Secure cookie: empty = only when served over HTTPS, 1 forces it, 0 disables it
-CLIENT_IP_HEADER=''                             # Header with the client IP set by a reverse proxy (default x-forwarded-for)" >config/.env
+CLIENT_IP_HEADER=''                             # Header with the client IP set by a reverse proxy (default x-forwarded-for)
+NEXT_PUBLIC_PLUGGY_CONNECTORS=''               # Pluggy connector ids the widget lists (comma separated); empty = all. Trial account: 200,2 (MeuPluggy, sandbox)" >config/.env

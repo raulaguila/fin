@@ -1,8 +1,9 @@
 # Template
 
-This repository is meant to be copied: a new project starts from it with
-identity, RBAC, sessions, email, audit log, rate limiting and diagnostics
-already in place, and grows its own modules next to `products`.
+Fin grew from a template with identity, RBAC, sessions, email, audit log,
+rate limiting and diagnostics already in place; `finance` is its real module and
+`products` stays as the reference for adding new ones. The sections below still
+work to start another project from this base.
 
 ## Start a new project
 

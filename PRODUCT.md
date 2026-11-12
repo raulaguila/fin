@@ -17,21 +17,21 @@
 
 ## Users
 
-Unknown — confirm before designing to that constraint.
-
-Hypothesis from purpose: applications and operators that need identity (register/login/session) and RBAC; not confirmed as named customers or first-party apps.
+One person or household running Fin for themselves (self-hosted, personal use). Not a service offered to third parties.
 
 ## Product Purpose
 
-Provide identity and authentication for clients: account lifecycle (pending → activate → active), session-based JWT access/refresh with rotation and reuse detection, session management by the user, password reset, live RBAC (resource × CRUD), role/permission/member management, user administration, user preferences, in-app security notifications, and email delivery via Postgres outbox.
+Show, in one place and without spreadsheets, where the money goes and how much is left to spend this month, from real bank data. Fin reads accounts, cards and transactions through Open Finance Brasil (Pluggy; MeuPluggy for personal use), categorizes them with user rules, tracks monthly budgets, bills and installments, raises alerts (budget, bill due, large spend, consent expiry, connection errors, monthly summary) and answers questions through an AI assistant fed only computed figures. It is read-only: it never moves money.
+
+The base underneath provides identity and authentication: account lifecycle (pending → activate → active), session-based JWT access/refresh with rotation and reuse detection, session management by the user, password reset, live RBAC (resource × CRUD), role/permission/member management, user administration, user preferences, in-app security notifications, and email delivery via Postgres outbox.
 
 Operational success (not measured SLOs): password login requires an active account or an expired lock that can be cleared; a lock does not invalidate existing sessions or prevent refresh. Disabling an account revokes its sessions. Passwords and token plaintext are never stored; HTTP never echoes login `failure_kind`; authz does not trust JWT permission claims.
 
 ## Positioning
 
-**Is:** a focused fin/identity service with hexagonal layout, identity schema `usr`, system outbox `sys`, and a small example domain module `app.product` to exercise RBAC.
+**Is:** a self-hosted, read-only personal finance assistant on a hexagonal Go + Next.js base, with identity schema `usr`, system outbox and jobs in `sys`, finance data in `app`, and the `app.product` example module kept as the reference for new modules.
 
-**Is not (v1):** multi-tenant SMTP catalog, product commerce platform, ABAC/instance-level authz, or a general dashboard — explicitly out of scope vs copying “hexago” extras without a decision.
+**Is not (v1):** a payment initiator or anything that moves money, a multi-user SaaS for third parties, multi-tenant SMTP catalog, product commerce platform, ABAC/instance-level authz, or a general dashboard — explicitly out of scope vs copying “hexago” extras without a decision.
 
 ## Operating Context
 

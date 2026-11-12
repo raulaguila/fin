@@ -29,7 +29,7 @@ init: ## Create config/.env with a fresh session secret, if missing
 install: ## Install dependencies from the lockfile
 	@pnpm install --frozen-lockfile
 
-dev: install ## Run with hot reload on http://localhost:3006
+dev: install ## Run with hot reload on http://localhost:3016
 	$(call require_env_file)
 	@pnpm dev
 

@@ -1,13 +1,18 @@
+import { networkInterfaces } from "node:os";
 import { resolve } from "node:path";
 import type { NextConfig } from "next";
 import { loadConfigDotEnv } from "./config/load-env.mjs";
 
 loadConfigDotEnv(resolve(__dirname, "config/.env"));
 
-// Next 16 blocks cross-origin access to /_next/webpack-hmr unless the browser
-// host is listed. "*" is NOT a wildcard — use explicit hosts (LAN IP, etc.).
+// Next 16 blocks cross-origin access to /_next dev resources unless the browser
+// host is listed. "*" is NOT a wildcard — use explicit hosts. This machine's own
+// addresses are always listed, so another computer on the LAN can open the dev server.
 function allowedDevOrigins(): string[] {
   const hosts = new Set<string>(["127.0.0.1", "localhost"]);
+  for (const list of Object.values(networkInterfaces())) {
+    for (const a of list ?? []) if (a.family === "IPv4" && !a.internal) hosts.add(a.address);
+  }
   for (const part of (process.env.DEV_ALLOWED_ORIGINS ?? "").split(",")) {
     const h = part.trim();
     if (h) hosts.add(h);

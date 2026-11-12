@@ -6,7 +6,7 @@ Next.js frontend for the Fin API. It works as a BFF (backend for frontend): the 
 
 ```bash
 make init   # creates config/.env with a fresh SESSION_SECRET
-make dev    # http://localhost:3006, calls the API on http://localhost:API_PORT
+make dev    # http://localhost:3016, calls the API on http://localhost:API_PORT
 ```
 
 With Docker, start the backend stack first (`make compose-build` in `backend/`), then:

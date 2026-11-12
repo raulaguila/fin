@@ -71,7 +71,7 @@ make admin-bootstrap # nome, e-mail e senha do primeiro usuário
 
 ```bash
 cd frontend
-make dev             # http://localhost:3006
+make dev             # http://localhost:3016
 ```
 
 A API responde em `API_PORT` (9979 por padrão). Mudou o `.env` do backend? Recrie os containers com `make compose-down && make compose-build`, pois o arquivo é lido na criação (os dados ficam no volume).

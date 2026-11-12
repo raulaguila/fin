@@ -21,6 +21,10 @@
 # Uploaded files of the local storage driver
 backend/data/
 
+# Database dumps of the backup service
+backend/backups/
+**/*.dump
+
 # Build outputs and temporary files
 **/bin/
 **/tmp/

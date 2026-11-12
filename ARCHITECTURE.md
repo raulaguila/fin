@@ -8,7 +8,7 @@ The Go service lives in `backend/` (its own `go.mod`, `Makefile`, config and Doc
 
 Fin is a self-hosted, read-only personal finance assistant: it syncs accounts, cards and transactions from Open Finance Brasil through Pluggy (`adapter/outbound/pluggy`), categorizes them, tracks budgets and bills, raises alerts and answers questions through an AI provider (`claude -p` or an OpenAI-compatible API). The finance use case lives in `core/usecase/finance`, its data in schema `app`, and its sync and daily alert runs in the `sys.job` worker. Identity, RBAC, audit and email come from the base described below.
 
-**Confirmed.** Fin runs as two long-lived processes plus Postgres: `cmd/backend` serves Fiber HTTP (health, auth, sessions, preferences, notifications, permissions, roles, users, finance and the products example); `cmd/mailer` claims `sys.outbox` rows under a 10-minute lease (`SKIP LOCKED`), opens the sealed token and sends SMTP. `cmd/admin` handles operator actions. `frontend/` is a Next.js BFF: it keeps the tokens in a signed httpOnly cookie, forwards API calls with the bearer and sends the client IP as `X-Real-IP`, which the backend accepts only from the web container's fixed address (`API_TRUSTED_PROXIES`). Composition wires use cases to Postgres. Product constraints live in `PRODUCT.md`; surface briefs in `.keel/surfaces/`.
+**Confirmed.** Fin runs as two long-lived processes plus Postgres: `cmd/backend` serves Fiber HTTP (health, auth, sessions, preferences, notifications, permissions, roles, users, finance and the products example); `cmd/mailer` claims `sys.outbox` rows under a 10-minute lease (`SKIP LOCKED`), opens the sealed token and sends SMTP. `cmd/admin` handles operator actions. `frontend/` is a Next.js BFF: it keeps the tokens in a signed httpOnly cookie, forwards API calls with the bearer and sends the client IP as `X-Real-IP`, which the backend accepts only from the web container's fixed address (`API_TRUSTED_PROXIES`). A `fin_backup` container dumps the database daily into `BACKUP_DIR`, one file per weekday. Composition wires use cases to Postgres. Product constraints live in `PRODUCT.md`; surface briefs in `.keel/surfaces/`.
 
 ## Boundaries
 
@@ -109,8 +109,8 @@ Every query reads only what its caller uses. A hot path pays for each extra colu
 | GET | `/v1/products/list` |
 | GET/PATCH | `/v1/products/:id` |
 | POST | `/v1/products/delete`, body `{"ids": [...]}` (1 to 100), all or none |
-| GET | `/v1/finance/status`, `/v1/finance/summary`, `/v1/finance/transactions`, `/v1/finance/connections`, `/v1/finance/categories`, `/v1/finance/rules`, `/v1/finance/rules/preview` (Bearer; own data only) |
-| POST | `/v1/finance/connect-token`, `/v1/finance/connections`, `/v1/finance/connections/{id}/sync`, `/v1/finance/categories`, `/v1/finance/rules`, `/v1/finance/assistant/chat` (Bearer; chat rate limited) |
+| GET | `/v1/finance/status`, `/v1/finance/summary`, `/v1/finance/trend`, `/v1/finance/people`, `/v1/finance/transactions`, `/v1/finance/connections`, `/v1/finance/categories`, `/v1/finance/rules`, `/v1/finance/rules/preview`, `/v1/finance/rules/suggestions` (Bearer; own data only) |
+| POST | `/v1/finance/connect-token`, `/v1/finance/connections`, `/v1/finance/connections/{id}/sync`, `/v1/finance/recategorize`, `/v1/finance/categories`, `/v1/finance/rules`, `/v1/finance/assistant/chat` (Bearer; chat rate limited) |
 | PATCH/DELETE | `/v1/finance/transactions/{id}` (PATCH), `/v1/finance/categories/{id}`, `/v1/finance/connections/{id}` and `/v1/finance/rules/{id}` (DELETE) (Bearer) |
 | POST | `/v1/webhooks/pluggy?token=PLUGGY_WEBHOOK_SECRET` (Pluggy events; queues a sync) |
 

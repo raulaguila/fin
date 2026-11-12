@@ -4,7 +4,7 @@ import { useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { MonthSwitcher, NoConnections } from "@/components/finance";
+import { MonthSwitcher, NoConnections, useAccountLabel } from "@/components/finance";
 import { PageBody, PageHeader } from "@/components/bits";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
@@ -86,8 +86,9 @@ export default function TransactionsPage() {
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
   });
 
+  const label = useAccountLabel();
   const accountItems: Record<string, string> = { "": t("fin.tx.all_accounts") };
-  for (const c of connections.data?.items ?? []) for (const a of c.accounts) accountItems[a.id] = `${c.institution} · ${a.name}`;
+  for (const c of connections.data?.items ?? []) for (const a of c.accounts) accountItems[a.id] = `${c.institution} · ${label(a)}`;
   const categoryItems: Record<string, string> = { "": t("fin.tx.all_categories"), [NONE]: t("fin.uncategorized") };
   for (const c of categories.data?.items ?? []) categoryItems[c.id] = c.name;
 

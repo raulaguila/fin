@@ -32,14 +32,18 @@ func (h *Handler) Routes(r fiber.Router, chatLimit fiber.Handler) {
 	r.Post("/connections/:id/sync", h.Sync)
 	r.Delete("/connections/:id", h.DeleteConnection)
 	r.Get("/summary", h.Summary)
+	r.Get("/trend", h.Trend)
+	r.Get("/people", h.People)
 	r.Get("/transactions", h.Transactions)
 	r.Patch("/transactions/:id", h.SetCategory)
+	r.Post("/recategorize", h.Recategorize)
 	r.Get("/categories", h.Categories)
 	r.Post("/categories", h.CreateCategory)
 	r.Patch("/categories/:id", h.UpdateCategory)
 	r.Delete("/categories/:id", h.DeleteCategory)
 	r.Get("/rules", h.Rules)
 	r.Get("/rules/preview", h.PreviewRule)
+	r.Get("/rules/suggestions", h.RuleSuggestions)
 	r.Post("/rules", h.CreateRule)
 	r.Delete("/rules/:id", h.DeleteRule)
 	r.Post("/assistant/chat", chatLimit, h.Chat)
@@ -53,6 +57,7 @@ type accountDTO struct {
 	ID            string     `json:"id"`
 	ConnectionID  string     `json:"connection_id"`
 	Type          string     `json:"type" example:"BANK"`
+	Subtype       string     `json:"subtype" example:"CHECKING_ACCOUNT"`
 	Name          string     `json:"name"`
 	Number        string     `json:"number"`
 	Balance       int64      `json:"balance"` // cents; on a card, the open bill
@@ -60,11 +65,15 @@ type accountDTO struct {
 	Available     *int64     `json:"available"`
 	BillCloseDate *time.Time `json:"bill_close_date"`
 	BillDueDate   *time.Time `json:"bill_due_date"`
+	NextBillDue   *time.Time `json:"next_bill_due"` // bill_due_date, or the same day of a later month once it passed
+	LastBillDue   *time.Time `json:"last_bill_due"`
+	LastBill      *int64     `json:"last_bill"` // cents of the last closed bill
 }
 
 func toAccount(a domain.Account) accountDTO {
-	return accountDTO{ID: a.ID, ConnectionID: a.ConnectionID, Type: a.Type, Name: a.Name, Number: a.Number, Balance: a.Balance,
-		CreditLimit: a.CreditLimit, Available: a.Available, BillCloseDate: a.BillCloseDate, BillDueDate: a.BillDueDate}
+	return accountDTO{ID: a.ID, ConnectionID: a.ConnectionID, Type: a.Type, Subtype: a.Subtype, Name: a.Name, Number: a.Number, Balance: a.Balance,
+		CreditLimit: a.CreditLimit, Available: a.Available, BillCloseDate: a.BillCloseDate, BillDueDate: a.BillDueDate,
+		NextBillDue: a.NextBillDue(time.Now().UTC().Truncate(24 * time.Hour)), LastBillDue: a.LastBillDue, LastBill: a.LastBill}
 }
 
 type connectionDTO struct {
@@ -278,6 +287,14 @@ type recurringDTO struct {
 	LastDate string `json:"last_date"`
 	Changed  bool   `json:"changed"`
 	Previous int64  `json:"previous"`
+	Last     int64  `json:"last"`
+}
+
+type forecastDTO struct {
+	DaysLeft       int   `json:"days_left"`
+	PendingBills   int64 `json:"pending_bills"`   // recurring charges not seen yet this month, negative
+	ExpectedIncome int64 `json:"expected_income"` // salary still to come
+	Projected      int64 `json:"projected"`       // left at the end of the month
 }
 
 type installmentDTO struct {
@@ -296,6 +313,7 @@ type summaryDTO struct {
 	Recent       []transactionDTO   `json:"recent"`
 	Recurring    []recurringDTO     `json:"recurring"`
 	Installments []installmentDTO   `json:"installments"`
+	Forecast     *forecastDTO       `json:"forecast"` // only for the current month
 }
 
 func parseMonth(s string) (time.Time, error) {
@@ -340,12 +358,71 @@ func (h *Handler) Summary(c fiber.Ctx) error {
 		out.Accounts = append(out.Accounts, toAccount(a))
 	}
 	for _, r := range s.Recurring {
-		out.Recurring = append(out.Recurring, recurringDTO{Name: r.Name, Amount: r.Amount, Months: r.Months, LastDate: r.LastDate.Format(time.DateOnly), Changed: r.Changed, Previous: r.Previous})
+		out.Recurring = append(out.Recurring, recurringDTO{Name: r.Name, Amount: r.Amount, Months: r.Months, LastDate: r.LastDate.Format(time.DateOnly), Changed: r.Changed, Previous: r.Previous, Last: r.Last})
+	}
+	if f := s.Forecast; f != nil {
+		out.Forecast = &forecastDTO{DaysLeft: f.DaysLeft, PendingBills: f.PendingBills, ExpectedIncome: f.ExpectedIncome, Projected: f.Projected}
 	}
 	for _, i := range s.Installments {
 		out.Installments = append(out.Installments, installmentDTO{Description: i.Description, Amount: i.Amount, Remaining: i.Remaining})
 	}
 	return c.JSON(out)
+}
+
+type monthTotalDTO struct {
+	Month   string `json:"month" example:"2026-11"`
+	Income  int64  `json:"income"`
+	Expense int64  `json:"expense"` // negative
+}
+
+// @Summary Income and expense by month, transfers left out, oldest first
+// @Tags Transactions
+// @Produce json
+// @Param months query int false "How many months, up to 24" default(12)
+// @Security BearerAuth
+// @Success 200 {object} object{items=[]monthTotalDTO}
+// @Failure 401 {object} mapper.errorBody
+// @Router /v1/finance/trend [get]
+func (h *Handler) Trend(c fiber.Ctx) error {
+	list, err := h.svc.Trend(c.Context(), middleware.UserID(c), fiber.Query[int](c, "months"))
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	out := make([]monthTotalDTO, 0, len(list))
+	for _, m := range list {
+		out = append(out, monthTotalDTO{Month: m.Month.Format("2006-01"), Income: m.Income, Expense: m.Expense})
+	}
+	return c.JSON(fiber.Map{"items": out})
+}
+
+type personDTO struct {
+	Name     string `json:"name"`
+	Keyword  string `json:"keyword"` // matches transfers received from this person; empty when none came in
+	Sent     int64  `json:"sent"`    // negative
+	Received int64  `json:"received"`
+	Refunded int64  `json:"refunded"` // received and filed as a refund
+	Count    int    `json:"count"`
+	LastDate string `json:"last_date"`
+}
+
+// @Summary Pix and TED of the last 12 months grouped by person
+// @Tags Transactions
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} object{items=[]personDTO}
+// @Failure 401 {object} mapper.errorBody
+// @Router /v1/finance/people [get]
+func (h *Handler) People(c fiber.Ctx) error {
+	list, err := h.svc.People(c.Context(), middleware.UserID(c))
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	out := make([]personDTO, 0, len(list))
+	for _, p := range list {
+		out = append(out, personDTO{Name: p.Name, Keyword: p.Keyword, Sent: p.Sent, Received: p.Received, Refunded: p.Refunded,
+			Count: p.Count, LastDate: p.LastDate.Format(time.DateOnly)})
+	}
+	return c.JSON(fiber.Map{"items": out})
 }
 
 func parseDate(field, s string) (time.Time, error) {
@@ -416,6 +493,21 @@ func (h *Handler) SetCategory(c fiber.Ctx) error {
 		return mapper.WriteError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// @Summary Run the automatic categorization again over the history; hand and rule choices stay
+// @Tags Transactions
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} object{changed=int}
+// @Failure 401 {object} mapper.errorBody
+// @Router /v1/finance/recategorize [post]
+func (h *Handler) Recategorize(c fiber.Ctx) error {
+	n, err := h.svc.Recategorize(c.Context(), middleware.UserID(c))
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.JSON(fiber.Map{"changed": n})
 }
 
 // ---- categories and rules ----
@@ -541,6 +633,32 @@ func (h *Handler) PreviewRule(c fiber.Ctx) error {
 		return mapper.WriteError(c, err)
 	}
 	return c.JSON(fiber.Map{"matches": n})
+}
+
+type ruleSuggestionDTO struct {
+	Keyword string `json:"keyword"`
+	Example string `json:"example"`
+	Count   int    `json:"count"`
+	Total   int64  `json:"total"`
+}
+
+// @Summary Merchants that repeat among uncategorized transactions, as rule candidates
+// @Tags Categories
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} object{items=[]ruleSuggestionDTO}
+// @Failure 401 {object} mapper.errorBody
+// @Router /v1/finance/rules/suggestions [get]
+func (h *Handler) RuleSuggestions(c fiber.Ctx) error {
+	list, err := h.svc.RuleSuggestions(c.Context(), middleware.UserID(c))
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	out := make([]ruleSuggestionDTO, 0, len(list))
+	for _, r := range list {
+		out = append(out, ruleSuggestionDTO{Keyword: r.Keyword, Example: r.Example, Count: r.Count, Total: r.Total})
+	}
+	return c.JSON(fiber.Map{"items": out})
 }
 
 type createRuleDTO struct {

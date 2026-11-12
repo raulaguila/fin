@@ -143,6 +143,7 @@ type accountRow struct {
 	ConnectionID  uuid.UUID  `gorm:"column:connection_id"`
 	ExternalID    string     `gorm:"column:external_id"`
 	Type          string     `gorm:"column:type"`
+	Subtype       string     `gorm:"column:subtype"`
 	Name          string     `gorm:"column:name"`
 	Number        string     `gorm:"column:number"`
 	Balance       int64      `gorm:"column:balance_cents"`
@@ -150,31 +151,37 @@ type accountRow struct {
 	Available     *int64     `gorm:"column:available_cents"`
 	BillCloseDate *time.Time `gorm:"column:bill_close_date"`
 	BillDueDate   *time.Time `gorm:"column:bill_due_date"`
+	LastBillDue   *time.Time `gorm:"column:last_bill_due"`
+	LastBill      *int64     `gorm:"column:last_bill_cents"`
 }
 
 func (r accountRow) toDomain() domain.Account {
 	return domain.Account{
-		ID: r.ID.String(), ConnectionID: r.ConnectionID.String(), ExternalID: r.ExternalID, Type: r.Type, Name: r.Name,
+		ID: r.ID.String(), ConnectionID: r.ConnectionID.String(), ExternalID: r.ExternalID, Type: r.Type, Subtype: r.Subtype, Name: r.Name,
 		Number: r.Number, Balance: r.Balance, CreditLimit: r.CreditLimit, Available: r.Available,
-		BillCloseDate: r.BillCloseDate, BillDueDate: r.BillDueDate,
+		BillCloseDate: r.BillCloseDate, BillDueDate: r.BillDueDate, LastBillDue: r.LastBillDue, LastBill: r.LastBill,
 	}
 }
 
-const accountColumns = `id, connection_id, external_id, type, name, number, balance_cents, credit_limit_cents, available_cents, bill_close_date, bill_due_date`
+const accountColumns = `id, connection_id, external_id, type, subtype, name, number, balance_cents, credit_limit_cents, available_cents,
+	bill_close_date, bill_due_date, last_bill_due, last_bill_cents`
 
 func (r *Repository) UpsertAccount(ctx context.Context, userID, connectionID string, a domain.OFAccount) (*domain.Account, error) {
 	var rows []accountRow
 	err := r.db.WithContext(ctx).Raw(`
-		INSERT INTO app.fin_account AS t (user_id, connection_id, external_id, type, name, number, balance_cents,
-		                                  credit_limit_cents, available_cents, bill_close_date, bill_due_date)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO app.fin_account AS t (user_id, connection_id, external_id, type, subtype, name, number, balance_cents,
+		                                  credit_limit_cents, available_cents, bill_close_date, bill_due_date, last_bill_due, last_bill_cents)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (external_id) DO UPDATE SET
-		    type = EXCLUDED.type, name = EXCLUDED.name, number = EXCLUDED.number, balance_cents = EXCLUDED.balance_cents,
-		    credit_limit_cents = EXCLUDED.credit_limit_cents, available_cents = EXCLUDED.available_cents,
-		    bill_close_date = EXCLUDED.bill_close_date, bill_due_date = EXCLUDED.bill_due_date
+		    type = EXCLUDED.type, subtype = EXCLUDED.subtype, name = EXCLUDED.name, number = EXCLUDED.number,
+		    balance_cents = EXCLUDED.balance_cents, credit_limit_cents = EXCLUDED.credit_limit_cents,
+		    available_cents = EXCLUDED.available_cents, bill_close_date = EXCLUDED.bill_close_date,
+		    bill_due_date = EXCLUDED.bill_due_date, last_bill_due = EXCLUDED.last_bill_due,
+		    last_bill_cents = EXCLUDED.last_bill_cents
 		WHERE t.user_id = EXCLUDED.user_id
 		RETURNING `+accountColumns,
-		userID, connectionID, a.ID, a.Type, a.Name, a.Number, a.Balance, a.CreditLimit, a.Available, a.BillCloseDate, a.BillDueDate).Find(&rows).Error
+		userID, connectionID, a.ID, a.Type, a.Subtype, a.Name, a.Number, a.Balance, a.CreditLimit, a.Available, a.BillCloseDate,
+		a.BillDueDate, a.LastBillDue, a.LastBill).Find(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "account")
 	}
@@ -362,6 +369,104 @@ func (r *Repository) SetTransactionCategory(ctx context.Context, userID, id, cat
 		return notFound("transaction")
 	}
 	return nil
+}
+
+func scanTransactions(rows []transactionRow) []domain.Transaction {
+	out := make([]domain.Transaction, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, row.toDomain())
+	}
+	return out
+}
+
+func (r *Repository) Categorizable(ctx context.Context, userID string, limit int) ([]domain.Transaction, error) {
+	var rows []transactionRow
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT id, description, amount_cents, provider_category, category_id, category_source
+		FROM app.fin_transaction WHERE user_id = ? AND category_source = 'auto'
+		ORDER BY date DESC, id LIMIT ?`, userID, limit).Find(&rows).Error
+	if err != nil {
+		return nil, shared.WrapError(err, "transaction")
+	}
+	return scanTransactions(rows), nil
+}
+
+const setCategoriesBatch = 1000 // 3 parameters each
+
+func (r *Repository) SetCategories(ctx context.Context, userID string, txs []domain.Transaction) (int64, error) {
+	var changed int64
+	for start := 0; start < len(txs); start += setCategoriesBatch {
+		batch := txs[start:min(start+setCategoriesBatch, len(txs))]
+		values := make([]string, 0, len(batch))
+		args := make([]any, 0, len(batch)*3+1)
+		for _, t := range batch {
+			values = append(values, "(?::uuid, NULLIF(?, '')::uuid, ?)")
+			args = append(args, t.ID, t.CategoryID, t.CategorySource)
+		}
+		res := r.db.WithContext(ctx).Exec(`
+			UPDATE app.fin_transaction t SET category_id = v.category_id, category_source = v.source
+			FROM (VALUES `+strings.Join(values, ", ")+`) AS v(id, category_id, source)
+			WHERE t.id = v.id AND t.user_id = ? AND t.category_source <> 'user'`, append(args, userID)...)
+		if res.Error != nil {
+			return changed, shared.WrapError(res.Error, "transaction")
+		}
+		changed += res.RowsAffected
+	}
+	return changed, nil
+}
+
+func (r *Repository) Uncategorized(ctx context.Context, userID string, from time.Time, limit int) ([]domain.Transaction, error) {
+	var rows []transactionRow
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT date, description, amount_cents FROM app.fin_transaction
+		WHERE user_id = ? AND date >= ?::date AND category_id IS NULL
+		ORDER BY date DESC, id LIMIT ?`, userID, from.Format(time.DateOnly), limit).Find(&rows).Error
+	if err != nil {
+		return nil, shared.WrapError(err, "transaction")
+	}
+	return scanTransactions(rows), nil
+}
+
+func (r *Repository) PersonTransfers(ctx context.Context, userID string, from time.Time, limit int) ([]domain.Transaction, error) {
+	var rows []transactionRow
+	// shortcut: prefix ILIKEs filtered after the (user_id, date) index; fine for a person's year of history.
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT t.date, t.description, t.amount_cents, t.provider_category, cat.name AS category_name, cat.kind AS category_kind
+		FROM app.fin_transaction t LEFT JOIN app.fin_category cat ON cat.id = t.category_id
+		WHERE t.user_id = ? AND t.date >= ?::date
+		  AND (t.description ILIKE 'pix enviado%' OR t.description ILIKE 'pix recebido%' OR t.description ILIKE 'ted %'
+		       OR t.description ILIKE 'transfer%')
+		ORDER BY t.date DESC, t.id LIMIT ?`, userID, from.Format(time.DateOnly), limit).Find(&rows).Error
+	if err != nil {
+		return nil, shared.WrapError(err, "transaction")
+	}
+	return scanTransactions(rows), nil
+}
+
+type monthRow struct {
+	Month   time.Time `gorm:"column:month"`
+	Income  int64     `gorm:"column:income"`
+	Expense int64     `gorm:"column:expense"`
+}
+
+func (r *Repository) MonthlyTotals(ctx context.Context, userID string, from, to time.Time) ([]domain.MonthTotal, error) {
+	var rows []monthRow
+	// Same rule as the dashboard: uncategorized money counts by its sign, transfers nowhere.
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT date_trunc('month', t.date)::date AS month,
+		       coalesce(sum(t.amount_cents) FILTER (WHERE cat.kind = 'income' OR (cat.kind IS NULL AND t.amount_cents > 0)), 0)::bigint AS income,
+		       coalesce(sum(t.amount_cents) FILTER (WHERE cat.kind = 'expense' OR (cat.kind IS NULL AND t.amount_cents < 0)), 0)::bigint AS expense
+		FROM app.fin_transaction t LEFT JOIN app.fin_category cat ON cat.id = t.category_id
+		WHERE t.user_id = ? AND t.date >= ?::date AND t.date < ?::date
+		GROUP BY 1 ORDER BY 1 LIMIT 120`, userID, from.Format(time.DateOnly), to.Format(time.DateOnly)).Find(&rows).Error
+	if err != nil {
+		return nil, shared.WrapError(err, "transaction")
+	}
+	out := make([]domain.MonthTotal, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, domain.MonthTotal{Month: row.Month, Income: row.Income, Expense: row.Expense})
+	}
+	return out, nil
 }
 
 type totalRow struct {

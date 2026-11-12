@@ -39,6 +39,10 @@ func (f *fakeBank) Accounts(context.Context, string) ([]domain.OFAccount, error)
 		{ID: "acc-card-" + f.owner, Type: domain.AccountCredit, Name: "Cartão Gold", Balance: 120000, CreditLimit: &limit, Available: &avail, BillDueDate: &due},
 	}, nil
 }
+func (f *fakeBank) LastBill(context.Context, string) (*time.Time, *domain.Money, error) {
+	due, amount := time.Now().AddDate(0, 0, -20), domain.Money(98765)
+	return &due, &amount, nil
+}
 func (f *fakeBank) Transactions(_ context.Context, accountID string, _ time.Time) ([]domain.OFTransaction, error) {
 	return f.txs[accountID], nil
 }
@@ -57,7 +61,9 @@ func TestFinanceSyncSummaryRulesAndAlerts(t *testing.T) {
 	ctx := context.Background()
 	userID := e.userID(t, e.activeUser(t))
 	now := time.Now().UTC()
-	day := func(d int) time.Time { return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, d) }
+	day := func(d int) time.Time {
+		return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, d)
+	}
 	prevMonth := day(0).AddDate(0, -1, 0)
 
 	bank := &fakeBank{owner: userID, status: "UPDATING", txs: map[string][]domain.OFTransaction{
@@ -67,6 +73,11 @@ func TestFinanceSyncSummaryRulesAndAlerts(t *testing.T) {
 			{ID: "t-bill-" + userID, Date: day(0), Description: "PAGAMENTO FATURA CARTAO", Amount: -150000, Category: "Credit card payment"},
 			{ID: "t-padaria-" + userID, Date: day(0), Description: "PADARIA SAO JOAO", Amount: -1890, Category: "Bakery"},
 			{ID: "t-old-" + userID, Date: prevMonth, Description: "MERCADO BOM", Amount: -20000, Category: "Groceries"},
+			{ID: "t-pix1-" + userID, Date: day(0), Description: "PIX ENVIADO ANA LIMA", Amount: -5000, Category: "Transfer - PIX"},
+			{ID: "t-pix2-" + userID, Date: day(0), Description: "PIX RECEBIDO ANA LIMA", Amount: 2500, Category: "Transfer - PIX"},
+			{ID: "t-self-" + userID, Date: day(0), Description: "PIX ENVIADO EU MESMO", Amount: -9000, Category: "Same person transfer"},
+			{ID: "t-pw1-" + userID, Date: prevMonth, Description: "Pagamento de Pix QR Code Paymentwall, Inc.", Amount: -4849, Category: "Entrepreneurial activities"},
+			{ID: "t-pw2-" + userID, Date: prevMonth, Description: "Pagamento de Pix QR Code Paymentwall, Inc.", Amount: -4849, Category: "Entrepreneurial activities"},
 		},
 		"acc-card-" + userID: {
 			{ID: "t-ifood-" + userID, Date: day(0), Description: "IFOOD *PEDIDO", Amount: 8900, Category: "Food delivery"},
@@ -118,7 +129,7 @@ func TestFinanceSyncSummaryRulesAndAlerts(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Income: salary. Expense: uber, padaria (uncategorized), ifood, tv. The bill payment is a transfer.
-	if sum.Income != 1000000 || sum.Expense != -(3550+1890+8900+25000) {
+	if sum.Income != 1000000+2500 || sum.Expense != -(3550+1890+8900+25000+5000) {
 		t.Fatalf("income %d expense %d", sum.Income, sum.Expense)
 	}
 	if len(sum.Installments) != 1 || sum.Installments[0].Remaining != 8 {
@@ -129,8 +140,36 @@ func TestFinanceSyncSummaryRulesAndAlerts(t *testing.T) {
 	if err != nil || total != 1 || txs[0].Amount != -8900 || txs[0].CategoryName != "Delivery" || txs[0].AccountType != domain.AccountCredit {
 		t.Fatalf("ifood: %+v %d %v", txs, total, err)
 	}
-	if _, total, _ := svc.Transactions(ctx, userID, domain.TransactionFilter{CategoryID: "none", Page: domain.NewPage(1, 10)}); total != 1 {
+	if _, total, _ := svc.Transactions(ctx, userID, domain.TransactionFilter{CategoryID: "none", Page: domain.NewPage(1, 10)}); total != 3 {
 		t.Fatalf("uncategorized: %d", total)
+	}
+
+	// Card bill: the last closed one comes from the provider, and the next due date is ahead.
+	for _, a := range conns[0].Accounts {
+		if a.Type == domain.AccountCredit && (a.LastBill == nil || *a.LastBill != 98765 || a.NextBillDue(now) == nil) {
+			t.Fatalf("card bill: %+v", a)
+		}
+	}
+
+	// Insights: suggestions, people and the monthly trend.
+	sugg, err := svc.RuleSuggestions(ctx, userID)
+	if err != nil || len(sugg) != 1 || sugg[0].Keyword != "paymentwall" || sugg[0].Count != 2 {
+		t.Fatalf("suggestions: %+v %v", sugg, err)
+	}
+	people, err := svc.People(ctx, userID)
+	if err != nil || len(people) != 1 || people[0].Name != "Ana Lima" || people[0].Sent != -5000 || people[0].Received != 2500 ||
+		people[0].Keyword != "pix recebido ana lima" {
+		t.Fatalf("people: %+v %v", people, err)
+	}
+	trend, err := svc.Trend(ctx, userID, 2)
+	if err != nil || len(trend) != 2 || trend[1].Income != sum.Income || trend[1].Expense != sum.Expense || trend[0].Expense != -(20000+4849*2) {
+		t.Fatalf("trend: %+v %v", trend, err)
+	}
+	if sum.Forecast == nil {
+		t.Fatal("the current month has a forecast")
+	}
+	if n, err := svc.Recategorize(ctx, userID); err != nil || n != 0 {
+		t.Fatalf("recategorize right after a sync changes nothing: %d %v", n, err)
 	}
 
 	// A rule moves past transactions, and a later sync keeps it.

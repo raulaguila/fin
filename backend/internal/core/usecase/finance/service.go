@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"unicode/utf8"
 
@@ -249,7 +250,13 @@ func (s *Service) sync(ctx context.Context, connectionID string) (*domain.Connec
 	}
 	inserted := 0
 	for _, a := range accounts {
-		a.Name, a.Number = validate.Text(a.Name, 200), validate.Text(a.Number, 60)
+		a.Name, a.Number, a.Subtype = validate.Text(a.Name, 200), validate.Text(a.Number, 60), validate.Text(a.Subtype, 40)
+		if a.Type == domain.AccountCredit {
+			// A missing bill list only hides the last bill; it must not stop the sync.
+			if a.LastBillDue, a.LastBill, err = s.OF.LastBill(ctx, a.ID); err != nil {
+				s.Log.Warn("Open finance bills unavailable", slog.String("error", err.Error()))
+			}
+		}
 		acc, err := s.repo().UpsertAccount(ctx, c.UserID, c.ID, a)
 		if err != nil {
 			return nil, err
@@ -271,7 +278,12 @@ func (s *Service) sync(ctx context.Context, connectionID string) (*domain.Connec
 	if err := s.repo().SaveConnectionState(ctx, c, true); err != nil {
 		return nil, err
 	}
-	s.Log.Info(fmt.Sprintf("Open finance sync: %d accounts, %d new transactions", len(accounts), inserted))
+	// Older rows keep the category of an older categorizer; bring them up to date.
+	changed, err := s.Recategorize(ctx, c.UserID)
+	if err != nil {
+		return nil, err
+	}
+	s.Log.Info(fmt.Sprintf("Open finance sync: %d accounts, %d new transactions, %d recategorized", len(accounts), inserted, changed))
 	return c, nil
 }
 

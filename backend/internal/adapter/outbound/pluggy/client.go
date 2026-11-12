@@ -220,6 +220,7 @@ func (c *Client) DeleteItem(ctx context.Context, id string) error {
 type accountJSON struct {
 	ID            string      `json:"id"`
 	Type          string      `json:"type"`
+	Subtype       string      `json:"subtype"`
 	Name          string      `json:"name"`
 	MarketingName string      `json:"marketingName"`
 	Number        string      `json:"number"`
@@ -241,7 +242,7 @@ func (c *Client) Accounts(ctx context.Context, itemID string) ([]domain.OFAccoun
 	}
 	accounts := make([]domain.OFAccount, 0, len(out.Results))
 	for _, a := range out.Results {
-		acc := domain.OFAccount{ID: a.ID, Type: a.Type, Name: a.Name, Number: a.Number, Balance: cents(a.Balance)}
+		acc := domain.OFAccount{ID: a.ID, Type: a.Type, Subtype: a.Subtype, Name: a.Name, Number: a.Number, Balance: cents(a.Balance)}
 		if a.MarketingName != "" {
 			acc.Name = a.MarketingName
 		}
@@ -254,6 +255,27 @@ func (c *Client) Accounts(ctx context.Context, itemID string) ([]domain.OFAccoun
 		accounts = append(accounts, acc)
 	}
 	return accounts, nil
+}
+
+func (c *Client) LastBill(ctx context.Context, accountID string) (*time.Time, *domain.Money, error) {
+	var out struct {
+		Results []struct {
+			DueDate     string      `json:"dueDate"`
+			TotalAmount json.Number `json:"totalAmount"`
+		} `json:"results"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/bills?accountId="+url.QueryEscape(accountID), nil, &out); err != nil {
+		return nil, nil, err
+	}
+	var due *time.Time
+	var amount *domain.Money
+	for _, b := range out.Results {
+		d := date(b.DueDate)
+		if d != nil && (due == nil || d.After(*due)) {
+			due, amount = d, optionalCents(b.TotalAmount)
+		}
+	}
+	return due, amount, nil
 }
 
 type transactionJSON struct {

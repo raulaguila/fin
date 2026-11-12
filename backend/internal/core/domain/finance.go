@@ -54,6 +54,7 @@ type Account struct {
 	ConnectionID  string
 	ExternalID    string
 	Type          string
+	Subtype       string // CHECKING_ACCOUNT, SAVINGS_ACCOUNT, CREDIT_CARD...
 	Name          string
 	Number        string
 	Balance       Money
@@ -61,6 +62,21 @@ type Account struct {
 	Available     *Money
 	BillCloseDate *time.Time
 	BillDueDate   *time.Time
+	LastBillDue   *time.Time // the last closed card bill
+	LastBill      *Money
+}
+
+// NextBillDue is the next due date of a card from today: the provider's date
+// when still ahead, else the same day of the following months.
+func (a Account) NextBillDue(today time.Time) *time.Time {
+	if a.BillDueDate == nil {
+		return nil
+	}
+	due := *a.BillDueDate
+	for i := 0; due.Before(today) && i < 24; i++ {
+		due = a.BillDueDate.AddDate(0, i+1, 0)
+	}
+	return &due
 }
 
 type Category struct {
@@ -124,8 +140,9 @@ type Recurring struct {
 	Amount   Money // typical amount, negative
 	Months   int
 	LastDate time.Time
-	Changed  bool // the last charge differs from the usual by more than 10%
+	Changed  bool // the last charge differs from the one before by more than 10%
 	Previous Money
+	Last     Money
 }
 
 // Installment is a future card installment already committed.
@@ -133,6 +150,41 @@ type Installment struct {
 	Description string
 	Amount      Money // per installment, negative
 	Remaining   int
+}
+
+// Forecast projects the rest of the current month from recurring charges and
+// the salary of the month before.
+type Forecast struct {
+	DaysLeft       int
+	PendingBills   Money // recurring charges not seen yet this month, negative
+	ExpectedIncome Money // salary still to come
+	Projected      Money // what is left at the end of the month
+}
+
+// MonthTotal is what came in and went out in one month, transfers left out.
+type MonthTotal struct {
+	Month   time.Time
+	Income  Money
+	Expense Money // negative
+}
+
+// Person is someone the user sent money to or received money from (Pix, TED).
+type Person struct {
+	Name     string
+	Keyword  string // matches the transfers received from this person, for a rule
+	Sent     Money  // negative
+	Received Money
+	Refunded Money // received and filed as a refund
+	Count    int
+	LastDate time.Time
+}
+
+// RuleSuggestion is a merchant that repeats among uncategorized transactions.
+type RuleSuggestion struct {
+	Keyword string
+	Example string
+	Count   int
+	Total   Money
 }
 
 // MonthSummary is the dashboard of one month.
@@ -147,6 +199,7 @@ type MonthSummary struct {
 	Recent       []Transaction
 	Recurring    []Recurring
 	Installments []Installment
+	Forecast     *Forecast // only for the current month
 }
 
 // ChatMessage is one turn of the assistant conversation; the client keeps the history.
@@ -171,6 +224,7 @@ type OFItem struct {
 type OFAccount struct {
 	ID            string
 	Type          string
+	Subtype       string
 	Name          string
 	Number        string
 	Balance       Money
@@ -178,6 +232,8 @@ type OFAccount struct {
 	Available     *Money
 	BillCloseDate *time.Time
 	BillDueDate   *time.Time
+	LastBillDue   *time.Time
+	LastBill      *Money
 }
 
 type OFTransaction struct {

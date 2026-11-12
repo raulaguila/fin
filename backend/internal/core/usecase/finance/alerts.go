@@ -21,6 +21,9 @@ const (
 	NotifyBill       = "finance_bill"
 	NotifyLargeSpend = "finance_large_spend"
 	NotifySummary    = "finance_summary"
+	NotifyOverdraft  = "finance_overdraft"
+	NotifyDuplicate  = "finance_duplicate"
+	NotifyPrice      = "finance_price"
 )
 
 const (
@@ -29,6 +32,9 @@ const (
 	largeMinimum    = 500_00 // a large spend is at least R$ 500
 	largeFactor     = 3      // and 3 times the typical outflow
 	summaryDays     = 3      // the monthly summary goes out in the first days of the month
+	recentDays      = 3      // charges this recent are checked for duplicates and interest
+	priceDays       = 7      // a price rise is told within a week of the charge
+	alertMonths     = 4      // spending window of the alerts, as long as the recurring detection
 )
 
 type alert struct {
@@ -67,9 +73,13 @@ func (s *Service) Alerts(ctx context.Context, userID string) error {
 	if err := add(s.connectionAlerts(ctx, userID, now)); err != nil {
 		return err
 	}
-	if err := add(s.largeSpendAlerts(ctx, userID, now)); err != nil {
+	day := monthDay(now)
+	spending, err := s.repo().Spending(ctx, userID, monthStart(now).AddDate(0, 1-alertMonths, 0), day.AddDate(0, 0, 1), spendingCap)
+	if err != nil {
 		return err
 	}
+	alerts = append(alerts, largeSpendAlerts(spending, day)...)
+	alerts = append(alerts, spendingAlerts(spending, day)...)
 	for _, a := range alerts {
 		if err := s.notify(ctx, userID, a); err != nil {
 			return err
@@ -115,7 +125,6 @@ func (s *Service) connectionAlerts(ctx context.Context, userID string, now time.
 	if err != nil {
 		return nil, err
 	}
-	today := now.Format(time.DateOnly)
 	year, week := now.ISOWeek()
 	var out []alert
 	for _, c := range conns {
@@ -135,15 +144,19 @@ func (s *Service) connectionAlerts(ctx context.Context, userID string, now time.
 				title: "Problema na conexão com " + c.Institution, text: text})
 		}
 		for _, a := range c.Accounts {
-			if a.Type != domain.AccountCredit || a.BillDueDate == nil || a.Balance <= 0 {
+			if a.Type == domain.AccountBank && a.Balance < 0 {
+				out = append(out, alert{key: fmt.Sprintf("overdraft:%s:%d-%d", a.ID, year, week), level: domain.NotificationCritical, kind: NotifyOverdraft,
+					title: "Conta " + a.Name + " no negativo",
+					text:  fmt.Sprintf("O saldo da conta %s em %s está em %s: o banco cobra juros do cheque especial a cada dia.", a.Name, c.Institution, brl(a.Balance))})
+			}
+			due := a.NextBillDue(monthDay(now))
+			if a.Type != domain.AccountCredit || due == nil || a.Balance <= 0 {
 				continue
 			}
-			due := a.BillDueDate.Format(time.DateOnly)
-			days := int(a.BillDueDate.Sub(monthDay(now)).Hours() / 24)
-			if due >= today && days <= billWarnDays {
-				out = append(out, alert{key: "bill:" + a.ID + ":" + due, level: domain.NotificationInfo, kind: NotifyBill,
-					title: "Fatura do " + a.Name + " vence em " + a.BillDueDate.Format("02/01"),
-					text:  fmt.Sprintf("A fatura do cartão %s, de %s, vence em %s.", a.Name, brl(a.Balance), a.BillDueDate.Format("02/01/2006"))})
+			if days := int(due.Sub(monthDay(now)).Hours() / 24); days <= billWarnDays {
+				out = append(out, alert{key: "bill:" + a.ID + ":" + due.Format(time.DateOnly), level: domain.NotificationInfo, kind: NotifyBill,
+					title: "Fatura do " + a.Name + " vence em " + due.Format("02/01"),
+					text:  fmt.Sprintf("A fatura do cartão %s, de %s, vence em %s.", a.Name, brl(a.Balance), due.Format("02/01/2006"))})
 			}
 		}
 	}
@@ -154,12 +167,12 @@ func monthDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 }
 
-// largeSpendAlerts flags a recent outflow far above the user's typical one.
-func (s *Service) largeSpendAlerts(ctx context.Context, userID string, now time.Time) ([]alert, error) {
-	day := monthDay(now)
-	spending, err := s.repo().Spending(ctx, userID, day.AddDate(0, 0, -90), day.AddDate(0, 0, 1), spendingCap)
-	if err != nil || len(spending) < 10 {
-		return nil, err
+// largeSpendAlerts flags a recent outflow far above the user's typical one
+// over the last 90 days. spending is newest first.
+func largeSpendAlerts(all []domain.Transaction, day time.Time) []alert {
+	spending := recentWindow(all, day.AddDate(0, 0, -90))
+	if len(spending) < 10 {
+		return nil
 	}
 	amounts := make([]domain.Money, 0, len(spending))
 	for _, t := range spending {
@@ -178,7 +191,37 @@ func (s *Service) largeSpendAlerts(ctx context.Context, userID string, now time.
 				text:  fmt.Sprintf("%s em %s (%s). É bem acima do seu gasto típico.", brl(-t.Amount), t.Description, t.Date.Format("02/01"))})
 		}
 	}
-	return out, nil
+	return out
+}
+
+// spendingAlerts flags interest charged, a charge repeated the same day and a
+// recurring charge that got more expensive.
+func spendingAlerts(spending []domain.Transaction, day time.Time) []alert {
+	var out []alert
+	recent := recentWindow(spending, day.AddDate(0, 0, -recentDays))
+	for _, t := range recent {
+		if t.CategoryName == catInterest {
+			out = append(out, alert{key: "interest:" + t.ID, level: domain.NotificationWarning, kind: NotifyOverdraft,
+				title: "Cobrança de juros: " + brl(-t.Amount),
+				text:  fmt.Sprintf("%s em %s (%s). Juros de cheque especial ou atraso costumam ser os mais caros: vale cobrir o saldo.", brl(-t.Amount), t.Description, t.Date.Format("02/01"))})
+		}
+	}
+	for _, group := range duplicates(recent) {
+		t := group[0]
+		out = append(out, alert{key: fmt.Sprintf("dup:%s:%s:%d:%s", t.AccountID, t.Date.Format(time.DateOnly), t.Amount, merchantKey(t.Description)),
+			level: domain.NotificationWarning, kind: NotifyDuplicate,
+			title: fmt.Sprintf("Cobrança repetida: %d× %s", len(group), brl(-t.Amount)),
+			text:  fmt.Sprintf("%s aparece %d vezes em %s com o mesmo valor (%s). Se não foram compras separadas, conteste com o banco.", t.Description, len(group), t.Date.Format("02/01"), brl(-t.Amount))})
+	}
+	for _, r := range recurring(spending) {
+		if !r.Changed || r.Last >= r.Previous || r.LastDate.Before(day.AddDate(0, 0, -priceDays)) {
+			continue // only a rise (more negative) charged this week
+		}
+		out = append(out, alert{key: "price:" + merchantKey(r.Name) + ":" + r.LastDate.Format(time.DateOnly), level: domain.NotificationInfo, kind: NotifyPrice,
+			title: "Conta mais cara: " + r.Name,
+			text:  fmt.Sprintf("%s passou de %s para %s (%s).", r.Name, brl(-r.Previous), brl(-r.Last), r.LastDate.Format("02/01"))})
+	}
+	return out
 }
 
 // monthlySummary sends last month's recap once, in the first days of a month.

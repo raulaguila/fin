@@ -31,7 +31,7 @@ The container joins `fin_network` at `WEB_IP` (default `172.30.99.10`). The back
 - Menus and buttons follow `permissions` and `is_superuser`, for display only: the API still checks every call.
 - Theme and language follow the saved `preferences` and are written back when changed.
 
-Screens: dashboard, transactions, budget, categories and rules, bank connections (Pluggy Connect widget) and the assistant; plus login, register, activation, password reset, profile (name, password, sessions, preferences), notifications, users, roles with the permission matrix and members, and the products example.
+Screens: dashboard (with month forecast and 12-month trend), transactions, budget, people, categories and rules (with suggestions), bank connections (Pluggy Connect widget) and the assistant; plus login, register, activation, password reset, profile (name, password, sessions, preferences), notifications, users, roles with the permission matrix and members, and the products example.
 
 ## Add a screen
 

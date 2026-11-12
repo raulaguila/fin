@@ -1060,6 +1060,79 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/finance/people": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Pix and TED of the last 12 months grouped by person",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "items": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/finance.personDTO"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/recategorize": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Run the automatic categorization again over the history; hand and rule choices stay",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "changed": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/finance/rules": {
             "get": {
                 "security": [
@@ -1205,6 +1278,44 @@ const docTemplate = `{
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/rules/suggestions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Categories"
+                ],
+                "summary": "Merchants that repeat among uncategorized transactions, as rule candidates",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "items": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/finance.ruleSuggestionDTO"
+                                    }
+                                }
+                            }
                         }
                     },
                     "401": {
@@ -1480,6 +1591,53 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/trend": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Income and expense by month, transfers left out, oldest first",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 12,
+                        "description": "How many months, up to 24",
+                        "name": "months",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "items": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/finance.monthTotalDTO"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
                         }
@@ -4355,11 +4513,26 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "last_bill": {
+                    "description": "cents of the last closed bill",
+                    "type": "integer"
+                },
+                "last_bill_due": {
+                    "type": "string"
+                },
                 "name": {
+                    "type": "string"
+                },
+                "next_bill_due": {
+                    "description": "bill_due_date, or the same day of a later month once it passed",
                     "type": "string"
                 },
                 "number": {
                     "type": "string"
+                },
+                "subtype": {
+                    "type": "string",
+                    "example": "CHECKING_ACCOUNT"
                 },
                 "type": {
                     "type": "string",
@@ -4505,6 +4678,26 @@ const docTemplate = `{
                 }
             }
         },
+        "finance.forecastDTO": {
+            "type": "object",
+            "properties": {
+                "days_left": {
+                    "type": "integer"
+                },
+                "expected_income": {
+                    "description": "salary still to come",
+                    "type": "integer"
+                },
+                "pending_bills": {
+                    "description": "recurring charges not seen yet this month, negative",
+                    "type": "integer"
+                },
+                "projected": {
+                    "description": "left at the end of the month",
+                    "type": "integer"
+                }
+            }
+        },
         "finance.installmentDTO": {
             "type": "object",
             "properties": {
@@ -4519,6 +4712,51 @@ const docTemplate = `{
                 }
             }
         },
+        "finance.monthTotalDTO": {
+            "type": "object",
+            "properties": {
+                "expense": {
+                    "description": "negative",
+                    "type": "integer"
+                },
+                "income": {
+                    "type": "integer"
+                },
+                "month": {
+                    "type": "string",
+                    "example": "2026-11"
+                }
+            }
+        },
+        "finance.personDTO": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "keyword": {
+                    "description": "matches transfers received from this person; empty when none came in",
+                    "type": "string"
+                },
+                "last_date": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "received": {
+                    "type": "integer"
+                },
+                "refunded": {
+                    "description": "received and filed as a refund",
+                    "type": "integer"
+                },
+                "sent": {
+                    "description": "negative",
+                    "type": "integer"
+                }
+            }
+        },
         "finance.recurringDTO": {
             "type": "object",
             "properties": {
@@ -4527,6 +4765,9 @@ const docTemplate = `{
                 },
                 "changed": {
                     "type": "boolean"
+                },
+                "last": {
+                    "type": "integer"
                 },
                 "last_date": {
                     "type": "string"
@@ -4562,6 +4803,23 @@ const docTemplate = `{
                 }
             }
         },
+        "finance.ruleSuggestionDTO": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "example": {
+                    "type": "string"
+                },
+                "keyword": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "finance.setCategoryDTO": {
             "type": "object",
             "properties": {
@@ -4588,6 +4846,14 @@ const docTemplate = `{
                 },
                 "expense": {
                     "type": "integer"
+                },
+                "forecast": {
+                    "description": "only for the current month",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/finance.forecastDTO"
+                        }
+                    ]
                 },
                 "income": {
                     "type": "integer"

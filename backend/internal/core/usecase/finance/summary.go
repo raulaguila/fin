@@ -68,6 +68,9 @@ func (s *Service) Summary(ctx context.Context, userID string, month time.Time) (
 		sum.Institutions[c.ID] = c.Institution
 		sum.Accounts = append(sum.Accounts, c.Accounts...)
 	}
+	if now := s.Clock.Now(); monthStart(now).Equal(from) {
+		sum.Forecast = forecast(now, sum, categoryTotal(totals, cats, catSalary), categoryTotal(prevTotals, cats, catSalary))
+	}
 	return sum, nil
 }
 
@@ -163,7 +166,7 @@ func recurring(spending []domain.Transaction) []domain.Recurring {
 		for _, t := range g.charge {
 			amounts = append(amounts, t.Amount)
 		}
-		r := domain.Recurring{Name: g.name, Amount: median(amounts), Months: len(g.months), LastDate: g.charge[0].Date}
+		r := domain.Recurring{Name: g.name, Amount: median(amounts), Months: len(g.months), LastDate: g.charge[0].Date, Last: g.charge[0].Amount}
 		if len(g.charge) > 1 {
 			last, prev := g.charge[0].Amount, g.charge[1].Amount
 			if diff := last - prev; prev != 0 && abs(diff)*10 > abs(prev) {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { IconAction, PageBody, PageHeader } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { finance, monthKey, type Category, type CategoryKind } from "@/lib/api/finance";
+import { finance, monthKey, type Category, type CategoryKind, type RuleSuggestion } from "@/lib/api/finance";
 import { errorMessage } from "@/lib/errors";
 import { fill, useFinanceFormat } from "@/lib/finance-format";
 import { useDebounced } from "@/lib/hooks/use-debounced";
@@ -77,6 +77,54 @@ function Rules({ categories }: { categories: Category[] }) {
           </li>
         ))}
       </ul>
+    </Card>
+  );
+}
+
+function Suggestion({ s, categories }: { s: RuleSuggestion; categories: Category[] }) {
+  const { t } = useI18n();
+  const f = useFinanceFormat();
+  const invalidate = useInvalidate();
+  const [categoryId, setCategoryId] = useState("");
+  const items: Record<string, string> = Object.fromEntries(categories.map((c) => [c.id, c.name]));
+  const create = useMutation({
+    mutationFn: () => finance.createRule(s.keyword, categoryId),
+    onSuccess: (r) => {
+      void invalidate();
+      toast.success(fill(t("fin.tx.rule_created"), { n: r.applied }));
+    },
+    onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
+  });
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+      <span className="min-w-0 flex-1">
+        <strong>“{s.keyword}”</strong>
+        <span className="block truncate text-xs text-muted-foreground" title={s.example}>
+          {fill(t("fin.cat.suggestion_line"), { n: s.count, v: f.money(Math.abs(s.total)) })} · {s.example}
+        </span>
+      </span>
+      <span className="flex items-center gap-2 max-sm:w-full">
+        <Select value={categoryId} items={items} onValueChange={(v) => setCategoryId(String(v ?? ""))}>
+          <SelectTrigger className="w-44 max-sm:flex-1" aria-label={`${t("fin.tx.category")}: ${s.keyword}`}><SelectValue placeholder={t("fin.tx.category")} /></SelectTrigger>
+          <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+        </Select>
+        <Button size="sm" disabled={!categoryId || create.isPending} onClick={() => create.mutate()}>{t("fin.cat.create_rule")}</Button>
+      </span>
+    </li>
+  );
+}
+
+function Suggestions({ categories }: { categories: Category[] }) {
+  const { t } = useI18n();
+  const list = useQuery({ queryKey: ["finance", "rules", "suggestions"], queryFn: finance.ruleSuggestions });
+  if (!list.data?.items.length) return null;
+  return (
+    <Card className="gap-3 p-4">
+      <div>
+        <h2 className="text-sm font-medium">{t("fin.cat.suggestions")}</h2>
+        <p className="text-xs text-muted-foreground">{t("fin.cat.suggestions_note")}</p>
+      </div>
+      <ul className="divide-y">{list.data.items.map((s) => <Suggestion key={s.keyword} s={s} categories={categories} />)}</ul>
     </Card>
   );
 }
@@ -148,12 +196,21 @@ export default function CategoriesPage() {
   const month = monthKey();
   const summary = useQuery({ queryKey: ["finance", "summary", month], queryFn: () => finance.summary(month) });
   const [deleting, setDeleting] = useState<Category | null>(null);
+  const recategorize = useMutation({
+    mutationFn: finance.recategorize,
+    onSuccess: (r) => {
+      void invalidate();
+      toast.success(fill(t("fin.cat.recategorized"), { n: r.changed }));
+    },
+    onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
+  });
   const totals = new Map(summary.data?.categories.map((c) => [c.category_id, c.total]));
   const list = categories.data?.items ?? [];
 
   return (
     <>
-      <PageHeader title={t("nav.categories")} description={t("fin.cat.subtitle")} />
+      <PageHeader title={t("nav.categories")} description={t("fin.cat.subtitle")}
+        action={<Button variant="outline" disabled={recategorize.isPending} onClick={() => recategorize.mutate()}><RefreshCw className="size-4" />{t("fin.cat.recategorize")}</Button>} />
       <PageBody>
         {categories.isPending ? (
           <ListSkeleton />
@@ -161,7 +218,10 @@ export default function CategoriesPage() {
           <QueryErrorState error={categories.error} onRetry={() => void categories.refetch()} />
         ) : (
           <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-            <Rules categories={list} />
+            <div className="grid gap-4">
+              <Rules categories={list} />
+              <Suggestions categories={list} />
+            </div>
             <Card className="gap-3 p-4">
               <div className="flex items-baseline justify-between gap-2">
                 <h2 className="text-sm font-medium">{t("fin.cat.categories")}</h2>

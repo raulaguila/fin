@@ -18,6 +18,8 @@ type OpenFinance interface {
 	RefreshItem(ctx context.Context, id string) error
 	DeleteItem(ctx context.Context, id string) error
 	Accounts(ctx context.Context, itemID string) ([]domain.OFAccount, error)
+	// LastBill returns the last closed bill of a card account; nil when there is none.
+	LastBill(ctx context.Context, accountID string) (due *time.Time, amount *domain.Money, err error)
 	// Transactions returns every transaction of the account dated from `from` on.
 	Transactions(ctx context.Context, accountID string, from time.Time) ([]domain.OFTransaction, error)
 }
@@ -45,6 +47,20 @@ type FinanceRepository interface {
 	// category, up to limit, newest first: input for recurring and insights.
 	Spending(ctx context.Context, userID string, from, to time.Time, limit int) ([]domain.Transaction, error)
 	SetTransactionCategory(ctx context.Context, userID, id, categoryID string) error
+	// Categorizable returns, newest first, the transactions categorized
+	// automatically (id, description, amount, provider category, category).
+	Categorizable(ctx context.Context, userID string, limit int) ([]domain.Transaction, error)
+	// SetCategories writes category id and source of each transaction, skipping
+	// any the user set by hand meanwhile. It returns how many changed.
+	SetCategories(ctx context.Context, userID string, txs []domain.Transaction) (int64, error)
+	// Uncategorized returns date, description and amount of the transactions
+	// without a category in [from, now), newest first.
+	Uncategorized(ctx context.Context, userID string, from time.Time, limit int) ([]domain.Transaction, error)
+	// PersonTransfers returns Pix and TED with a person named in the description
+	// (date, description, amount, provider category, category name).
+	PersonTransfers(ctx context.Context, userID string, from time.Time, limit int) ([]domain.Transaction, error)
+	// MonthlyTotals sums income and expense by month in [from, to).
+	MonthlyTotals(ctx context.Context, userID string, from, to time.Time) ([]domain.MonthTotal, error)
 	// Totals sums [from, to) by category; uncategorized money comes as two rows
 	// with an empty category id, one for inflows and one for outflows.
 	Totals(ctx context.Context, userID string, from, to time.Time) ([]domain.CategoryTotal, error)

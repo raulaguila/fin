@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CreditCard, Wallet, type LucideIcon } from "lucide-react";
-import { MonthSwitcher, Meter, NoConnections } from "@/components/finance";
+import { MonthSwitcher, Meter, NoConnections, TrendChart } from "@/components/finance";
 import { PageBody, PageHeader } from "@/components/bits";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
@@ -57,7 +57,14 @@ function Overview({ s }: { s: Summary }) {
   const cards = s.accounts.filter((a) => a.type === "CREDIT");
   const balance = banks.reduce((n, a) => n + a.balance, 0);
   const bill = cards.reduce((n, a) => n + a.balance, 0);
-  const nextDue = cards.map((a) => a.bill_due_date).filter((d): d is string => !!d).sort()[0];
+  const nextDue = cards.map((a) => a.next_bill_due).filter((d): d is string => !!d).sort()[0];
+  const last = cards.filter((a) => a.last_bill !== null && a.last_bill_due).sort((a, b) => (b.last_bill_due ?? "").localeCompare(a.last_bill_due ?? ""))[0];
+  const billNote = !cards.length ? t("fin.dash.no_cards") : (
+    <>
+      {nextDue && fill(t("fin.dash.next_due"), { d: f.day(nextDue) })}
+      {last && <span className="block">{fill(t("fin.dash.last_bill"), { v: f.money(last.last_bill ?? 0), d: f.day(last.last_bill_due ?? "") })}</span>}
+    </>
+  );
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
       <Stat label={t("fin.dash.balance")} value={f.money(balance)} icon={Wallet}
@@ -66,8 +73,47 @@ function Overview({ s }: { s: Summary }) {
       <Stat label={t("fin.dash.expense")} value={f.money(-s.expense)} icon={ArrowUpRight}
         note={fill(t("fin.dash.left"), { v: f.money(s.income + s.expense) })} />
       <Stat label={t("fin.dash.card_bill")} value={cards.length ? f.money(bill) : "—"} icon={CreditCard}
-        note={cards.length ? nextDue && fill(t("fin.dash.due"), { d: f.day(nextDue) }) : t("fin.dash.no_cards")} />
+        note={billNote} />
     </div>
+  );
+}
+
+function Forecast({ s }: { s: Summary }) {
+  const { t } = useI18n();
+  const f = useFinanceFormat();
+  const fc = s.forecast;
+  if (!fc) return null;
+  const perDay = fc.days_left > 0 ? Math.trunc(fc.projected / fc.days_left) : 0;
+  return (
+    <Card className="gap-3 p-4">
+      <h2 className="text-sm font-medium">{t("fin.dash.forecast")}</h2>
+      <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+        <div>
+          <p className="text-xs text-muted-foreground">{t("fin.dash.projected")}</p>
+          <p className={cn("text-2xl font-semibold tabular-nums", fc.projected < 0 && "text-red-700 dark:text-red-400")}>{f.money(fc.projected)}</p>
+          {fc.days_left > 0 && fc.projected > 0 && <p className="text-xs text-muted-foreground">{fill(t("fin.dash.per_day"), { v: f.money(perDay), n: fc.days_left })}</p>}
+        </div>
+        <dl className="grid grid-cols-[auto_auto] gap-x-4 gap-y-1 text-sm">
+          <dt className="text-muted-foreground">{t("fin.dash.pending_bills")}</dt>
+          <dd className="text-right font-mono tabular-nums">{f.money(-fc.pending_bills)}</dd>
+          <dt className="text-muted-foreground">{t("fin.dash.expected_income")}</dt>
+          <dd className="text-right font-mono tabular-nums">{f.money(fc.expected_income)}</dd>
+        </dl>
+      </div>
+      <p className="text-xs text-muted-foreground">{t("fin.dash.forecast_note")}</p>
+    </Card>
+  );
+}
+
+function Trend() {
+  const { t } = useI18n();
+  const trend = useQuery({ queryKey: ["finance", "trend"], queryFn: () => finance.trend(12) });
+  if (!trend.data?.items.some((m) => m.income || m.expense)) return null;
+  return (
+    <Card className="gap-3 p-4">
+      <h2 className="text-sm font-medium">{t("fin.dash.trend")}</h2>
+      <TrendChart items={trend.data.items} />
+    </Card>
   );
 }
 
@@ -135,7 +181,10 @@ function Commitments({ s }: { s: Summary }) {
     <div className="grid gap-4 lg:grid-cols-2">
       {s.recurring.length > 0 && (
         <Card className="gap-3 p-4">
-          <h2 className="text-sm font-medium">{t("fin.dash.recurring")}</h2>
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="text-sm font-medium">{t("fin.dash.recurring")}</h2>
+            <span className="text-xs text-muted-foreground tabular-nums">{fill(t("fin.dash.recurring_total"), { v: f.money(-s.recurring.reduce((n, r) => n + (r.changed ? r.last : r.amount), 0)) })}</span>
+          </div>
           <ul className="divide-y">
             {s.recurring.map((r) => (
               <li key={r.name} className="flex items-center justify-between gap-3 py-2 text-sm">
@@ -146,7 +195,7 @@ function Commitments({ s }: { s: Summary }) {
                     {r.changed && <span className="text-amber-800 dark:text-amber-300"> · {fill(t("fin.dash.recurring_changed"), { v: f.money(-r.previous) })}</span>}
                   </p>
                 </div>
-                <span className="shrink-0 font-mono tabular-nums">{f.money(-r.amount)}</span>
+                <span className="shrink-0 font-mono tabular-nums">{f.money(-(r.changed ? r.last : r.amount))}</span>
               </li>
             ))}
           </ul>
@@ -193,6 +242,10 @@ export default function DashboardPage() {
           s && (
             <>
               <Overview s={s} />
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Forecast s={s} />
+                <Trend />
+              </div>
               <div className="grid gap-4 lg:grid-cols-2">
                 <ByCategory s={s} />
                 <Recent s={s} />

@@ -74,6 +74,10 @@ func fake(t *testing.T) (*httptest.Server, *atomic.Int32) {
 		_, _ = w.Write([]byte(`{"results":[{"id":"t2","description":"LOJA 2/10","amount":159.2,"date":"2026-11-11T00:00:00.000Z","status":"PENDING","type":"CREDIT",
 			"creditCardMetadata":{"installmentNumber":2,"totalInstallments":10}}],"next":null}`))
 	}))
+	mux.HandleFunc("GET /bills", authed(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"results":[{"id":"b1","dueDate":"2026-10-05T00:00:00.000Z","totalAmount":800.5},
+			{"id":"b2","dueDate":"2026-11-05T00:00:00.000Z","totalAmount":1173.78}]}`))
+	}))
 	mux.HandleFunc("DELETE /items/{id}", authed(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "{}", http.StatusNotFound)
 	}))
@@ -111,8 +115,14 @@ func TestClientFlow(t *testing.T) {
 		t.Fatalf("accounts: %+v, %v", accounts, err)
 	}
 	if accounts[0].Balance != 123456 || accounts[1].Name != "Platinum" || *accounts[1].CreditLimit != 500000 ||
-		*accounts[1].Available != 400010 || accounts[1].BillDueDate.Format(time.DateOnly) != "2026-12-05" {
+		*accounts[1].Available != 400010 || accounts[1].BillDueDate.Format(time.DateOnly) != "2026-12-05" ||
+		accounts[0].Subtype != "CHECKING_ACCOUNT" {
 		t.Fatalf("account fields: %+v %+v", accounts[0], accounts[1])
+	}
+
+	due, amount, err := c.LastBill(ctx, "a2")
+	if err != nil || due == nil || due.Format(time.DateOnly) != "2026-11-05" || *amount != 117378 {
+		t.Fatalf("last bill: %v %v %v", due, amount, err)
 	}
 
 	txs, err := c.Transactions(ctx, "a1", time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))

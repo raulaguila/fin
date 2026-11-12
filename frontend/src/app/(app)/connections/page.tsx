@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Landmark, Plug, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { useFinanceStatus } from "@/components/finance";
+import { useAccountLabel, useFinanceStatus } from "@/components/finance";
 import { PageBody, PageHeader, useFormatDate } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
@@ -72,6 +72,7 @@ function usePluggyConnect() {
 }
 
 function ConnectionCard({ c, onReconnect, onRemove }: { c: Connection; onReconnect: () => void; onRemove: () => void }) {
+  const label = useAccountLabel();
   const { t } = useI18n();
   const f = useFinanceFormat();
   const formatDate = useFormatDate();
@@ -111,7 +112,7 @@ function ConnectionCard({ c, onReconnect, onRemove }: { c: Connection; onReconne
         <ul className="divide-y rounded-lg border text-sm">
           {c.accounts.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-3 px-3 py-2">
-              <span className="min-w-0 truncate">{a.name}{a.number && <span className="text-xs text-muted-foreground"> · {a.number}</span>}</span>
+              <span className="min-w-0 truncate">{label(a)}</span>
               <span className="shrink-0 text-right font-mono tabular-nums">
                 {a.type === "CREDIT" ? fill(t("fin.conn.bill"), { v: f.money(a.balance) }) : f.money(a.balance)}
                 {a.type === "CREDIT" && a.available !== null && <span className="block text-xs text-muted-foreground">{fill(t("fin.conn.available"), { v: f.money(a.available) })}</span>}

@@ -68,6 +68,8 @@ STORAGE_S3_BUCKET=''                            # Bucket name
 STORAGE_S3_ACCESS_KEY=''                        # Access key id
 STORAGE_S3_SECRET_KEY=''                        # Secret access key
 
+BACKUP_DIR='../../backups'                      # Daily database dumps, one per weekday (relative to deploy/docker); they hold all your data - PRIVATE
+
 PLUGGY_BASE_URL='https://api.pluggy.ai'         # Pluggy API address
 PLUGGY_CLIENT_ID=''                             # Pluggy client id (dashboard.pluggy.ai); empty disables Open Finance sync
 PLUGGY_CLIENT_SECRET=''                         # Pluggy client secret - PRIVATE

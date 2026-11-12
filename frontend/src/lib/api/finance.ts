@@ -15,6 +15,8 @@ export interface Account {
   id: string;
   connection_id: string;
   type: "BANK" | "CREDIT";
+  /** CHECKING_ACCOUNT, SAVINGS_ACCOUNT, CREDIT_CARD... */
+  subtype: string;
   name: string;
   number: string;
   /** On a card, the open bill. */
@@ -23,6 +25,10 @@ export interface Account {
   available: Cents | null;
   bill_close_date: string | null;
   bill_due_date: string | null;
+  /** bill_due_date, or the same day of a later month once it passed. */
+  next_bill_due: string | null;
+  last_bill_due: string | null;
+  last_bill: Cents | null;
 }
 
 export interface Connection {
@@ -90,8 +96,34 @@ export interface Summary {
   accounts: Account[];
   institutions: Record<string, string>;
   recent: Transaction[];
-  recurring: { name: string; amount: Cents; months: number; last_date: string; changed: boolean; previous: Cents }[];
+  recurring: { name: string; amount: Cents; months: number; last_date: string; changed: boolean; previous: Cents; last: Cents }[];
   installments: { description: string; amount: Cents; remaining: number }[];
+  /** Only for the current month. */
+  forecast: { days_left: number; pending_bills: Cents; expected_income: Cents; projected: Cents } | null;
+}
+
+export interface MonthTotal {
+  month: string;
+  income: Cents;
+  expense: Cents;
+}
+
+export interface Person {
+  name: string;
+  /** Matches transfers received from this person; empty when none came in. */
+  keyword: string;
+  sent: Cents;
+  received: Cents;
+  refunded: Cents;
+  count: number;
+  last_date: string;
+}
+
+export interface RuleSuggestion {
+  keyword: string;
+  example: string;
+  count: number;
+  total: Cents;
 }
 
 export interface ChatMessage {
@@ -129,6 +161,9 @@ export const finance = {
   removeConnection: (connectionId: string) => apiFetch<void>(`${base}/connections/${id(connectionId)}`, { method: "DELETE" }),
 
   summary: (month?: string) => apiFetch<Summary>(`${base}/summary${query({ month })}`),
+  trend: (months = 12) => apiFetch<{ items: MonthTotal[] }>(`${base}/trend${query({ months })}`),
+  people: () => apiFetch<{ items: Person[] }>(`${base}/people`),
+  recategorize: () => apiFetch<{ changed: number }>(`${base}/recategorize`, { method: "POST" }),
   transactions: (p: TransactionQuery, signal?: AbortSignal) => apiFetch<Paged<Transaction>>(`${base}/transactions${query(p)}`, { signal }),
   setCategory: (transactionId: string, categoryId: string) =>
     apiFetch<void>(`${base}/transactions/${id(transactionId)}`, { method: "PATCH", json: { category_id: categoryId } }),
@@ -140,6 +175,7 @@ export const finance = {
   removeCategory: (categoryId: string) => apiFetch<void>(`${base}/categories/${id(categoryId)}`, { method: "DELETE" }),
 
   rules: () => apiFetch<{ items: Rule[] }>(`${base}/rules`),
+  ruleSuggestions: () => apiFetch<{ items: RuleSuggestion[] }>(`${base}/rules/suggestions`),
   previewRule: (keyword: string) => apiFetch<{ matches: number }>(`${base}/rules/preview${query({ keyword })}`),
   createRule: (keyword: string, categoryId: string) =>
     apiFetch<{ rule: Rule; applied: number }>(`${base}/rules`, { method: "POST", json: { keyword, category_id: categoryId } }),

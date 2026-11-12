@@ -58,6 +58,14 @@ func (s *Service) financialContext(ctx context.Context, userID string, now time.
 	fmt.Fprintf(&b, "Hoje: %s. Mês corrente: %s (dia %d de %d).\n", now.Format(time.DateOnly), from.Format("01/2006"),
 		now.Day(), from.AddDate(0, 1, -1).Day())
 	fmt.Fprintf(&b, "Receitas no mês: %s. Despesas no mês: %s. Sobra: %s.\n", brl(sum.Income), brl(sum.Expense), brl(sum.Income+sum.Expense))
+	if f := sum.Forecast; f != nil {
+		fmt.Fprintf(&b, "Previsão até o fim do mês (%d dias): contas recorrentes ainda por vir %s, salário ainda por vir %s, sobra prevista %s",
+			f.DaysLeft, brl(f.PendingBills), brl(f.ExpectedIncome), brl(f.Projected))
+		if f.DaysLeft > 0 {
+			fmt.Fprintf(&b, " (%s por dia)", brl(f.Projected/domain.Money(f.DaysLeft)))
+		}
+		b.WriteString(".\n")
+	}
 
 	b.WriteString("\nContas:\n")
 	for _, a := range sum.Accounts {
@@ -66,8 +74,11 @@ func (s *Service) financialContext(ctx context.Context, userID string, now time.
 			if a.Available != nil {
 				fmt.Fprintf(&b, ", limite disponível %s", brl(*a.Available))
 			}
-			if a.BillDueDate != nil {
-				fmt.Fprintf(&b, ", vence %s", a.BillDueDate.Format("02/01"))
+			if due := a.NextBillDue(monthDay(s.Clock.Now())); due != nil {
+				fmt.Fprintf(&b, ", vence %s", due.Format("02/01"))
+			}
+			if a.LastBill != nil && a.LastBillDue != nil {
+				fmt.Fprintf(&b, ", última fatura fechada %s com vencimento em %s", brl(*a.LastBill), a.LastBillDue.Format("02/01"))
 			}
 			b.WriteString("\n")
 		} else {

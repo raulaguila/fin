@@ -16,15 +16,18 @@ Princípios:
 
 | Tela | Para quê |
 |------|----------|
-| **Painel** | Saldo das contas, entradas e saídas do mês, gastos por categoria, faturas abertas e parcelas a vencer. |
+| **Painel** | Saldo das contas, entradas e saídas do mês, previsão até o fim do mês (sobra prevista e quanto dá para gastar por dia), últimos 12 meses, gastos por categoria, faturas (próximo vencimento e última fechada), contas recorrentes e parcelas a vencer. |
 | **Transações** | Tudo que entrou e saiu, com busca, filtro por conta e categoria e troca de categoria em um clique. |
 | **Orçamento** | Limite mensal por categoria, com barra de quanto já foi usado. |
-| **Categorias e regras** | Suas categorias e regras por palavra-chave ("uber" → Transporte). Uma regra nova recategoriza o passado; sua escolha manual nunca é sobrescrita por uma sincronização. |
+| **Pessoas** | Pix e TED por pessoa nos últimos 12 meses: quanto enviou e recebeu. Um botão marca o que alguém te devolve como **reembolso**, que abate a despesa em vez de inflar a receita. |
+| **Categorias e regras** | Suas categorias e regras por palavra-chave ("uber" → Transporte), com sugestões tiradas dos estabelecimentos que se repetem sem categoria. Uma regra nova recategoriza o passado; sua escolha manual nunca é sobrescrita por uma sincronização. |
 | **Conexões** | Conectar, sincronizar e remover bancos; mostra o vencimento do consentimento. |
 | **Assistente** | Perguntas em linguagem natural: "posso gastar R$ 500 este mês?", "onde gastei mais?". |
-| **Notificações** | Orçamento estourado, fatura vencendo, gasto grande fora do padrão, consentimento perto de vencer, conexão com erro e resumo do mês. |
+| **Notificações** | Orçamento estourado, fatura vencendo, gasto grande fora do padrão, conta no negativo e cobrança de juros, cobrança repetida no mesmo dia, conta recorrente que ficou mais cara, consentimento perto de vencer, conexão com erro e resumo do mês. |
 
-Uma rotina diária sincroniza os bancos e gera os alertas. Contas, sessões, papéis e auditoria vêm da base de identidade do projeto (veja [ARCHITECTURE.md](ARCHITECTURE.md)).
+Uma rotina diária sincroniza os bancos e gera os alertas.
+
+A categorização olha, nesta ordem: suas regras, pagamentos de fatura, palavras da descrição (salário, rendimento, consignado, juros, IOF, seguro, assinaturas conhecidas) e por último a categoria que o banco manda, que costuma errar (salário como "Services", por exemplo). Empréstimos e transferências entre suas contas não contam como receita nem como gasto. Cada sincronização reaplica a categorização automática ao histórico; o que você escolheu à mão ou por regra fica como está. Contas, sessões, papéis e auditoria vêm da base de identidade do projeto (veja [ARCHITECTURE.md](ARCHITECTURE.md)).
 
 ## Uso
 
@@ -87,7 +90,17 @@ Limites conhecidos:
 
 - O consentimento Open Finance vale 12 meses. O Fin avisa 15 dias antes; renove no MeuPluggy e sincronize.
 - A Pluggy pode mudar as condições do MeuPluggy. As transações já sincronizadas continuam no seu banco de dados, mas **Remover** uma conexão apaga as contas e transações dela.
-- Faça backup do Postgres (`pg_dump`); os dados vivem só no volume Docker.
+- O histórico vive no volume Docker do Postgres; veja "Backup" abaixo.
+
+### Backup
+
+O serviço `fin_backup` (sobe com `make compose-build`) grava todo dia um dump do banco em `backend/backups/` (`BACKUP_DIR`), um arquivo por dia da semana (`fin-1.dump` é segunda): ficam sempre os últimos 7 dias, sem apagar nada. Os arquivos têm todos os seus dados e ficam só para o root; copie-os para outro disco de vez em quando.
+
+Restaurar um dump (de `backend/`, com a stack no ar; troque `5445` pelo seu `POSTGRES_PORT`; substitui o banco atual):
+
+```bash
+sudo cat backups/fin-1.dump | docker exec -i fin_postgres sh -c 'pg_restore --clean --if-exists -p 5445 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+```
 
 ## Desenvolvimento
 

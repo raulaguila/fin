@@ -24,6 +24,13 @@ type FinanceService interface {
 	Summary(ctx context.Context, userID string, month time.Time) (*domain.MonthSummary, error)
 	Transactions(ctx context.Context, userID string, filter domain.TransactionFilter) ([]domain.Transaction, int64, error)
 	SetCategory(ctx context.Context, userID, transactionID, categoryID string) error
+	// Recategorize runs the automatic categorization again over the history,
+	// leaving choices made by hand or by a rule alone. It returns how many changed.
+	Recategorize(ctx context.Context, userID string) (int64, error)
+	// Trend is income and expense of the last months, oldest first.
+	Trend(ctx context.Context, userID string, months int) ([]domain.MonthTotal, error)
+	// People groups Pix and TED by person over the last 12 months.
+	People(ctx context.Context, userID string) ([]domain.Person, error)
 
 	Categories(ctx context.Context, userID string) ([]domain.Category, error)
 	CreateCategory(ctx context.Context, userID string, c domain.Category) (*domain.Category, error)
@@ -35,6 +42,8 @@ type FinanceService interface {
 	// CreateRule saves the rule and applies it to past transactions, returning how many changed.
 	CreateRule(ctx context.Context, userID, keyword, categoryID string) (*domain.Rule, int64, error)
 	DeleteRule(ctx context.Context, userID, id string) error
+	// RuleSuggestions lists merchants that repeat among uncategorized transactions.
+	RuleSuggestions(ctx context.Context, userID string) ([]domain.RuleSuggestion, error)
 
 	Chat(ctx context.Context, userID string, history []domain.ChatMessage) (string, error)
 }

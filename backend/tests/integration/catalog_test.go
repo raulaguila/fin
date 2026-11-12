@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/rbac"
-	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/rbac"
+	"github.com/raulaguila/fin/internal/core/domain"
 )
 
 func TestCatalogHoldsEveryResourceTheCodeChecks(t *testing.T) {

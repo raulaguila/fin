@@ -7,11 +7,11 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/ratelimit"
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/rbac"
-	"github.com/raulaguila/authenticity/internal/core/usecase/role"
-	"github.com/raulaguila/authenticity/pkg/apperror"
-	"github.com/raulaguila/authenticity/pkg/reqctx"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/ratelimit"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/rbac"
+	"github.com/raulaguila/fin/internal/core/usecase/role"
+	"github.com/raulaguila/fin/pkg/apperror"
+	"github.com/raulaguila/fin/pkg/reqctx"
 )
 
 func TestRoleChangesLeaveAnAuditTrail(t *testing.T) {
@@ -47,7 +47,7 @@ func TestAppCannotRewriteTheAuditLog(t *testing.T) {
 		"UPDATE usr.usr_audit_log SET action = action WHERE false",
 	} {
 		err := testDB.Transaction(func(tx *gorm.DB) error {
-			if err := tx.Exec("SET LOCAL ROLE authenticity_app").Error; err != nil {
+			if err := tx.Exec("SET LOCAL ROLE fin_app").Error; err != nil {
 				return err
 			}
 			return tx.Exec(sql).Error

@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/port/output"
-	"github.com/raulaguila/authenticity/pkg/apperror"
-	"github.com/raulaguila/authenticity/pkg/tokenhash"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/port/output"
+	"github.com/raulaguila/fin/pkg/apperror"
+	"github.com/raulaguila/fin/pkg/tokenhash"
 )
 
 // issueSession returns the failure kind to store when it refuses the login.

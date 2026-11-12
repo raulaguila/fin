@@ -3,7 +3,7 @@ package output
 import (
 	"context"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/domain"
 )
 
 // ProductRepository persists app.product.

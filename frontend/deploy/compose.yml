@@ -1,13 +1,13 @@
 # Web stack. Joins the backend network, so start the backend stack first
 # (make compose-build in backend/).
-name: authenticity_web
+name: fin_web
 
 services:
 
   web:
 
-    container_name: authenticity_web
-    image: authenticity_web:${WEB_VERSION:-dev}
+    container_name: fin_web
+    image: fin_web:${WEB_VERSION:-dev}
     hostname: web
     build:
       context: ..
@@ -31,12 +31,12 @@ services:
         limits:
           memory: 512M
     networks:
-      authenticity_network:
+      fin_network:
         # The backend trusts X-Real-IP only from this address (its WEB_IP).
         ipv4_address: ${WEB_IP:-172.30.99.10}
 
 networks:
 
-  authenticity_network:
-    name: authenticity_network
+  fin_network:
+    name: fin_network
     external: true

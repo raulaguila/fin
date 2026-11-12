@@ -11,8 +11,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/raulaguila/authenticity/internal/core/port/output"
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/fin/internal/core/port/output"
+	"github.com/raulaguila/fin/pkg/apperror"
 )
 
 // Keys are written by the application, never by clients; the check stops a bug

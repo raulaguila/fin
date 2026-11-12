@@ -195,7 +195,7 @@ CREATE INDEX idx_usr_audit_log_target ON usr.usr_audit_log (target_id, created_a
 CREATE INDEX idx_usr_audit_log_actor ON usr.usr_audit_log (actor_id, created_at);
 -- The action filter is a prefix (LIKE 'product.%'): without it a rare action reads the whole log.
 CREATE INDEX idx_usr_audit_log_action ON usr.usr_audit_log (action text_pattern_ops, created_at DESC);
-REVOKE UPDATE, DELETE ON usr.usr_audit_log FROM authenticity_app;
+REVOKE UPDATE, DELETE ON usr.usr_audit_log FROM fin_app;
 
 CREATE TRIGGER trg_usr_user_set_updated_at BEFORE UPDATE ON usr.usr_user
     FOR EACH ROW EXECUTE FUNCTION public.fn_set_updated_at();

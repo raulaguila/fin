@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/raulaguila/authenticity/internal/core/port/output"
+	"github.com/raulaguila/fin/internal/core/port/output"
 )
 
 // S3 talks to an S3-compatible bucket with path-style URLs and AWS Signature

@@ -7,12 +7,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/rbac"
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/usecase/admin"
-	"github.com/raulaguila/authenticity/internal/core/usecase/authorize"
-	"github.com/raulaguila/authenticity/internal/core/usecase/role"
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/rbac"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/usecase/admin"
+	"github.com/raulaguila/fin/internal/core/usecase/authorize"
+	"github.com/raulaguila/fin/internal/core/usecase/role"
+	"github.com/raulaguila/fin/pkg/apperror"
 )
 
 func findRole(t *testing.T, svc *role.Service, name string) domain.Role {

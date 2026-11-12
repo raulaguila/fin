@@ -42,11 +42,11 @@ POSTGRES_HOST='postgres'                        # Postgres Container HOST
 POSTGRES_PORT='5444'                            # Postgres Container PORT
 POSTGRES_USER='root'                            # Postgres owner, used only by migrations
 POSTGRES_PASS='${postgres_pass}'                # Postgres owner PASS
-POSTGRES_APP_USER='authenticity_app'            # Role of backend, created by migration 000001
+POSTGRES_APP_USER='fin_app'            # Role of backend, created by migration 000001
 POSTGRES_APP_PASS='${postgres_app_pass}'        # Its PASS, applied by make migrate-up
-POSTGRES_MAILER_USER='authenticity_mailer'       # Outbox-only role, migration 000001
+POSTGRES_MAILER_USER='fin_mailer'       # Outbox-only role, migration 000001
 POSTGRES_MAILER_PASS='${postgres_mailer_pass}'   # Applied by make migrate-up
-POSTGRES_BASE='authenticity'                    # Postgres BASE
+POSTGRES_BASE='fin'                    # Postgres BASE
 POSTGRES_MAX_CONNS='40'                         # Postgres pool per process
 
 SMTP_MASTER_KEY='${smtp_master_key}'            # AES-256 KEK (64 hex chars) sealing email tokens in the outbox — changing it makes queued emails undeliverable
@@ -67,6 +67,18 @@ STORAGE_S3_REGION='us-east-1'                   # Bucket region
 STORAGE_S3_BUCKET=''                            # Bucket name
 STORAGE_S3_ACCESS_KEY=''                        # Access key id
 STORAGE_S3_SECRET_KEY=''                        # Secret access key
+
+PLUGGY_BASE_URL='https://api.pluggy.ai'         # Pluggy API address
+PLUGGY_CLIENT_ID=''                             # Pluggy client id (dashboard.pluggy.ai); empty disables Open Finance sync
+PLUGGY_CLIENT_SECRET=''                         # Pluggy client secret - PRIVATE
+
+AI_PROVIDER=''                                  # Assistant: claude (subscription, production), openai (any OpenAI-compatible API, e.g. Ollama) or empty to disable
+AI_MODEL=''                                     # claude: opus, sonnet or a full id (empty = CLI default); openai: the model name, e.g. llama3.1
+AI_TIMEOUT='120s'                               # Limit of one assistant call
+AI_CLAUDE_BIN='claude'                          # Claude Code binary
+CLAUDE_CODE_OAUTH_TOKEN=''                      # Token from claude setup-token (1 year, uses your subscription) - PRIVATE
+AI_OPENAI_URL='http://localhost:11434/v1'       # OpenAI-compatible base URL; Ollama from a container: http://host.docker.internal:11434/v1
+AI_OPENAI_KEY=''                                # API key of that provider; Ollama ignores it - PRIVATE
 
 REGISTRATION_TOKEN_TTL='24h'                      # Registration token time-to-live
 PASSWORD_RESET_TOKEN_TTL='2h'                   # Password reset token time-to-live

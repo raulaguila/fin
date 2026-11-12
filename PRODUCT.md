@@ -8,12 +8,12 @@
 
 ## Stack
 
-- Language / runtime: Go (`go.mod` module `github.com/raulaguila/authenticity`, Go 1.26.x)
+- Language / runtime: Go (`go.mod` module `github.com/raulaguila/fin`, Go 1.26.x)
 - HTTP: Fiber v3
 - Datastore: PostgreSQL 17 (schemas `usr`, `sys`, `app`; golang-migrate)
 - Auth crypto: Ed25519 JWT (access/refresh), Argon2id passwords (PHC), SHA-256 for refresh `jti` and email tokens
 - SMTP: configured through environment variables; email tokens sealed with AES-GCM (`pkg/aescrypt`); mailer consumes the Postgres outbox with fenced leases, retries and a restricted database role
-- Deploy: Docker Compose (`authenticity_backend`, `authenticity_mailer`, `authenticity_postgres`)
+- Deploy: Docker Compose (`fin_backend`, `fin_mailer`, `fin_postgres`)
 
 ## Users
 
@@ -29,7 +29,7 @@ Operational success (not measured SLOs): password login requires an active accou
 
 ## Positioning
 
-**Is:** a focused authenticity/identity service with hexagonal layout, identity schema `usr`, system outbox `sys`, and a small example domain module `app.product` to exercise RBAC.
+**Is:** a focused fin/identity service with hexagonal layout, identity schema `usr`, system outbox `sys`, and a small example domain module `app.product` to exercise RBAC.
 
 **Is not (v1):** multi-tenant SMTP catalog, product commerce platform, ABAC/instance-level authz, or a general dashboard — explicitly out of scope vs copying “hexago” extras without a decision.
 

@@ -3,7 +3,7 @@ package mapper
 import (
 	"testing"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/domain"
 )
 
 func TestPaginationCountsPartialPages(t *testing.T) {

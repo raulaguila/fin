@@ -3973,7 +3973,7 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "",
 	BasePath:         "/",
 	Schemes:          []string{},
-	Title:            "Authenticity API",
+	Title:            "Fin API",
 	Description:      "Identity service. Logging in from this page fills Authorize with the access token.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,

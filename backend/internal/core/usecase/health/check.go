@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/port/input"
-	"github.com/raulaguila/authenticity/internal/core/port/output"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/port/input"
+	"github.com/raulaguila/fin/internal/core/port/output"
 )
 
 const reportTTL = time.Second

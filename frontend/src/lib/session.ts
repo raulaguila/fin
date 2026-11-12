@@ -6,7 +6,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-export const SESSION_COOKIE = "authenticity_session";
+export const SESSION_COOKIE = "fin_session";
 const MAX_AGE = 60 * 60 * 24 * 30; // the refresh token lifetime caps real validity
 
 export interface Session {

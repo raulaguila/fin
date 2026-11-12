@@ -5,7 +5,7 @@ Fonte: `deploy/db/migrations`. Schema `usr` = identidade; `sys` = outbox, jobs e
 ## Ordem
 
 ```text
-000001_foundation  # citext, schemas usr/sys/app, fn_set_updated_at, role authenticity_app
+000001_foundation  # citext, schemas usr/sys/app, fn_set_updated_at, role fin_app
 000002_identity    # tabelas usr, RBAC, view, usr_resource, papeis user/admin, notificações, auditoria
 000003_system      # sys.outbox, sys.job, sys.rate_limit, sys.fn_cleanup, pg_cron
 000004_products    # app.product (com version) e recurso products no catalogo

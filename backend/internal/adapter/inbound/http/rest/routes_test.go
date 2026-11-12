@@ -11,11 +11,11 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/raulaguila/authenticity/config"
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/port/input"
-	"github.com/raulaguila/authenticity/pkg/apperror"
-	"github.com/raulaguila/authenticity/pkg/logger"
+	"github.com/raulaguila/fin/config"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/port/input"
+	"github.com/raulaguila/fin/pkg/apperror"
+	"github.com/raulaguila/fin/pkg/logger"
 )
 
 // tokenOnly accepts any token without a session lookup; every other auth call panics.

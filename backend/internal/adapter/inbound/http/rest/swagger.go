@@ -7,10 +7,10 @@ import (
 	"github.com/gofiber/contrib/v3/swaggo"
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/docs"
+	"github.com/raulaguila/fin/internal/adapter/inbound/http/rest/docs"
 )
 
-//	@title						Authenticity API
+//	@title						Fin API
 //	@description				Identity service. Logging in from this page fills Authorize with the access token.
 //	@BasePath					/
 //	@securityDefinitions.apikey	BearerAuth
@@ -57,7 +57,7 @@ var (
 func mountSwagger(app *fiber.App, version string) {
 	docs.SwaggerInfo.Version = version
 	app.Get("/swagger/*", swaggo.New(swaggo.Config{
-		Title:                  "Authenticity API",
+		Title:                  "Fin API",
 		DocExpansion:           "none", // groups start closed, so the page stays readable as it grows
 		ValidatorUrl:           "none", // the public validator cannot reach a private host, so it only shows an error
 		Filter:                 swaggo.FilterConfig{Enabled: true},

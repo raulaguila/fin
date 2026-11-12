@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/fin/pkg/apperror"
 )
 
 // WrapError translates infrastructure-level errors (gorm, pgerror) into

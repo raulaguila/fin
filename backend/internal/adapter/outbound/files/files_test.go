@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/fin/pkg/apperror"
 )
 
 func TestLocalRoundTrip(t *testing.T) {

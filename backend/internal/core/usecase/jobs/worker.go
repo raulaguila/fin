@@ -11,10 +11,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/raulaguila/authenticity/internal/core/policy"
-	"github.com/raulaguila/authenticity/internal/core/port/output"
-	"github.com/raulaguila/authenticity/pkg/reqctx"
-	"github.com/raulaguila/authenticity/pkg/validate"
+	"github.com/raulaguila/fin/internal/core/policy"
+	"github.com/raulaguila/fin/internal/core/port/output"
+	"github.com/raulaguila/fin/pkg/reqctx"
+	"github.com/raulaguila/fin/pkg/validate"
 )
 
 const (

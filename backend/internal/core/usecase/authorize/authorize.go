@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/policy"
-	"github.com/raulaguila/authenticity/internal/core/port/input"
-	"github.com/raulaguila/authenticity/internal/core/port/output"
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/policy"
+	"github.com/raulaguila/fin/internal/core/port/input"
+	"github.com/raulaguila/fin/internal/core/port/output"
+	"github.com/raulaguila/fin/pkg/apperror"
 )
 
 // Service loads effective permissions and checks CRUD bits.

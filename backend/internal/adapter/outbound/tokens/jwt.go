@@ -9,7 +9,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
-	"github.com/raulaguila/authenticity/internal/core/port/output"
+	"github.com/raulaguila/fin/internal/core/port/output"
 )
 
 type accessClaims struct {

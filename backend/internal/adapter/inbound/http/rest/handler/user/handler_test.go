@@ -9,11 +9,11 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/user"
-	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/port/input"
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/user"
+	"github.com/raulaguila/fin/internal/adapter/inbound/http/rest/middleware"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/port/input"
+	"github.com/raulaguila/fin/pkg/apperror"
 )
 
 // stubAuthz records what the route asked for and answers err.

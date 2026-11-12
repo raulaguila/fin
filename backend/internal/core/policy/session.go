@@ -3,8 +3,8 @@ package policy
 import (
 	"time"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/pkg/apperror"
 )
 
 // CheckSession refuses a session that is not the token user's, was revoked or

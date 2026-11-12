@@ -8,13 +8,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/rbac"
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/port/input"
-	"github.com/raulaguila/authenticity/internal/core/usecase/audit"
-	"github.com/raulaguila/authenticity/internal/core/usecase/role"
-	"github.com/raulaguila/authenticity/pkg/apperror"
-	"github.com/raulaguila/authenticity/pkg/reqctx"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/rbac"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/port/input"
+	"github.com/raulaguila/fin/internal/core/usecase/audit"
+	"github.com/raulaguila/fin/internal/core/usecase/role"
+	"github.com/raulaguila/fin/pkg/apperror"
+	"github.com/raulaguila/fin/pkg/reqctx"
 )
 
 func TestInviteActivatesAndShowsInTheAuditLog(t *testing.T) {

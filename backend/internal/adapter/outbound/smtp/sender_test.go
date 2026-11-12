@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/raulaguila/authenticity/config"
-	"github.com/raulaguila/authenticity/pkg/smtpsecurity"
+	"github.com/raulaguila/fin/config"
+	"github.com/raulaguila/fin/pkg/smtpsecurity"
 )
 
 // fakeServer answers one SMTP session without offering STARTTLS and reports
@@ -84,7 +84,7 @@ func TestPlainModeDelivers(t *testing.T) {
 }
 
 func TestMessageCarriesDateAndID(t *testing.T) {
-	msg := string(buildMessage("Authenticity <no-reply@acme.io>", "a@acme.io", "", "Hi", "body"))
+	msg := string(buildMessage("Fin <no-reply@acme.io>", "a@acme.io", "", "Hi", "body"))
 	if !strings.Contains(msg, "\r\nDate: ") {
 		t.Fatalf("no Date in %q", msg)
 	}

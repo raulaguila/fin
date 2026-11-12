@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/raulaguila/authenticity/pkg/aescrypt"
+	"github.com/raulaguila/fin/pkg/aescrypt"
 )
 
 func TestOutboxHoldsSealedTokenUntilDone(t *testing.T) {

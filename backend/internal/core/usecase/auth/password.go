@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/raulaguila/authenticity/internal/core/policy"
+	"github.com/raulaguila/fin/internal/core/policy"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/port/input"
-	"github.com/raulaguila/authenticity/internal/core/port/output"
-	"github.com/raulaguila/authenticity/pkg/apperror"
-	"github.com/raulaguila/authenticity/pkg/password"
-	"github.com/raulaguila/authenticity/pkg/tokenhash"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/port/input"
+	"github.com/raulaguila/fin/internal/core/port/output"
+	"github.com/raulaguila/fin/pkg/apperror"
+	"github.com/raulaguila/fin/pkg/password"
+	"github.com/raulaguila/fin/pkg/tokenhash"
 )
 
 // RequestPasswordReset answers no sooner than Cfg.PasswordResetMinDuration: an

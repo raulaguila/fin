@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/shared"
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/port/output"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/shared"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/port/output"
 )
 
 type Repository struct {

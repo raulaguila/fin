@@ -6,7 +6,7 @@ set -euo pipefail
 usage="usage: scripts/rename.sh <go module path> <name>  (or make rename in backend/)"
 module=${1:?$usage}
 name=${2:?$usage}
-old_name=authenticity
+old_name=fin
 
 # The name becomes Postgres roles (<name>_app), cron jobs and Docker names.
 if [[ ! $name =~ ^[a-z][a-z0-9_]{1,30}$ ]]; then

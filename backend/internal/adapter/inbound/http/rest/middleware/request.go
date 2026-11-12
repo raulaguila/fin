@@ -7,17 +7,17 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/raulaguila/authenticity/pkg/telemetry"
+	"github.com/raulaguila/fin/pkg/telemetry"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/mapper"
-	"github.com/raulaguila/authenticity/pkg/apperror"
-	"github.com/raulaguila/authenticity/pkg/clientip"
-	"github.com/raulaguila/authenticity/pkg/logger"
-	"github.com/raulaguila/authenticity/pkg/reqctx"
+	"github.com/raulaguila/fin/internal/adapter/inbound/http/rest/mapper"
+	"github.com/raulaguila/fin/pkg/apperror"
+	"github.com/raulaguila/fin/pkg/clientip"
+	"github.com/raulaguila/fin/pkg/logger"
+	"github.com/raulaguila/fin/pkg/reqctx"
 )
 
 var requestIDFormat = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)

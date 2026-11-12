@@ -7,13 +7,13 @@ already in place, and grows its own modules next to `products`.
 ## Start a new project
 
 ```bash
-git clone https://github.com/raulaguila/authenticity.git my-app
+git clone https://github.com/raulaguila/fin.git my-app
 cd my-app/backend
 make rename MODULE=github.com/acme/my_app NAME=my_app
 make init
 ```
 
-`make rename` rewrites the Go module path and the name `authenticity` in every
+`make rename` rewrites the Go module path and the name `fin` in every
 tracked file: imports, Docker images and containers, the database roles
 `<name>_app` and `<name>_mailer`, the pg_cron jobs and titles. `NAME` must be
 lowercase letters, digits and `_`, since it becomes Postgres role names. Then
@@ -74,7 +74,7 @@ them up with nothing to wire.
 ## What a copy inherits
 
 - Hexagonal layout with an import check, and the `shortcut:` comments that name known limits (`grep -rn "shortcut:"`).
-- Migrations that run up and down, `authenticity_app` and `authenticity_mailer` roles without owner rights.
+- Migrations that run up and down, `fin_app` and `fin_mailer` roles without owner rights.
 - `X-Request-ID` correlation, administrative audit log, rate limits shared by every instance.
 - Private diagnostics server with `/metrics` and `/health`.
 - A Next.js frontend with the session in an httpOnly cookie, light and dark themes, pt-BR and en-US.

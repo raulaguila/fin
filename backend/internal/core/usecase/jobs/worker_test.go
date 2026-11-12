@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/policy"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/policy"
 )
 
 type fakeRepo struct {

@@ -7,7 +7,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/fin/pkg/apperror"
 )
 
 const (

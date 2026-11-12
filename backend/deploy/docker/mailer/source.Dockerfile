@@ -1,6 +1,6 @@
 FROM golang:1.26.10 AS builder
 
-WORKDIR /opt/authenticity
+WORKDIR /opt/fin
 
 COPY go.mod .
 COPY go.sum .
@@ -25,10 +25,10 @@ FROM alpine:3.22.1
 RUN sed -i 's|https://dl-cdn.alpinelinux.org|http://dl-cdn.alpinelinux.org|g' /etc/apk/repositories && \
     apk add --no-cache bash tzdata dumb-init
 
-WORKDIR /opt/authenticity
+WORKDIR /opt/fin
 
 # Secrets via compose env_file — do not copy config/.env into the image.
-COPY --from=builder /opt/authenticity/bin/mailer .
+COPY --from=builder /opt/fin/bin/mailer .
 
 USER nobody
 

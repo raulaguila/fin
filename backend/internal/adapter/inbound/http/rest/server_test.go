@@ -11,8 +11,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/raulaguila/authenticity/config"
-	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
+	"github.com/raulaguila/fin/config"
+	"github.com/raulaguila/fin/internal/adapter/inbound/http/rest/middleware"
 )
 
 func clientIP(t *testing.T, api config.APIConfig, header string) string {

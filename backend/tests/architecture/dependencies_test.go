@@ -27,7 +27,7 @@ func TestCoreDependencyDirection(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			for _, forbidden := range []string{"gorm.io/", "github.com/gofiber/", "/internal/adapter/", "/internal/composition", "/authenticity/config", "/pkg/logger"} {
+			for _, forbidden := range []string{"gorm.io/", "github.com/gofiber/", "/internal/adapter/", "/internal/composition", "/fin/config", "/pkg/logger"} {
 				if strings.Contains(name, forbidden) {
 					t.Errorf("%s imports infrastructure %s", path, name)
 				}

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/raulaguila/authenticity/internal/core/port/output"
+	"github.com/raulaguila/fin/internal/core/port/output"
 )
 
 func TestCodecSealsAndAuthenticatesToken(t *testing.T) {

@@ -18,4 +18,4 @@ Fonte de verdade de runtime: `ARCHITECTURE.md` e `.specs/existing/overview.md`.
 - `cmd/mailer`: mesma infra; bloqueia sem loop de outbox.
 - `cmd/admin`: CLI de operador (`promote`, `disable`).
 
-Compose: `authenticity_backend`, `authenticity_mailer`, `authenticity_postgres`.
+Compose: `fin_backend`, `fin_mailer`, `fin_postgres`.

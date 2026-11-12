@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres"
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/job"
-	"github.com/raulaguila/authenticity/internal/core/policy"
-	"github.com/raulaguila/authenticity/internal/core/port/output"
-	"github.com/raulaguila/authenticity/internal/core/usecase/jobs"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/job"
+	"github.com/raulaguila/fin/internal/core/policy"
+	"github.com/raulaguila/fin/internal/core/port/output"
+	"github.com/raulaguila/fin/internal/core/usecase/jobs"
 )
 
 func TestJobsCommitWithTheirChangeAndRetry(t *testing.T) {

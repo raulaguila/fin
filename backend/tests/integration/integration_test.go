@@ -12,22 +12,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/emailpayload"
+	"github.com/raulaguila/fin/internal/adapter/outbound/emailpayload"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"gorm.io/gorm"
 
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres"
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/rbac"
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/tokens"
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/port/input"
-	"github.com/raulaguila/authenticity/internal/core/usecase/account"
-	"github.com/raulaguila/authenticity/internal/core/usecase/auth"
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/rbac"
+	"github.com/raulaguila/fin/internal/adapter/outbound/tokens"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/port/input"
+	"github.com/raulaguila/fin/internal/core/usecase/account"
+	"github.com/raulaguila/fin/internal/core/usecase/auth"
+	"github.com/raulaguila/fin/pkg/apperror"
 
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/files"
+	"github.com/raulaguila/fin/internal/adapter/outbound/files"
 )
 
 const strongPassword = "correct horse battery"
@@ -165,7 +165,7 @@ func (e *env) loginFrom(addr, pass, ip string) (*domain.TokenPair, error) {
 }
 
 func (e *env) account() *account.Service {
-	return account.New(e.store, rbac.NewRepository(testDB), e.clock, &files.Local{Dir: filepath.Join(os.TempDir(), "authenticity-it-files")})
+	return account.New(e.store, rbac.NewRepository(testDB), e.clock, &files.Local{Dir: filepath.Join(os.TempDir(), "fin-it-files")})
 }
 
 func (e *env) userID(t testing.TB, addr string) string {

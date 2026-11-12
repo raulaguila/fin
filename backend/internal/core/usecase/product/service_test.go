@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/raulaguila/authenticity/internal/core/port/input"
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/fin/internal/core/port/input"
+	"github.com/raulaguila/fin/pkg/apperror"
 )
 
 func TestCreateValidation(t *testing.T) {

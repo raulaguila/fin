@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/raulaguila/authenticity/internal/core/policy"
-	"github.com/raulaguila/authenticity/internal/core/port/output"
+	"github.com/raulaguila/fin/internal/core/policy"
+	"github.com/raulaguila/fin/internal/core/port/output"
 )
 
 // JobCreated runs after a product is created. It is the example of a module's

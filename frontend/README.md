@@ -1,6 +1,6 @@
 # Web
 
-Next.js frontend for the Authenticity API. It works as a BFF (backend for frontend): the browser talks only to it, and it calls the API. Everything it needs lives in this folder: code, config, Docker files and Makefile.
+Next.js frontend for the Fin API. It works as a BFF (backend for frontend): the browser talks only to it, and it calls the API. Everything it needs lives in this folder: code, config, Docker files and Makefile.
 
 ## Run
 
@@ -15,7 +15,7 @@ With Docker, start the backend stack first (`make compose-build` in `backend/`),
 make compose-build
 ```
 
-The container joins `authenticity_network` at `WEB_IP` (default `172.30.99.10`). The backend trusts `X-Real-IP` only from that address, so keep `WEB_IP` equal in both stacks.
+The container joins `fin_network` at `WEB_IP` (default `172.30.99.10`). The backend trusts `X-Real-IP` only from that address, so keep `WEB_IP` equal in both stacks.
 
 `make check` runs the typecheck, lint and tests. Other targets: `make help`.
 

@@ -7,7 +7,7 @@ const PUBLIC = ["/login", "/register", "/activate", "/forgot-password", "/reset-
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isPublic = PUBLIC.some((p) => pathname === p || pathname.startsWith(p + "/"));
-  const signedIn = req.cookies.has("authenticity_session");
+  const signedIn = req.cookies.has("fin_session");
   if (signedIn && (pathname === "/login" || pathname === "/register")) {
     return NextResponse.redirect(new URL("/", req.url));
   }

@@ -9,10 +9,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/emailpayload"
+	"github.com/raulaguila/fin/internal/adapter/outbound/emailpayload"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/pkg/aescrypt"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/pkg/aescrypt"
 )
 
 var testKey = []byte(strings.Repeat("k", 32))

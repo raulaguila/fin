@@ -7,11 +7,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/rbac"
-	"github.com/raulaguila/authenticity/internal/core/port/input"
-	"github.com/raulaguila/authenticity/internal/core/usecase/admin"
-	"github.com/raulaguila/authenticity/internal/core/usecase/role"
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/rbac"
+	"github.com/raulaguila/fin/internal/core/port/input"
+	"github.com/raulaguila/fin/internal/core/usecase/admin"
+	"github.com/raulaguila/fin/internal/core/usecase/role"
+	"github.com/raulaguila/fin/pkg/apperror"
 )
 
 func TestRenameValidatesAndUpdates(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/raulaguila/authenticity/pkg/password"
+	"github.com/raulaguila/fin/pkg/password"
 )
 
 func TestHashVerifyRoundTrip(t *testing.T) {

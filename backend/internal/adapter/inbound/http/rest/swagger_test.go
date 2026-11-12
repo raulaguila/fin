@@ -12,9 +12,9 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/raulaguila/authenticity/config"
-	"github.com/raulaguila/authenticity/internal/core/port/input"
-	"github.com/raulaguila/authenticity/pkg/logger"
+	"github.com/raulaguila/fin/config"
+	"github.com/raulaguila/fin/internal/core/port/input"
+	"github.com/raulaguila/fin/pkg/logger"
 )
 
 func server(environment string) *fiber.App {

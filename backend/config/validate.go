@@ -10,7 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/raulaguila/authenticity/pkg/aescrypt"
+	"github.com/raulaguila/fin/pkg/aescrypt"
 )
 
 const minSecretLength = 16
@@ -56,7 +56,50 @@ func validateEnvironment(env *Environment) error {
 	if env.Postgres.MaxConns <= 0 {
 		return errors.New("POSTGRES_MAX_CONNS must be greater than 0")
 	}
+	if err := validatePluggy(env.Pluggy); err != nil {
+		return err
+	}
+	if err := validateAI(env.AI, isProtectedEnvironment(env.Environment)); err != nil {
+		return err
+	}
 	return validateStorage(env.Storage)
+}
+
+func validateAI(cfg AIConfig, protected bool) error {
+	if cfg.Provider != "" && cfg.Timeout <= 0 {
+		return errors.New("AI_TIMEOUT must be greater than 0")
+	}
+	switch cfg.Provider {
+	case "":
+	case "claude":
+		if cfg.ClaudeBin == "" {
+			return errors.New("AI_CLAUDE_BIN is required when AI_PROVIDER is claude")
+		}
+		// A server has no interactive /login to fall back on.
+		if protected && cfg.ClaudeToken == "" {
+			return errors.New("CLAUDE_CODE_OAUTH_TOKEN is required when AI_PROVIDER is claude in a protected environment")
+		}
+	case "openai":
+		if u, err := url.Parse(cfg.OpenAIURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return errors.New("AI_OPENAI_URL must be an http or https address")
+		}
+		if cfg.Model == "" {
+			return errors.New("AI_MODEL is required when AI_PROVIDER is openai")
+		}
+	default:
+		return errors.New("AI_PROVIDER must be empty, claude or openai")
+	}
+	return nil
+}
+
+func validatePluggy(cfg PluggyConfig) error {
+	if (cfg.ClientID == "") != (cfg.ClientSecret == "") {
+		return errors.New("PLUGGY_CLIENT_ID and PLUGGY_CLIENT_SECRET must be set together")
+	}
+	if u, err := url.Parse(cfg.BaseURL); cfg.Enabled() && (err != nil || u.Scheme != "https" || u.Host == "") {
+		return errors.New("PLUGGY_BASE_URL must be an https address")
+	}
+	return nil
 }
 
 func validateStorage(cfg StorageConfig) error {

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/raulaguila/authenticity/internal/infra"
+	"github.com/raulaguila/fin/internal/infra"
 )
 
 func TestPrivateDiagnostics(t *testing.T) {

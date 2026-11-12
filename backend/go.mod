@@ -1,4 +1,4 @@
-module github.com/raulaguila/authenticity
+module github.com/raulaguila/fin
 
 go 1.26.10
 

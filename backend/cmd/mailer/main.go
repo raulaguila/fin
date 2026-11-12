@@ -9,10 +9,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/raulaguila/authenticity/config"
-	"github.com/raulaguila/authenticity/internal/composition"
-	"github.com/raulaguila/authenticity/internal/infra"
-	"github.com/raulaguila/authenticity/pkg/logger"
+	"github.com/raulaguila/fin/config"
+	"github.com/raulaguila/fin/internal/composition"
+	"github.com/raulaguila/fin/internal/infra"
+	"github.com/raulaguila/fin/pkg/logger"
 )
 
 func initLogger(cfg *config.Environment) *logger.Logger {

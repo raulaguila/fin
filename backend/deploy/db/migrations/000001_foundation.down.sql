@@ -1,5 +1,5 @@
-DROP OWNED BY authenticity_app, authenticity_mailer;
-DROP ROLE authenticity_app, authenticity_mailer;
+DROP OWNED BY fin_app, fin_mailer;
+DROP ROLE fin_app, fin_mailer;
 
 DROP FUNCTION public.fn_set_updated_at();
 DROP SCHEMA app, sys, usr;

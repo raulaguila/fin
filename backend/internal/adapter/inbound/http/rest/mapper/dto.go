@@ -1,6 +1,6 @@
 package mapper
 
-import "github.com/raulaguila/authenticity/internal/core/domain"
+import "github.com/raulaguila/fin/internal/core/domain"
 
 // PaginationDTO is the pagination block of every paged list.
 type PaginationDTO struct {

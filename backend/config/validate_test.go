@@ -5,8 +5,9 @@ import (
 	"crypto/rand"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/raulaguila/authenticity/pkg/smtpsecurity"
+	"github.com/raulaguila/fin/pkg/smtpsecurity"
 )
 
 const validKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -135,5 +136,60 @@ func TestZeroLoginLimitIsRefused(t *testing.T) {
 		if err := validateEnvironment(env); err == nil {
 			t.Fatal("a zero login limit must not start")
 		}
+	}
+}
+
+func TestPluggyConfig(t *testing.T) {
+	ok := []PluggyConfig{
+		{BaseURL: "https://api.pluggy.ai"},
+		{BaseURL: "https://api.pluggy.ai", ClientID: "id", ClientSecret: "secret"},
+	}
+	for _, cfg := range ok {
+		if err := validatePluggy(cfg); err != nil {
+			t.Fatalf("%+v: %v", cfg, err)
+		}
+	}
+	bad := []PluggyConfig{
+		{BaseURL: "https://api.pluggy.ai", ClientID: "id"},
+		{BaseURL: "https://api.pluggy.ai", ClientSecret: "secret"},
+		{BaseURL: "http://api.pluggy.ai", ClientID: "id", ClientSecret: "secret"},
+		{ClientID: "id", ClientSecret: "secret"},
+	}
+	for _, cfg := range bad {
+		if err := validatePluggy(cfg); err == nil {
+			t.Fatalf("%+v: want error", cfg)
+		}
+	}
+}
+
+func TestAIConfig(t *testing.T) {
+	base := AIConfig{Timeout: time.Second, ClaudeBin: "claude", OpenAIURL: "http://localhost:11434/v1"}
+	with := func(f func(*AIConfig)) AIConfig { c := base; f(&c); return c }
+	ok := map[string]AIConfig{
+		"disabled":      base,
+		"claude local":  with(func(c *AIConfig) { c.Provider = "claude" }),
+		"openai ollama": with(func(c *AIConfig) { c.Provider = "openai"; c.Model = "llama3.1" }),
+	}
+	for name, cfg := range ok {
+		if err := validateAI(cfg, false); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	if err := validateAI(with(func(c *AIConfig) { c.Provider = "claude"; c.ClaudeToken = "t" }), true); err != nil {
+		t.Errorf("claude with token in production: %v", err)
+	}
+	bad := map[string]AIConfig{
+		"unknown provider":     with(func(c *AIConfig) { c.Provider = "gemini" }),
+		"openai without model": with(func(c *AIConfig) { c.Provider = "openai" }),
+		"openai bad url":       with(func(c *AIConfig) { c.Provider = "openai"; c.Model = "m"; c.OpenAIURL = "localhost:11434" }),
+		"zero timeout":         with(func(c *AIConfig) { c.Provider = "claude"; c.Timeout = 0 }),
+	}
+	for name, cfg := range bad {
+		if err := validateAI(cfg, false); err == nil {
+			t.Errorf("%s: want error", name)
+		}
+	}
+	if err := validateAI(with(func(c *AIConfig) { c.Provider = "claude" }), true); err == nil {
+		t.Error("claude without token in production: want error")
 	}
 }

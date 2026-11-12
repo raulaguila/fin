@@ -13,19 +13,23 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/raulaguila/authenticity/config"
-	"github.com/raulaguila/authenticity/internal/composition"
-	ports "github.com/raulaguila/authenticity/internal/core/port/input"
-	"github.com/raulaguila/authenticity/internal/infra"
-	"github.com/raulaguila/authenticity/pkg/logger"
+	"github.com/raulaguila/fin/config"
+	"github.com/raulaguila/fin/internal/adapter/outbound/ai"
+	"github.com/raulaguila/fin/internal/composition"
+	ports "github.com/raulaguila/fin/internal/core/port/input"
+	"github.com/raulaguila/fin/internal/infra"
+	"github.com/raulaguila/fin/pkg/logger"
 )
 
-const usage = "usage: admin [bootstrap] | admin promote | admin disable | admin enable"
+const usage = "usage: admin [bootstrap] | admin promote | admin disable | admin enable | admin ai"
 
 // action runs against the database and returns the line to print.
 type action func(context.Context, ports.AdminService) (string, error)
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "ai" {
+		os.Exit(askAI(os.Stdin, os.Stdout, os.Stderr))
+	}
 	run, err := parse(os.Args[1:], os.Stdin, os.Stderr)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -86,6 +90,38 @@ func parse(args []string, in *os.File, out io.Writer) (action, error) {
 	return func(ctx context.Context, svc ports.AdminService) (string, error) {
 		return args[0] + " ok: " + email, command(svc, ctx, email)
 	}, nil
+}
+
+// askAI sends one prompt to the configured AI provider, without the database:
+// a check that AI_PROVIDER, the model and its credentials work.
+func askAI(in *os.File, out, errOut io.Writer) int {
+	cfg := config.MustLoad()
+	assistant, err := ai.New(cfg.AI)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	var prompt string
+	if term.IsTerminal(int(in.Fd())) {
+		prompt, err = ask(bufio.NewReader(in), errOut, "Prompt")
+	} else {
+		var data []byte
+		data, err = io.ReadAll(in)
+		prompt = string(data)
+	}
+	if err != nil || strings.TrimSpace(prompt) == "" {
+		fmt.Fprintln(errOut, "a prompt is required")
+		return 2
+	}
+	started := time.Now()
+	answer, err := assistant.Ask(context.Background(), "Você é o assistente financeiro do app Fin. Responda em português, de forma breve.", prompt)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	fmt.Fprintln(out, answer)
+	fmt.Fprintf(errOut, "[%s · %s · %s]\n", cfg.AI.Provider, cfg.AI.Model, time.Since(started).Round(time.Millisecond))
+	return 0
 }
 
 func ask(reader *bufio.Reader, out io.Writer, label string) (string, error) {

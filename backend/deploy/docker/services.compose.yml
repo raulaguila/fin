@@ -1,17 +1,17 @@
-name: authenticity
+name: fin
 
 volumes:
 
   postgres_volume:
-    name: authenticity_pg_volume
+    name: fin_pg_volume
 
   files_volume:
-    name: authenticity_files_volume
+    name: fin_files_volume
 
 networks:
 
-  authenticity_network:
-    name: authenticity_network
+  fin_network:
+    name: fin_network
     driver: bridge
     # A fixed range lets the web container keep the address the backend trusts.
     ipam:
@@ -22,8 +22,8 @@ services:
 
   postgres:
 
-    container_name: authenticity_postgres
-    image: authenticity_postgres
+    container_name: fin_postgres
+    image: fin_postgres
     hostname: postgres
     build:
       context: ./postgres
@@ -51,4 +51,4 @@ services:
       start_period: 1s
       start_interval: 2s
     networks:
-      - authenticity_network
+      - fin_network

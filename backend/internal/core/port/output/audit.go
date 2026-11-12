@@ -3,7 +3,7 @@ package output
 import (
 	"context"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/domain"
 )
 
 // AuditRepository appends to usr.usr_audit_log. Call it inside the transaction

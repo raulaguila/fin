@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/domain"
 )
 
 func TestCleanupRemovesAbandonedSignups(t *testing.T) {

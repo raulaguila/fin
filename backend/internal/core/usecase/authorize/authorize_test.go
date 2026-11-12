@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/pkg/apperror"
 )
 
 var now = time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)

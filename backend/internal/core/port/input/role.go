@@ -3,7 +3,7 @@ package input
 import (
 	"context"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/domain"
 )
 
 // RoleService manages roles at runtime. Protected roles are read-only here.

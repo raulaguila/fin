@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/fin/pkg/apperror"
 )
 
 // ID refuses anything but a UUID before it reaches a uuid column.

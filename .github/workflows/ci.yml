@@ -15,7 +15,7 @@ jobs:
         image: postgres:17-alpine
         env:
           POSTGRES_PASSWORD: test
-          POSTGRES_DB: authenticity_test
+          POSTGRES_DB: fin_test
         ports:
           - 5432:5432
         options: >-
@@ -35,7 +35,7 @@ jobs:
         run: make swagger && git diff --exit-code internal/adapter/inbound/http/rest/docs
       - run: go test -race ./...
         env:
-          TEST_POSTGRES_URL: postgres://postgres:test@localhost:5432/authenticity_test?sslmode=disable
+          TEST_POSTGRES_URL: postgres://postgres:test@localhost:5432/fin_test?sslmode=disable
 
   frontend:
     runs-on: ubuntu-latest
@@ -64,7 +64,7 @@ jobs:
         image: postgres:17-alpine
         env:
           POSTGRES_PASSWORD: test
-          POSTGRES_DB: authenticity_e2e
+          POSTGRES_DB: fin_e2e
         ports:
           - 5432:5432
         options: >-
@@ -80,7 +80,7 @@ jobs:
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
       POSTGRES_PASS: test
-      POSTGRES_BASE: authenticity_e2e
+      POSTGRES_BASE: fin_e2e
       AUTH_MANUAL_TOKEN_DELIVERY: 1
       AUTH_EMAIL_TOKEN_COOLDOWN: 1s
       API_RATE_LIMIT_AUTH: 100
@@ -104,7 +104,7 @@ jobs:
         working-directory: backend
         run: |
           go run -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.3 -path deploy/db/migrations \
-            -database "postgres://postgres:test@localhost:5432/authenticity_e2e?sslmode=disable" up
+            -database "postgres://postgres:test@localhost:5432/fin_e2e?sslmode=disable" up
           go build -o "$RUNNER_TEMP/backend" ./cmd/backend
           go build -o "$RUNNER_TEMP/admin" ./cmd/admin
           export SMTP_MASTER_KEY="$(openssl rand -hex 32)"

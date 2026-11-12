@@ -5,11 +5,11 @@ import (
 	"slices"
 	"time"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/port/output"
-	"github.com/raulaguila/authenticity/pkg/apperror"
-	"github.com/raulaguila/authenticity/pkg/reqctx"
-	"github.com/raulaguila/authenticity/pkg/validate"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/port/output"
+	"github.com/raulaguila/fin/pkg/apperror"
+	"github.com/raulaguila/fin/pkg/reqctx"
+	"github.com/raulaguila/fin/pkg/validate"
 )
 
 // Audit records an administrative change in the caller's transaction, with the

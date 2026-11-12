@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/raulaguila/authenticity/internal/core/usecase/admin"
+	"github.com/raulaguila/fin/internal/core/usecase/admin"
 )
 
 // Includes Fiber, JWT/session validation, live RBAC and PostgreSQL queries.

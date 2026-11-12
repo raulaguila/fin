@@ -7,22 +7,22 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 
-	"github.com/raulaguila/authenticity/config"
-	audithttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/audit"
-	authhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/auth"
-	healthhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/health"
-	notificationhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/notification"
-	permissionhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/permission"
-	preferencehttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/preference"
-	producthttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/product"
-	rolehttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/role"
-	sessionhttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/session"
-	usershttp "github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/handler/user"
-	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/mapper"
-	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/port/input"
-	"github.com/raulaguila/authenticity/pkg/logger"
+	"github.com/raulaguila/fin/config"
+	audithttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/audit"
+	authhttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/auth"
+	healthhttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/health"
+	notificationhttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/notification"
+	permissionhttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/permission"
+	preferencehttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/preference"
+	producthttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/product"
+	rolehttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/role"
+	sessionhttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/session"
+	usershttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/user"
+	"github.com/raulaguila/fin/internal/adapter/inbound/http/rest/mapper"
+	"github.com/raulaguila/fin/internal/adapter/inbound/http/rest/middleware"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/port/input"
+	"github.com/raulaguila/fin/pkg/logger"
 )
 
 // maxBodyBytes bounds what a client makes the server buffer: the body is read
@@ -33,7 +33,7 @@ const maxBodyBytes = domain.AvatarMaxBytes + 4*1024
 
 func serverConfig(api config.APIConfig) fiber.Config {
 	cfg := fiber.Config{
-		AppName:            "authenticity",
+		AppName:            "fin",
 		ReadTimeout:        api.ReadTimeout,
 		WriteTimeout:       api.WriteTimeout,
 		IdleTimeout:        api.IdleTimeout,

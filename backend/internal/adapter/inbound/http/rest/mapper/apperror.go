@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/fin/pkg/apperror"
 )
 
 // LocalCause holds the error behind a 5xx or degraded answer, for the request

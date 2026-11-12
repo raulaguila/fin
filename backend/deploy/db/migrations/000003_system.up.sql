@@ -23,9 +23,9 @@ CREATE TABLE sys.outbox (
 CREATE INDEX idx_sys_outbox_claimable ON sys.outbox (available_at) WHERE status IN ('pending', 'processing');
 
 -- Mail delivery cannot read or change users, passwords, roles or products.
-GRANT SELECT ON sys.outbox TO authenticity_mailer;
+GRANT SELECT ON sys.outbox TO fin_mailer;
 GRANT UPDATE (status, available_at, claim_id, processed_at, last_error, payload, attempts)
-    ON sys.outbox TO authenticity_mailer;
+    ON sys.outbox TO fin_mailer;
 
 -- Background jobs for any module. A use case enqueues a row in its own
 -- transaction, so the job exists exactly when the change it follows commits.
@@ -85,8 +85,8 @@ BEGIN
   IF current_setting('shared_preload_libraries', true) LIKE '%pg_cron%'
      AND current_setting('cron.database_name', true) = current_database() THEN
     CREATE EXTENSION IF NOT EXISTS pg_cron;
-    PERFORM cron.schedule('authenticity_cleanup', '17 3 * * *', 'SELECT sys.fn_cleanup()');
-    PERFORM cron.schedule('authenticity_rate_limit', '*/5 * * * *',
+    PERFORM cron.schedule('fin_cleanup', '17 3 * * *', 'SELECT sys.fn_cleanup()');
+    PERFORM cron.schedule('fin_rate_limit', '*/5 * * * *',
       $q$DELETE FROM sys.rate_limit WHERE window_start < now() - INTERVAL '1 minute'$q$);
   END IF;
 END;

@@ -10,8 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/raulaguila/authenticity/pkg/password"
-	"github.com/raulaguila/authenticity/pkg/telemetry"
+	"github.com/raulaguila/fin/pkg/password"
+	"github.com/raulaguila/fin/pkg/telemetry"
 )
 
 // Diagnostics is separate from the public API. It defaults to container loopback

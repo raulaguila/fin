@@ -1,7 +1,7 @@
 // Apply the saved theme before the page is painted. Storage may be blocked by
 // the browser; switching themes still works for the current visit in that case.
 (() => {
-  const storageKey = "authenticity.swagger.theme";
+  const storageKey = "fin.swagger.theme";
   const root = document.documentElement;
   let theme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
   try {

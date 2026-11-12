@@ -1,8 +1,8 @@
 DO $$
 BEGIN
   IF to_regclass('cron.job') IS NOT NULL THEN
-    PERFORM cron.unschedule('authenticity_cleanup');
-    PERFORM cron.unschedule('authenticity_rate_limit');
+    PERFORM cron.unschedule('fin_cleanup');
+    PERFORM cron.unschedule('fin_rate_limit');
   END IF;
 END;
 $$;

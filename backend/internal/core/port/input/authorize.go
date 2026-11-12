@@ -3,7 +3,7 @@ package input
 import (
 	"context"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/domain"
 )
 
 // Authorizer checks that the principal's session is live and that the user may

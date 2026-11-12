@@ -5,17 +5,17 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres"
 
 	"github.com/google/uuid"
 
-	productrepo "github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/product"
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/rbac"
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/port/input"
-	"github.com/raulaguila/authenticity/internal/core/usecase/product"
-	"github.com/raulaguila/authenticity/internal/core/usecase/role"
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	productrepo "github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/product"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/rbac"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/port/input"
+	"github.com/raulaguila/fin/internal/core/usecase/product"
+	"github.com/raulaguila/fin/internal/core/usecase/role"
+	"github.com/raulaguila/fin/pkg/apperror"
 )
 
 func TestSeveralDefaultRolesGoToNewAccounts(t *testing.T) {

@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/domain"
 )
 
 // notify is best effort: a lost notice must not cost the login or refresh it reports on.

@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/raulaguila/authenticity/config"
-	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest"
-	"github.com/raulaguila/authenticity/internal/composition"
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/usecase/admin"
-	"github.com/raulaguila/authenticity/internal/infra"
-	"github.com/raulaguila/authenticity/pkg/logger"
+	"github.com/raulaguila/fin/config"
+	"github.com/raulaguila/fin/internal/adapter/inbound/http/rest"
+	"github.com/raulaguila/fin/internal/composition"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/usecase/admin"
+	"github.com/raulaguila/fin/internal/infra"
+	"github.com/raulaguila/fin/pkg/logger"
 )
 
 func (e *env) httpApp() *fiber.App {

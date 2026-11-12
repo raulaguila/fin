@@ -3,7 +3,7 @@ package input
 import (
 	"context"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/domain"
 )
 
 // UserService manages the accounts of other people. Users with a protected role

@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/raulaguila/authenticity/config"
-	"github.com/raulaguila/authenticity/pkg/smtpsecurity"
+	"github.com/raulaguila/fin/config"
+	"github.com/raulaguila/fin/pkg/smtpsecurity"
 )
 
 const (

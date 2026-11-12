@@ -5,9 +5,9 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/raulaguila/authenticity/config"
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres"
-	"github.com/raulaguila/authenticity/pkg/logger"
+	"github.com/raulaguila/fin/config"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres"
+	"github.com/raulaguila/fin/pkg/logger"
 )
 
 type Resources struct {

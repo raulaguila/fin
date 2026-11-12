@@ -5,7 +5,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/raulaguila/authenticity/internal/adapter/outbound/persistence/postgres/shared"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/shared"
 )
 
 // Repository counts requests in sys.rate_limit, so every instance shares one limit.

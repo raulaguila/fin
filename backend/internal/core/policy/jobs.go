@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/raulaguila/authenticity/internal/core/port/output"
+	"github.com/raulaguila/fin/internal/core/port/output"
 )
 
 // JobHandler runs one background job of a kind. An error retries it with backoff

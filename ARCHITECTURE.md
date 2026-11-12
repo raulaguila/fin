@@ -6,7 +6,7 @@
 
 The Go service lives in `backend/` (its own `go.mod`, `Makefile`, config and Docker files) and the Next.js app in `frontend/`; paths such as `cmd/backend` or `config/.env` below are relative to `backend/`.
 
-**Confirmed.** Authenticity runs as two long-lived processes plus Postgres: `cmd/backend` serves Fiber HTTP (health, auth, sessions, preferences, notifications, permissions, roles, users and products CRUD); `cmd/mailer` claims `sys.outbox` rows under a 10-minute lease (`SKIP LOCKED`), opens the sealed token and sends SMTP. `cmd/admin` handles operator actions. `frontend/` is a Next.js BFF: it keeps the tokens in a signed httpOnly cookie, forwards API calls with the bearer and sends the client IP as `X-Real-IP`, which the backend accepts only from the web container's fixed address (`API_TRUSTED_PROXIES`). Composition wires use cases to Postgres. Product constraints live in `PRODUCT.md`; surface briefs in `.keel/surfaces/`.
+**Confirmed.** Fin runs as two long-lived processes plus Postgres: `cmd/backend` serves Fiber HTTP (health, auth, sessions, preferences, notifications, permissions, roles, users and products CRUD); `cmd/mailer` claims `sys.outbox` rows under a 10-minute lease (`SKIP LOCKED`), opens the sealed token and sends SMTP. `cmd/admin` handles operator actions. `frontend/` is a Next.js BFF: it keeps the tokens in a signed httpOnly cookie, forwards API calls with the bearer and sends the client IP as `X-Real-IP`, which the backend accepts only from the web container's fixed address (`API_TRUSTED_PROXIES`). Composition wires use cases to Postgres. Product constraints live in `PRODUCT.md`; surface briefs in `.keel/surfaces/`.
 
 ## Boundaries
 
@@ -48,7 +48,7 @@ core/domain → stdlib only
 
 **`app.product`:** owned by backend product use case (CRUD).
 
-**Database roles:** migrations run as the owner (`POSTGRES_USER`). Backend and `cmd/admin` connect as `authenticity_app` (`POSTGRES_APP_USER`), which reads and writes rows in `usr`, `sys` and `app` and cannot change the schema. The mailer uses `authenticity_mailer` (`POSTGRES_MAILER_USER`): SELECT on outbox and UPDATE on delivery columns only. It cannot access identity or products, insert messages, delete them, or change their purpose. Migrations create the roles and grants. After successful migration, `make migrate-up` enables both logins and sets their passwords from `config/.env` in a single transaction; secrets are not stored in versioned SQL.
+**Database roles:** migrations run as the owner (`POSTGRES_USER`). Backend and `cmd/admin` connect as `fin_app` (`POSTGRES_APP_USER`), which reads and writes rows in `usr`, `sys` and `app` and cannot change the schema. The mailer uses `fin_mailer` (`POSTGRES_MAILER_USER`): SELECT on outbox and UPDATE on delivery columns only. It cannot access identity or products, insert messages, delete them, or change their purpose. Migrations create the roles and grants. After successful migration, `make migrate-up` enables both logins and sets their passwords from `config/.env` in a single transaction; secrets are not stored in versioned SQL.
 
 **Tenancy:** single identity database; no org/tenant tables. **Inferred** as single-tenant until PRODUCT users say otherwise.
 

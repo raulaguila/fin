@@ -23,7 +23,7 @@ DO $$
 DECLARE
   role_name TEXT;
 BEGIN
-  FOREACH role_name IN ARRAY ARRAY['authenticity_app', 'authenticity_mailer'] LOOP
+  FOREACH role_name IN ARRAY ARRAY['fin_app', 'fin_mailer'] LOOP
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = role_name) THEN
       EXECUTE format('CREATE ROLE %I NOLOGIN', role_name);
     END IF;
@@ -31,7 +31,7 @@ BEGIN
 END;
 $$;
 
-GRANT USAGE ON SCHEMA usr, sys, app TO authenticity_app;
-GRANT USAGE ON SCHEMA sys TO authenticity_mailer;
+GRANT USAGE ON SCHEMA usr, sys, app TO fin_app;
+GRANT USAGE ON SCHEMA sys TO fin_mailer;
 ALTER DEFAULT PRIVILEGES IN SCHEMA usr, sys, app
-    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticity_app;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO fin_app;

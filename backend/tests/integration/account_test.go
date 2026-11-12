@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
-	"github.com/raulaguila/authenticity/internal/core/port/input"
-	"github.com/raulaguila/authenticity/internal/core/usecase/admin"
-	"github.com/raulaguila/authenticity/pkg/apperror"
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/port/input"
+	"github.com/raulaguila/fin/internal/core/usecase/admin"
+	"github.com/raulaguila/fin/pkg/apperror"
 )
 
 func TestProfileHasLivePermissionsAndDefaults(t *testing.T) {

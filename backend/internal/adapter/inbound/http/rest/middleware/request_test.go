@@ -15,11 +15,11 @@ import (
 	"github.com/gofiber/fiber/v3"
 	recoverer "github.com/gofiber/fiber/v3/middleware/recover"
 
-	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/mapper"
-	"github.com/raulaguila/authenticity/internal/adapter/inbound/http/rest/middleware"
-	"github.com/raulaguila/authenticity/pkg/apperror"
-	"github.com/raulaguila/authenticity/pkg/logger"
-	"github.com/raulaguila/authenticity/pkg/reqctx"
+	"github.com/raulaguila/fin/internal/adapter/inbound/http/rest/mapper"
+	"github.com/raulaguila/fin/internal/adapter/inbound/http/rest/middleware"
+	"github.com/raulaguila/fin/pkg/apperror"
+	"github.com/raulaguila/fin/pkg/logger"
+	"github.com/raulaguila/fin/pkg/reqctx"
 )
 
 // memoryHits counts like the Postgres limiter, without the minute window.

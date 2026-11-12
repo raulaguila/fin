@@ -8,7 +8,7 @@ import (
 
 func TestAppRoleReadsAndWritesDataButNotSchema(t *testing.T) {
 	err := testDB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Exec("SET LOCAL ROLE authenticity_app").Error; err != nil {
+		if err := tx.Exec("SET LOCAL ROLE fin_app").Error; err != nil {
 			return err
 		}
 		for _, sql := range []string{
@@ -30,7 +30,7 @@ func TestAppRoleReadsAndWritesDataButNotSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = testDB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Exec("SET LOCAL ROLE authenticity_app").Error; err != nil {
+		if err := tx.Exec("SET LOCAL ROLE fin_app").Error; err != nil {
 			t.Fatal(err)
 		}
 		return tx.Exec("DROP TABLE app.product").Error
@@ -46,7 +46,7 @@ func TestMailerRoleIsLimitedToOutboxDelivery(t *testing.T) {
 		"UPDATE sys.outbox SET status='processing',claim_id=gen_random_uuid() WHERE false",
 	} {
 		if err := testDB.Transaction(func(tx *gorm.DB) error {
-			if err := tx.Exec("SET LOCAL ROLE authenticity_mailer").Error; err != nil {
+			if err := tx.Exec("SET LOCAL ROLE fin_mailer").Error; err != nil {
 				return err
 			}
 			return tx.Exec(sql).Error
@@ -63,7 +63,7 @@ func TestMailerRoleIsLimitedToOutboxDelivery(t *testing.T) {
 		"UPDATE sys.outbox SET purpose='password_reset' WHERE false",
 	} {
 		err := testDB.Transaction(func(tx *gorm.DB) error {
-			if err := tx.Exec("SET LOCAL ROLE authenticity_mailer").Error; err != nil {
+			if err := tx.Exec("SET LOCAL ROLE fin_mailer").Error; err != nil {
 				return err
 			}
 			return tx.Exec(sql).Error

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/raulaguila/authenticity/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/domain"
 )
 
 // UserRepository persists usr.usr_user.

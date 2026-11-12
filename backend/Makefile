@@ -6,7 +6,7 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 # Project
-PROJECT_NAME     := authenticity-api
+PROJECT_NAME     := fin-api
 PROJECT_BIN_PATH := bin
 PROJECT_VERSION  := $(shell cat config/version.txt | tr -d "[:space:]")
 PROJECT_ZIP_NAME := $(PROJECT_NAME)_$(PROJECT_VERSION).zip
@@ -342,8 +342,8 @@ migrate-up: ## Run migrations and configure backend and mailer logins
 	@echo "$(BLUE)🔄 Running migrations... $(RESET)"
 	$(call run_migrate,up)
 	@set -a && . ./config/.env && set +a; \
-	printf '%s\n' '\getenv app_password POSTGRES_APP_PASS' '\getenv mailer_password POSTGRES_MAILER_PASS' "SELECT format('ALTER ROLE authenticity_app LOGIN PASSWORD %L', :'app_password') \gexec" "SELECT format('ALTER ROLE authenticity_mailer LOGIN PASSWORD %L', :'mailer_password') \gexec" | \
-	$(DOCKER) exec -i -e POSTGRES_APP_PASS -e POSTGRES_MAILER_PASS authenticity_postgres psql -X -q --single-transaction -v ON_ERROR_STOP=1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_BASE}" -p "$${POSTGRES_PORT}"
+	printf '%s\n' '\getenv app_password POSTGRES_APP_PASS' '\getenv mailer_password POSTGRES_MAILER_PASS' "SELECT format('ALTER ROLE fin_app LOGIN PASSWORD %L', :'app_password') \gexec" "SELECT format('ALTER ROLE fin_mailer LOGIN PASSWORD %L', :'mailer_password') \gexec" | \
+	$(DOCKER) exec -i -e POSTGRES_APP_PASS -e POSTGRES_MAILER_PASS fin_postgres psql -X -q --single-transaction -v ON_ERROR_STOP=1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_BASE}" -p "$${POSTGRES_PORT}"
 	@echo "$(GREEN)✅ Migrations and database logins configured!$(RESET)"
 	@echo
 

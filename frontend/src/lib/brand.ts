@@ -1,5 +1,5 @@
 // The one place that names the product; `make rename` rewrites it.
-export const APP_NAME = "Authenticity";
+export const APP_NAME = "Fin";
 
 // ISO 4217 code used to show product prices.
 export const CURRENCY = "BRL";

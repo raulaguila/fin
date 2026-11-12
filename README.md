@@ -1,4 +1,4 @@
-# Authenticity
+# Fin
 
 Identity service in Go: registration, login, sessions, role-based permissions and account data, with a products CRUD as an example of a protected resource. `cmd/backend` serves HTTP, `cmd/mailer` sends email from the outbox, `cmd/admin` is the operator CLI, all under `backend/`, and `frontend/` is the Next.js app. See [ARCHITECTURE.md](ARCHITECTURE.md) for how it fits together, [PRODUCT.md](PRODUCT.md) for its constraints and [TEMPLATE.md](TEMPLATE.md) to start a new project from it or add a module.
 
@@ -39,7 +39,7 @@ make dev-mailer
 Tests against Postgres need `TEST_POSTGRES_URL` pointing at an empty database; without it they skip:
 
 ```bash
-TEST_POSTGRES_URL='postgres://postgres:test@localhost:5432/authenticity_test?sslmode=disable' go test -race ./...
+TEST_POSTGRES_URL='postgres://postgres:test@localhost:5432/fin_test?sslmode=disable' go test -race ./...
 ```
 
 Other targets: `make help`. After changing a handler annotation run `make swagger`.
@@ -54,7 +54,7 @@ Other targets: `make help`. After changing a handler annotation run `make swagge
 
 ## Diagnostics and pagination
 
-JSON logging is the default; use `LOG_FORMAT=text` for an interactive console. Internal diagnostics listen on `DIAGNOSTICS_ADDRESS` (default `127.0.0.1:9091`); `/metrics` is JSON, not Prometheus exposition. Inspect it from inside a container, for example `docker exec authenticity_backend wget -qO- http://127.0.0.1:9091/metrics`. Do not publish this port without access controls. `make dev-mailer` defaults its diagnostics to port 9092 so it can run beside the backend on the same host. When launching binaries directly, choose another diagnostics port for one process. An empty address disables diagnostics; Compose healthchecks expect the default address.
+JSON logging is the default; use `LOG_FORMAT=text` for an interactive console. Internal diagnostics listen on `DIAGNOSTICS_ADDRESS` (default `127.0.0.1:9091`); `/metrics` is JSON, not Prometheus exposition. Inspect it from inside a container, for example `docker exec fin_backend wget -qO- http://127.0.0.1:9091/metrics`. Do not publish this port without access controls. `make dev-mailer` defaults its diagnostics to port 9092 so it can run beside the backend on the same host. When launching binaries directly, choose another diagnostics port for one process. An empty address disables diagnostics; Compose healthchecks expect the default address.
 
 For large product lists, request `/v1/products?cursor=start&limit=20`, then pass the returned `pagination.next_cursor` as `cursor`; the field is absent on the last page. This mode omits totals and supports `created_at desc` only. Existing `page`, `limit` and sorting behavior remains available.
 

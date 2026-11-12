@@ -15,8 +15,8 @@ import (
 	"github.com/godeh/dotenvgo"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/raulaguila/authenticity/pkg/aescrypt"
-	"github.com/raulaguila/authenticity/pkg/smtpsecurity"
+	"github.com/raulaguila/fin/pkg/aescrypt"
+	"github.com/raulaguila/fin/pkg/smtpsecurity"
 )
 
 type LogConfig struct {
@@ -77,7 +77,7 @@ type PostgresConfig struct {
 	Port     int    `env:"POSTGRES_PORT" default:"5432"`
 	User     string `env:"POSTGRES_USER" default:"root"`
 	Password string `env:"POSTGRES_PASS" default:"root"`
-	Base     string `env:"POSTGRES_BASE" default:"authenticity"`
+	Base     string `env:"POSTGRES_BASE" default:"fin"`
 	// MaxConns must stay under the server's max_connections across all processes.
 	MaxConns int    `env:"POSTGRES_MAX_CONNS" default:"40"`
 	URL      string `env:"POSTGRES_URL" default:"host=${POSTGRES_HOST} user=${POSTGRES_USER} password=${POSTGRES_PASS} dbname=${POSTGRES_BASE} port=${POSTGRES_PORT} sslmode=disable TimeZone=${TZ}"`
@@ -121,6 +121,31 @@ type StorageConfig struct {
 	S3SecretKey string `env:"STORAGE_S3_SECRET_KEY" default:""`
 }
 
+// PluggyConfig reaches the Open Finance aggregator. The API key is not
+// configured: it is exchanged from the client id and secret at POST /auth.
+type PluggyConfig struct {
+	BaseURL      string `env:"PLUGGY_BASE_URL" default:"https://api.pluggy.ai"`
+	ClientID     string `env:"PLUGGY_CLIENT_ID" default:""`
+	ClientSecret string `env:"PLUGGY_CLIENT_SECRET" default:""`
+}
+
+// Enabled reports whether Open Finance sync has credentials.
+func (c PluggyConfig) Enabled() bool { return c.ClientID != "" }
+
+// AIConfig picks the model behind the assistant. An empty provider disables it.
+type AIConfig struct {
+	Provider string        `env:"AI_PROVIDER" default:""` // claude or openai
+	Model    string        `env:"AI_MODEL" default:""`
+	Timeout  time.Duration `env:"AI_TIMEOUT" default:"120s"`
+	// ClaudeBin runs Claude Code headless on the subscription of ClaudeToken
+	// (claude setup-token); without a token it falls back to the local /login.
+	ClaudeBin   string `env:"AI_CLAUDE_BIN" default:"claude"`
+	ClaudeToken string `env:"CLAUDE_CODE_OAUTH_TOKEN" default:""`
+	// OpenAIURL is any OpenAI-compatible API, e.g. Ollama at http://localhost:11434/v1.
+	OpenAIURL string `env:"AI_OPENAI_URL" default:"http://localhost:11434/v1"`
+	OpenAIKey string `env:"AI_OPENAI_KEY" default:""`
+}
+
 type Environment struct {
 	DiagnosticsAddress string         `env:"DIAGNOSTICS_ADDRESS" default:"127.0.0.1:9091"`
 	Timezone           *time.Location `env:"TZ" default:"America/Manaus"`
@@ -134,6 +159,8 @@ type Environment struct {
 	Postgres PostgresConfig
 	SMTP     SMTPConfig
 	Storage  StorageConfig
+	Pluggy   PluggyConfig
+	AI       AIConfig
 }
 
 // Protected reports whether production rules apply.

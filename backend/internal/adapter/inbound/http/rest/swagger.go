@@ -42,9 +42,19 @@ import (
 //	@tag.description	Roles, their permissions and members, and the resources they may be granted. Protected roles cannot be changed
 //	@tag.name			Audit
 //	@tag.description	Log of administrative changes
+//	@tag.name			Connections
+//	@tag.description	Banks linked through Open Finance (Pluggy)
+//	@tag.name			Transactions
+//	@tag.description	Transactions and the month dashboard
+//	@tag.name			Categories
+//	@tag.description	Categories, monthly limits and categorization rules
+//	@tag.name			Assistant
+//	@tag.description	Questions about the user's finances, answered by the configured model
+//	@tag.name			Webhooks
+//	@tag.description	Events from the Open Finance provider
 //	@tag.name			Products
 //	@tag.description	Product catalog
-//	@x-tagGroups		[{"name":"System","tags":["Health"]},{"name":"Authentication","tags":["Auth","Registration","Password reset"]},{"name":"Account","tags":["Profile","Sessions","Preferences","Notifications"]},{"name":"Administration","tags":["Users","Roles","Audit"]},{"name":"Catalog","tags":["Products"]}]
+//	@x-tagGroups		[{"name":"System","tags":["Health"]},{"name":"Authentication","tags":["Auth","Registration","Password reset"]},{"name":"Account","tags":["Profile","Sessions","Preferences","Notifications"]},{"name":"Administration","tags":["Users","Roles","Audit"]},{"name":"Finance","tags":["Connections","Transactions","Categories","Assistant","Webhooks"]},{"name":"Catalog","tags":["Products"]}]
 
 var (
 	//go:embed docs/swagger.css

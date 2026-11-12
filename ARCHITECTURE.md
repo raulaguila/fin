@@ -107,6 +107,10 @@ Every query reads only what its caller uses. A hot path pays for each extra colu
 | GET | `/v1/products/list` |
 | GET/PATCH | `/v1/products/:id` |
 | POST | `/v1/products/delete`, body `{"ids": [...]}` (1 to 100), all or none |
+| GET | `/v1/finance/status`, `/v1/finance/summary`, `/v1/finance/transactions`, `/v1/finance/connections`, `/v1/finance/categories`, `/v1/finance/rules`, `/v1/finance/rules/preview` (Bearer; own data only) |
+| POST | `/v1/finance/connect-token`, `/v1/finance/connections`, `/v1/finance/connections/{id}/sync`, `/v1/finance/categories`, `/v1/finance/rules`, `/v1/finance/assistant/chat` (Bearer; chat rate limited) |
+| PATCH/DELETE | `/v1/finance/transactions/{id}` (PATCH), `/v1/finance/categories/{id}`, `/v1/finance/connections/{id}` and `/v1/finance/rules/{id}` (DELETE) (Bearer) |
+| POST | `/v1/webhooks/pluggy?token=PLUGGY_WEBHOOK_SECRET` (Pluggy events; queues a sync) |
 
 **Auth tokens:** EdDSA (Ed25519), a base64 PEM from `openssl genpkey -algorithm ed25519`; access claims `sub`, `sid`, `jti`, `iat`, `exp`; refresh same with `jti` hashed at rest. Defaults: access 15m, refresh 60m. **Key rotation:** set the new key in `ACCESS_TOKEN`/`REFRESH_TOKEN` and the old one in `ACCESS_TOKEN_PREVIOUS`/`REFRESH_TOKEN_PREVIOUS`; the old key is only verified, never used to sign, and is removed after one refresh lifetime. An access key may never equal a refresh key, current or previous.
 

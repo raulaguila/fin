@@ -71,7 +71,7 @@ export interface Notification {
   id: string;
   level: "info" | "warning" | "critical";
   /** Translate by this; title and message are the English fallback. */
-  kind?: "new_login" | "account_locked" | "session_reused" | "password_reset" | "password_changed";
+  kind?: "new_login" | "account_locked" | "session_reused" | "password_reset" | "password_changed" | (string & {});
   params?: Record<string, string>;
   title: string;
   message: string;

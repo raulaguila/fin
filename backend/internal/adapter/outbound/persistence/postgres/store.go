@@ -8,6 +8,7 @@ import (
 	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/attempt"
 	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/audit"
 	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/credential"
+	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/finance"
 	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/job"
 	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/notification"
 	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/outbox"
@@ -41,6 +42,7 @@ func (s *Store) Preferences() output.PreferenceRepository { return preference.Ne
 func (s *Store) Audit() output.AuditRepository            { return audit.NewRepository(s.db) }
 func (s *Store) Products() output.ProductRepository       { return product.NewRepository(s.db) }
 func (s *Store) Jobs() output.JobRepository               { return job.NewRepository(s.db) }
+func (s *Store) Finance() output.FinanceRepository        { return finance.NewRepository(s.db) }
 func (s *Store) Notifications() output.NotificationRepository {
 	return notification.NewRepository(s.db)
 }

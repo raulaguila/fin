@@ -1,0 +1,226 @@
+package finance
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/raulaguila/fin/internal/core/domain"
+	"github.com/raulaguila/fin/internal/core/port/output"
+	"github.com/raulaguila/fin/pkg/validate"
+)
+
+// Notification kinds of this module. Title and message go in Portuguese: the app is pt-BR.
+const (
+	NotifyBudget     = "finance_budget"
+	NotifyConsent    = "finance_consent"
+	NotifyConnection = "finance_connection"
+	NotifyBill       = "finance_bill"
+	NotifyLargeSpend = "finance_large_spend"
+	NotifySummary    = "finance_summary"
+)
+
+const (
+	consentWarnDays = 15
+	billWarnDays    = 3
+	largeMinimum    = 500_00 // a large spend is at least R$ 500
+	largeFactor     = 3      // and 3 times the typical outflow
+	summaryDays     = 3      // the monthly summary goes out in the first days of the month
+)
+
+type alert struct {
+	key   string
+	level string
+	kind  string
+	title string
+	text  string
+}
+
+// notify creates the notification once per key; a repeated run changes nothing.
+func (s *Service) notify(ctx context.Context, userID string, a alert) error {
+	return s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
+		isNew, err := uow.Finance().MarkAlert(ctx, userID, a.key)
+		if err != nil || !isNew {
+			return err
+		}
+		return uow.Notifications().Create(ctx, &domain.Notification{
+			UserID: userID, Level: a.level, Kind: a.kind,
+			Title: validate.Text(a.title, 120), Message: validate.Text(a.text, 4000),
+		})
+	})
+}
+
+// Alerts checks the user's data and notifies what needs attention.
+func (s *Service) Alerts(ctx context.Context, userID string) error {
+	now := s.Clock.Now()
+	var alerts []alert
+	add := func(list []alert, err error) error {
+		alerts = append(alerts, list...)
+		return err
+	}
+	if err := add(s.budgetAlerts(ctx, userID, now)); err != nil {
+		return err
+	}
+	if err := add(s.connectionAlerts(ctx, userID, now)); err != nil {
+		return err
+	}
+	if err := add(s.largeSpendAlerts(ctx, userID, now)); err != nil {
+		return err
+	}
+	for _, a := range alerts {
+		if err := s.notify(ctx, userID, a); err != nil {
+			return err
+		}
+	}
+	return s.monthlySummary(ctx, userID, now)
+}
+
+func (s *Service) budgetAlerts(ctx context.Context, userID string, now time.Time) ([]alert, error) {
+	from := monthStart(now)
+	cats, err := s.repo().Categories(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	totals, err := s.repo().Totals(ctx, userID, from, from.AddDate(0, 1, 0))
+	if err != nil {
+		return nil, err
+	}
+	_, _, list := combine(cats, totals)
+	var out []alert
+	month := from.Format("2006-01")
+	for _, c := range list {
+		if c.Kind != domain.KindExpense || c.Limit <= 0 || c.CategoryID == "" {
+			continue
+		}
+		used := percent(-c.Total, c.Limit)
+		switch {
+		case used >= 100:
+			out = append(out, alert{key: "budget:" + c.CategoryID + ":" + month + ":100", level: domain.NotificationCritical, kind: NotifyBudget,
+				title: "Orçamento de " + c.Name + " estourado",
+				text:  fmt.Sprintf("Você gastou %s em %s este mês, %d%% do limite de %s.", brl(-c.Total), c.Name, used, brl(c.Limit))})
+		case used >= 80:
+			out = append(out, alert{key: "budget:" + c.CategoryID + ":" + month + ":80", level: domain.NotificationWarning, kind: NotifyBudget,
+				title: "Orçamento de " + c.Name + " em " + fmt.Sprint(used) + "%",
+				text:  fmt.Sprintf("Restam %s do limite de %s em %s até o fim do mês.", brl(c.Limit+c.Total), brl(c.Limit), c.Name)})
+		}
+	}
+	return out, nil
+}
+
+func (s *Service) connectionAlerts(ctx context.Context, userID string, now time.Time) ([]alert, error) {
+	conns, err := s.repo().Connections(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	today := now.Format(time.DateOnly)
+	year, week := now.ISOWeek()
+	var out []alert
+	for _, c := range conns {
+		if c.ConsentExpiresAt != nil {
+			if days := int(c.ConsentExpiresAt.Sub(now).Hours() / 24); days <= consentWarnDays {
+				out = append(out, alert{key: "consent:" + c.ID + ":" + c.ConsentExpiresAt.Format(time.DateOnly), level: domain.NotificationWarning, kind: NotifyConsent,
+					title: "Renove a conexão com " + c.Institution,
+					text:  fmt.Sprintf("O consentimento do Open Finance com %s vence em %s. Renove em Conexões para não perder a sincronização.", c.Institution, c.ConsentExpiresAt.Format("02/01/2006"))})
+			}
+		}
+		if c.Status == domain.ConnError || c.Status == domain.ConnLoginRequired {
+			text := "A sincronização com " + c.Institution + " falhou."
+			if c.Status == domain.ConnLoginRequired {
+				text = "O banco " + c.Institution + " pediu uma nova autorização. Abra Conexões e reconecte."
+			}
+			out = append(out, alert{key: fmt.Sprintf("conn:%s:%s:%d-%d", c.ID, c.Status, year, week), level: domain.NotificationWarning, kind: NotifyConnection,
+				title: "Problema na conexão com " + c.Institution, text: text})
+		}
+		for _, a := range c.Accounts {
+			if a.Type != domain.AccountCredit || a.BillDueDate == nil || a.Balance <= 0 {
+				continue
+			}
+			due := a.BillDueDate.Format(time.DateOnly)
+			days := int(a.BillDueDate.Sub(monthDay(now)).Hours() / 24)
+			if due >= today && days <= billWarnDays {
+				out = append(out, alert{key: "bill:" + a.ID + ":" + due, level: domain.NotificationInfo, kind: NotifyBill,
+					title: "Fatura do " + a.Name + " vence em " + a.BillDueDate.Format("02/01"),
+					text:  fmt.Sprintf("A fatura do cartão %s, de %s, vence em %s.", a.Name, brl(a.Balance), a.BillDueDate.Format("02/01/2006"))})
+			}
+		}
+	}
+	return out, nil
+}
+
+func monthDay(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+// largeSpendAlerts flags a recent outflow far above the user's typical one.
+func (s *Service) largeSpendAlerts(ctx context.Context, userID string, now time.Time) ([]alert, error) {
+	day := monthDay(now)
+	spending, err := s.repo().Spending(ctx, userID, day.AddDate(0, 0, -90), day.AddDate(0, 0, 1), spendingCap)
+	if err != nil || len(spending) < 10 {
+		return nil, err
+	}
+	amounts := make([]domain.Money, 0, len(spending))
+	for _, t := range spending {
+		amounts = append(amounts, -t.Amount)
+	}
+	slices.Sort(amounts)
+	threshold := max(largeMinimum, amounts[len(amounts)/2]*largeFactor)
+	var out []alert
+	for _, t := range spending {
+		if t.Date.Before(day.AddDate(0, 0, -2)) {
+			break // newest first
+		}
+		if -t.Amount >= threshold {
+			out = append(out, alert{key: "large:" + t.ID, level: domain.NotificationInfo, kind: NotifyLargeSpend,
+				title: "Gasto alto: " + brl(-t.Amount),
+				text:  fmt.Sprintf("%s em %s (%s). É bem acima do seu gasto típico.", brl(-t.Amount), t.Description, t.Date.Format("02/01"))})
+		}
+	}
+	return out, nil
+}
+
+// monthlySummary sends last month's recap once, in the first days of a month.
+// With the assistant on, the model writes it from the computed facts.
+func (s *Service) monthlySummary(ctx context.Context, userID string, now time.Time) error {
+	if now.Day() > summaryDays {
+		return nil
+	}
+	prev := monthStart(now).AddDate(0, -1, 0)
+	key := "summary:" + prev.Format("2006-01")
+	sum, err := s.Summary(ctx, userID, prev)
+	if err != nil {
+		return err
+	}
+	if sum.Income == 0 && sum.Expense == 0 {
+		return nil
+	}
+	title := "Resumo de " + monthName(prev)
+	text := fmt.Sprintf("Receitas %s, despesas %s, sobra %s.", brl(sum.Income), brl(-sum.Expense), brl(sum.Income+sum.Expense))
+	if s.AI != nil {
+		// Check first: a repeated run must not pay for a second answer.
+		isNew, err := s.repo().MarkAlert(ctx, userID, key+":ai")
+		if err != nil {
+			return err
+		}
+		if isNew {
+			facts, err := s.financialContext(ctx, userID, prev.AddDate(0, 1, -1))
+			if err != nil {
+				return err
+			}
+			answer, err := s.AI.Ask(ctx, systemPrompt, "DADOS (calculados pelo app):\n"+facts+
+				"\nEscreva o resumo do mês "+monthName(prev)+" em até 6 frases: como foi, onde mais gastou, o que mudou e uma dica concreta de economia.")
+			if err != nil {
+				s.Log.Warn("Monthly summary by the assistant failed", slog.String("error", err.Error()))
+			} else if answer = strings.TrimSpace(answer); answer != "" {
+				text = answer
+			}
+		}
+	}
+	return s.notify(ctx, userID, alert{key: key, level: domain.NotificationInfo, kind: NotifySummary, title: title, text: text})
+}
+
+var months = []string{"janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"}
+
+func monthName(t time.Time) string { return months[t.Month()-1] + " de " + fmt.Sprint(t.Year()) }

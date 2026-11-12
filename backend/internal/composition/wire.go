@@ -1,11 +1,14 @@
 package composition
 
 import (
+	"errors"
+	"log/slog"
 	"maps"
 	"time"
 
 	"github.com/raulaguila/fin/config"
 	"github.com/raulaguila/fin/internal/adapter/inbound/http/rest/middleware"
+	"github.com/raulaguila/fin/internal/adapter/outbound/ai"
 	"github.com/raulaguila/fin/internal/adapter/outbound/emailpayload"
 	"github.com/raulaguila/fin/internal/adapter/outbound/files"
 	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres"
@@ -13,6 +16,7 @@ import (
 	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/outbox"
 	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/ratelimit"
 	"github.com/raulaguila/fin/internal/adapter/outbound/persistence/postgres/rbac"
+	"github.com/raulaguila/fin/internal/adapter/outbound/pluggy"
 	smtpmail "github.com/raulaguila/fin/internal/adapter/outbound/smtp"
 	"github.com/raulaguila/fin/internal/adapter/outbound/tokens"
 	"github.com/raulaguila/fin/internal/core/policy"
@@ -23,6 +27,7 @@ import (
 	auditsvc "github.com/raulaguila/fin/internal/core/usecase/audit"
 	"github.com/raulaguila/fin/internal/core/usecase/auth"
 	"github.com/raulaguila/fin/internal/core/usecase/authorize"
+	"github.com/raulaguila/fin/internal/core/usecase/finance"
 	"github.com/raulaguila/fin/internal/core/usecase/health"
 	"github.com/raulaguila/fin/internal/core/usecase/jobs"
 	"github.com/raulaguila/fin/internal/core/usecase/mailer"
@@ -65,9 +70,23 @@ func NewFiles(cfg config.StorageConfig) output.FileStore {
 
 // NewJobs wires the background job worker that cmd/backend runs. Each module
 // adds its handlers here.
-func NewJobs(res *infra.Resources, log *logger.Logger) *jobs.Worker {
+// NewFinance builds the finance service: Open Finance through Pluggy and the
+// assistant are each off while their variables are empty.
+func NewFinance(cfg *config.Environment, res *infra.Resources, log *logger.Logger) *finance.Service {
+	store := postgres.NewStore(res.PostgresDB)
+	var assistant output.Assistant // stays a nil interface when off
+	if a, err := ai.New(cfg.AI); err == nil {
+		assistant = a
+	} else if !errors.Is(err, ai.ErrDisabled) {
+		log.Warn("Assistant disabled", slog.String("error", err.Error()))
+	}
+	return finance.New(store, store, pluggy.New(cfg.Pluggy), assistant, output.RealClock{}, log)
+}
+
+func NewJobs(cfg *config.Environment, res *infra.Resources, log *logger.Logger) *jobs.Worker {
 	handlers := map[string]policy.JobHandler{}
 	maps.Copy(handlers, product.Jobs(log))
+	maps.Copy(handlers, NewFinance(cfg, res, log).Jobs())
 	return &jobs.Worker{
 		Repo:     job.NewRepository(res.PostgresDB),
 		Handlers: handlers,
@@ -123,5 +142,6 @@ func NewApplication(cfg *config.Environment, res *infra.Resources, log *logger.L
 		Account:    account.New(store, permReader, output.RealClock{}, NewFiles(cfg.Storage)),
 		Products:   product.New(store.Products(), store),
 		Audit:      auditsvc.New(store.Audit()),
+		Finance:    NewFinance(cfg, res, log),
 	}
 }

@@ -1,6 +1,8 @@
 // Client-side i18n (pt-BR / en-US). pt-BR is the source of truth; the en-US
 // type makes a missing or extra key a compile error.
 
+import { financeEn, financePt } from "./finance-messages";
+
 export type Locale = "pt-BR" | "en-US";
 
 export const LOCALES: { value: Locale; label: string; flag: string }[] = [
@@ -9,6 +11,7 @@ export const LOCALES: { value: Locale; label: string; flag: string }[] = [
 ];
 
 const ptBR = {
+  ...financePt,
   "a11y.account_menu": "Menu da conta",
   "a11y.nav_menu": "Menu de navegação",
   "a11y.open_menu": "Abrir menu",
@@ -416,6 +419,7 @@ const ptBR = {
 export type MessageKey = keyof typeof ptBR;
 
 const enUS: Record<MessageKey, string> = {
+  ...financeEn,
   "a11y.account_menu": "Account menu",
   "a11y.nav_menu": "Navigation menu",
   "a11y.open_menu": "Open menu",

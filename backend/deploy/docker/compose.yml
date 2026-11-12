@@ -48,7 +48,7 @@ services:
       - POSTGRES_MAILER_PASS= # do not inherit the mailer credential from env_file
       - GOMEMLIMIT=400MiB  # GC pressure before the container limit
       # Only the web BFF (frontend/deploy/compose.yml) may set the client IP; the gateway may not.
-      - API_TRUSTED_PROXIES=${WEB_IP:-172.30.99.10}
+      - API_TRUSTED_PROXIES=${WEB_IP:-172.30.98.10}
       - STORAGE_LOCAL_DIR=/data/files  # used when STORAGE_DRIVER is local
     volumes:
       - files_volume:/data/files

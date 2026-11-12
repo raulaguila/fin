@@ -11,4 +11,5 @@ type Application struct {
 	Account    AccountService
 	Products   ProductService
 	Audit      AuditService
+	Finance    FinanceService
 }

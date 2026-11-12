@@ -21,10 +21,10 @@ services:
       start_period: 20s
       retries: 3
     ports:
-      - ${WEB_PORT:-3005}:3005
+      - ${WEB_PORT:-3006}:3005
     env_file: ../config/.env
     environment:
-      - API_URL=http://backend:${API_PORT:-9978}
+      - API_URL=http://backend:${API_PORT:-9979}
       - SESSION_SECRET=${SESSION_SECRET:?Set SESSION_SECRET in frontend/config/.env (make init)}
     deploy:
       resources:
@@ -33,7 +33,7 @@ services:
     networks:
       fin_network:
         # The backend trusts X-Real-IP only from this address (its WEB_IP).
-        ipv4_address: ${WEB_IP:-172.30.99.10}
+        ipv4_address: ${WEB_IP:-172.30.98.10}
 
 networks:
 

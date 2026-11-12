@@ -18,7 +18,7 @@ make migrate-up      # applies the schema and configures both database logins
 make admin-bootstrap # asks name, email and password of the first admin
 ```
 
-The API answers on `API_PORT` (9978 in the generated file). Swagger UI is at `/swagger/index.html` outside protected environments.
+The API answers on `API_PORT` (9979 in the generated file). Swagger UI is at `/swagger/index.html` outside protected environments.
 
 The network has a fixed range (`DOCKER_SUBNET`, default `172.30.99.0/24`) and the backend trusts `X-Real-IP` only from `WEB_IP` (default `172.30.99.10`), the address of the web container. Moving an existing stack to the fixed range needs `make compose-down` first, since Docker cannot change the range of a live network.
 

@@ -31,9 +31,11 @@ const nextConfig: NextConfig = {
     const dev = process.env.NODE_ENV !== "production";
     const csp = [
       "default-src 'self'",
+      // Pluggy Connect: its widget runs in a frame of connect.pluggy.ai; bank logos come from its CDN.
       `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}`,
+      "frame-src https://connect.pluggy.ai",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      "img-src 'self' data: blob: https://*.pluggy.ai",
       "font-src 'self' data:",
       `connect-src 'self'${dev ? " ws: wss:" : ""}`,
       "worker-src 'self' blob:",

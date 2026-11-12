@@ -99,6 +99,14 @@ func validatePluggy(cfg PluggyConfig) error {
 	if u, err := url.Parse(cfg.BaseURL); cfg.Enabled() && (err != nil || u.Scheme != "https" || u.Host == "") {
 		return errors.New("PLUGGY_BASE_URL must be an https address")
 	}
+	if cfg.WebhookURL != "" {
+		if u, err := url.Parse(cfg.WebhookURL); err != nil || u.Scheme != "https" || u.Host == "" || u.RawQuery != "" {
+			return errors.New("PLUGGY_WEBHOOK_URL must be an https address without a query")
+		}
+		if len(cfg.WebhookSecret) < minSecretLength {
+			return fmt.Errorf("PLUGGY_WEBHOOK_SECRET must have at least %d characters when PLUGGY_WEBHOOK_URL is set", minSecretLength)
+		}
+	}
 	return nil
 }
 

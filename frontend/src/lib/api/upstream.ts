@@ -7,7 +7,7 @@ import type { Session } from "@/lib/session";
 import type { TokenPair } from "@/lib/api/types";
 
 export function apiUrl(path: string): string {
-  return (process.env.API_URL ?? `http://localhost:${process.env.API_PORT ?? 9978}`).replace(/\/$/, "") + path;
+  return (process.env.API_URL ?? `http://localhost:${process.env.API_PORT ?? 9979}`).replace(/\/$/, "") + path;
 }
 
 // shortcut: CLIENT_IP_HEADER is trusted as sent. Without a reverse proxy in front

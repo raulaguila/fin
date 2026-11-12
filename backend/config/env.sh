@@ -16,7 +16,7 @@ SYS_ENVIRONMENT='development'                    # System environment
 LOG_FORMAT='json'                               # Log format (text, json, default=json)
 LOG_LEVEL='info'                                # Log level (debug, info, warn, error, fatal, default=info)
 
-API_PORT='9978'                                 # API Container PORT
+API_PORT='9979'                                 # API Container PORT
 API_LOGGER='1'                                  # Log all requests; 0 keeps server errors and degraded responses
 CORS_ORIGINS='*'                                # CORS allowed origins
 API_TRUSTED_PROXIES=''                          # Reverse proxy IPs/CIDRs, comma separated (empty = no proxy)
@@ -39,7 +39,7 @@ ACCESS_TOKEN_PREVIOUS=''                        # Rotation: the old ACCESS_TOKEN
 REFRESH_TOKEN_PREVIOUS=''                       # Rotation: the old REFRESH_TOKEN, same rule
 
 POSTGRES_HOST='postgres'                        # Postgres Container HOST
-POSTGRES_PORT='5444'                            # Postgres Container PORT
+POSTGRES_PORT='5445'                            # Postgres Container PORT
 POSTGRES_USER='root'                            # Postgres owner, used only by migrations
 POSTGRES_PASS='${postgres_pass}'                # Postgres owner PASS
 POSTGRES_APP_USER='fin_app'            # Role of backend, created by migration 000001
@@ -71,6 +71,8 @@ STORAGE_S3_SECRET_KEY=''                        # Secret access key
 PLUGGY_BASE_URL='https://api.pluggy.ai'         # Pluggy API address
 PLUGGY_CLIENT_ID=''                             # Pluggy client id (dashboard.pluggy.ai); empty disables Open Finance sync
 PLUGGY_CLIENT_SECRET=''                         # Pluggy client secret - PRIVATE
+PLUGGY_WEBHOOK_URL=''                           # Public https URL of /v1/webhooks/pluggy; empty: no webhook, the daily job syncs
+PLUGGY_WEBHOOK_SECRET=''                        # 16+ chars, sent as ?token= on the webhook URL
 
 AI_PROVIDER=''                                  # Assistant: claude (subscription, production), openai (any OpenAI-compatible API, e.g. Ollama) or empty to disable
 AI_MODEL=''                                     # claude: opus, sonnet or a full id (empty = CLI default); openai: the model name, e.g. llama3.1

@@ -28,7 +28,8 @@ function useNotificationText() {
   const { t } = useI18n();
   const format = useFormatDate();
   return (n: Notification) => {
-    if (!n.kind) return { title: n.title, message: n.message };
+    // Kinds this client has no text for (finance alerts come written) show the server text.
+    if (!n.kind || t(`notifications.kind.${n.kind}.title` as MessageKey).startsWith("notifications.kind.")) return { title: n.title, message: n.message };
     const params: Record<string, string> = { ...n.params, until: n.params?.until ? format(n.params.until) : "" };
     const fill = (key: string) => t(key as MessageKey).replace(/\{(\w+)\}/g, (_, k: string) => params[k] ?? "");
     return { title: fill(`notifications.kind.${n.kind}.title`), message: fill(`notifications.kind.${n.kind}.message`) };

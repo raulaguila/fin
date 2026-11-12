@@ -127,6 +127,10 @@ type PluggyConfig struct {
 	BaseURL      string `env:"PLUGGY_BASE_URL" default:"https://api.pluggy.ai"`
 	ClientID     string `env:"PLUGGY_CLIENT_ID" default:""`
 	ClientSecret string `env:"PLUGGY_CLIENT_SECRET" default:""`
+	// WebhookURL is the public https address of POST /v1/finance/webhook; with
+	// WebhookSecret, Pluggy calls it as soon as new data arrives. Empty: daily sync only.
+	WebhookURL    string `env:"PLUGGY_WEBHOOK_URL" default:""`
+	WebhookSecret string `env:"PLUGGY_WEBHOOK_SECRET" default:""`
 }
 
 // Enabled reports whether Open Finance sync has credentials.

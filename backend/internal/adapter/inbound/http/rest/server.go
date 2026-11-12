@@ -10,6 +10,7 @@ import (
 	"github.com/raulaguila/fin/config"
 	audithttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/audit"
 	authhttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/auth"
+	financehttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/finance"
 	healthhttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/health"
 	notificationhttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/notification"
 	permissionhttp "github.com/raulaguila/fin/internal/adapter/inbound/http/rest/handler/permission"
@@ -54,6 +55,11 @@ func splitList(list string) []string {
 }
 
 // New builds the Fiber app with middleware and routes.
+const (
+	assistantRateLimit = 10  // per IP and minute: each answer costs a model call
+	webhookRateLimit   = 120 // per IP and minute
+)
+
 func New(cfg *config.Environment, app *input.Application, hits middleware.Hits, log *logger.Logger) *fiber.App {
 	fiberApp := fiber.New(serverConfig(cfg.API))
 
@@ -93,6 +99,11 @@ func New(cfg *config.Environment, app *input.Application, hits middleware.Hits, 
 	sessionhttp.New(app.Account).Routes(me.Group("/sessions"))
 	preferencehttp.New(app.Account).Routes(me.Group("/preferences"))
 	notificationhttp.New(app.Account).Routes(me.Group("/notifications"))
+
+	// Personal finance: every route acts on the signed in user's own data.
+	finance := financehttp.New(app.Finance)
+	finance.Routes(v1.Group("/finance", bearer), middleware.RateLimit("assistant", assistantRateLimit, hits))
+	v1.Post("/webhooks/pluggy", middleware.RateLimit("webhook", webhookRateLimit, hits), finance.Webhook(cfg.Pluggy.WebhookSecret))
 
 	permissionhttp.New(app.Resources).Routes(v1.Group("/permissions", token), app.Authorizer)
 	roles := rolehttp.New(app.Roles)

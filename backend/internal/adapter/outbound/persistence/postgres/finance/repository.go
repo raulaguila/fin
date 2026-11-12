@@ -111,7 +111,7 @@ func (r *Repository) ConnectionByItem(ctx context.Context, itemID string) (*doma
 func (r *Repository) ConnectionIDs(ctx context.Context) ([]string, error) {
 	var ids []string
 	// shortcut: one batch of 10 000 connections; page it if the app ever serves that many.
-	err := r.db.WithContext(ctx).Raw(`SELECT id::text FROM app.fin_connection ORDER BY created_at, id LIMIT 10000`).Find(&ids).Error
+	err := r.db.WithContext(ctx).Raw(`SELECT id::text FROM app.fin_connection WHERE item_id NOT LIKE '` + domain.ManualItemPrefix + `%' ORDER BY created_at, id LIMIT 10000`).Find(&ids).Error
 	return ids, shared.WrapError(err, "connection")
 }
 
@@ -226,7 +226,9 @@ func (r *Repository) UpsertTransactions(ctx context.Context, userID, accountID s
 			                                      provider_category, category_id, category_source, installment, installments, created_at)
 			VALUES `+strings.Join(values, ", ")+`
 			ON CONFLICT (external_id) DO UPDATE SET
-			    date = EXCLUDED.date, description = EXCLUDED.description, amount_cents = EXCLUDED.amount_cents,
+			    date = EXCLUDED.date, description = EXCLUDED.description,
+			    -- split parts keep their share; the original keeps the rest
+			    amount_cents = EXCLUDED.amount_cents - coalesce((SELECT sum(s.amount_cents) FROM app.fin_transaction s WHERE s.split_of = t.id), 0),
 			    status = EXCLUDED.status, provider_category = EXCLUDED.provider_category,
 			    installment = EXCLUDED.installment, installments = EXCLUDED.installments,
 			    category_id = CASE WHEN t.category_source = 'user' THEN t.category_id ELSE EXCLUDED.category_id END,
@@ -263,6 +265,7 @@ type transactionRow struct {
 	CategorySource   string     `gorm:"column:category_source"`
 	Installment      *int       `gorm:"column:installment"`
 	Installments     *int       `gorm:"column:installments"`
+	SplitOf          *uuid.UUID `gorm:"column:split_of"`
 }
 
 func (r transactionRow) toDomain() domain.Transaction {
@@ -286,13 +289,16 @@ func (r transactionRow) toDomain() domain.Transaction {
 	if r.Installments != nil {
 		t.Installments = *r.Installments
 	}
+	if r.SplitOf != nil {
+		t.SplitOf = r.SplitOf.String()
+	}
 	return t
 }
 
 const transactionSelect = `
 	SELECT t.id, t.account_id, a.name AS account_name, a.type AS account_type, c.institution, t.external_id, t.date,
 	       t.description, t.amount_cents, t.status, t.provider_category, t.category_id, cat.name AS category_name,
-	       cat.kind AS category_kind, t.category_source, t.installment, t.installments
+	       cat.kind AS category_kind, t.category_source, t.installment, t.installments, t.split_of
 	FROM app.fin_transaction t
 	JOIN app.fin_account a ON a.id = t.account_id
 	JOIN app.fin_connection c ON c.id = a.connection_id
@@ -383,7 +389,7 @@ func (r *Repository) Categorizable(ctx context.Context, userID string, limit int
 	var rows []transactionRow
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT id, description, amount_cents, provider_category, category_id, category_source
-		FROM app.fin_transaction WHERE user_id = ? AND category_source = 'auto'
+		FROM app.fin_transaction WHERE user_id = ? AND category_source <> 'user'
 		ORDER BY date DESC, id LIMIT ?`, userID, limit).Find(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "transaction")

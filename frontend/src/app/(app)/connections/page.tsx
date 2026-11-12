@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Landmark, Plug, RefreshCw, Trash2 } from "lucide-react";
+import { FileUp, Landmark, Plug, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAccountLabel, useFinanceStatus } from "@/components/finance";
 import { PageBody, PageHeader, useFormatDate } from "@/components/bits";
@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
+import { ImportFileButton, ManualAccountDialog } from "@/components/statement-import";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { finance, type Connection, type ConnectionStatus } from "@/lib/api/finance";
@@ -102,7 +103,7 @@ function ConnectionCard({ c, onReconnect, onRemove }: { c: Connection; onReconne
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {c.last_sync_at ? fill(t("fin.conn.last_sync"), { d: formatDate(c.last_sync_at) }) : t("fin.conn.never")}
+            {c.manual ? t("fin.imp.manual_note") : c.last_sync_at ? fill(t("fin.conn.last_sync"), { d: formatDate(c.last_sync_at) }) : t("fin.conn.never")}
             {c.consent_expires_at && <> · {fill(t("fin.conn.consent"), { d: f.date(c.consent_expires_at) })}</>}
           </p>
           {c.error && <p className="mt-1 text-xs text-red-700 dark:text-red-400">{c.error}</p>}
@@ -122,7 +123,9 @@ function ConnectionCard({ c, onReconnect, onRemove }: { c: Connection; onReconne
         </ul>
       )}
       <div className="flex flex-wrap gap-2">
-        {needsLogin ? (
+        {c.manual ? (
+          c.accounts.map((a) => <ImportFileButton key={a.id} accountId={a.id} />)
+        ) : needsLogin ? (
           <Button size="sm" onClick={onReconnect}><Plug className="size-4" />{t("fin.conn.reconnect")}</Button>
         ) : (
           <Button size="sm" variant="outline" disabled={sync.isPending || c.status === "syncing"} onClick={() => sync.mutate()}>
@@ -141,6 +144,7 @@ export default function ConnectionsPage() {
   const status = useFinanceStatus();
   const { open, opening } = usePluggyConnect();
   const [removing, setRemoving] = useState<Connection | null>(null);
+  const [manual, setManual] = useState(false);
   const connections = useQuery({
     queryKey: ["finance", "connections"],
     queryFn: finance.connections,
@@ -153,7 +157,12 @@ export default function ConnectionsPage() {
   return (
     <>
       <PageHeader title={t("nav.connections")} description={t("fin.conn.subtitle")}
-        action={enabled && <Button disabled={opening} onClick={() => void open()}><Plug className="size-4" />{t("fin.connect_bank")}</Button>} />
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setManual(true)}><FileUp className="size-4" />{t("fin.imp.new")}</Button>
+            {enabled && <Button disabled={opening} onClick={() => void open()}><Plug className="size-4" />{t("fin.connect_bank")}</Button>}
+          </div>
+        } />
       <PageBody>
         {!enabled ? (
           <EmptyState icon={Plug} title={t("fin.of_disabled_title")} description={t("fin.of_disabled_body")} />
@@ -169,6 +178,7 @@ export default function ConnectionsPage() {
             {items.map((c) => <ConnectionCard key={c.id} c={c} onReconnect={() => void open(c)} onRemove={() => setRemoving(c)} />)}
           </div>
         )}
+        <ManualAccountDialog open={manual} onClose={() => setManual(false)} />
         <ConfirmDialog
           open={!!removing}
           onOpenChange={(o) => !o && setRemoving(null)}

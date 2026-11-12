@@ -198,3 +198,52 @@ func TestForecastAndNextBill(t *testing.T) {
 		t.Fatalf("a past due date rolls to the next month: %v", got)
 	}
 }
+
+func TestCalendar(t *testing.T) {
+	today := time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC)
+	d := func(m time.Month, day int) time.Time { return time.Date(2026, m, day, 0, 0, 0, 0, time.UTC) }
+	due := d(11, 20)
+	accounts := []domain.Account{
+		{Type: domain.AccountBank, Balance: 100000},
+		{Type: domain.AccountCredit, Name: "Gold", Balance: 80000, BillDueDate: &due},
+	}
+	// Rent paid from the bank three months running; a card subscription stays in the bill.
+	var spending []domain.Transaction
+	for _, m := range []time.Month{11, 10, 9} {
+		spending = append(spending,
+			domain.Transaction{Date: d(m, 5), Description: "ALUGUEL", Amount: -150000, AccountType: domain.AccountBank},
+			domain.Transaction{Date: d(m, 1), Description: "NETFLIX", Amount: -5590, AccountType: domain.AccountCredit})
+	}
+	incomes := []domain.Transaction{{Date: d(11, 5), Description: "SALARIO", Amount: 500000}}
+	cal := calendar(today, accounts, spending, incomes)
+	// Dec 5: salary first, then rent; Nov 20: card bill.
+	want := []struct {
+		kind    string
+		amount  domain.Money
+		balance domain.Money
+	}{{"bill", -80000, 20000}, {"income", 500000, 520000}, {"recurring", -150000, 370000}}
+	if cal.Start != 100000 || len(cal.Events) != len(want) || cal.Lowest != 20000 {
+		t.Fatalf("calendar: %+v", cal)
+	}
+	for i, w := range want {
+		if e := cal.Events[i]; e.Kind != w.kind || e.Amount != w.amount || e.Balance != w.balance {
+			t.Fatalf("event %d: %+v, want %+v", i, e, w)
+		}
+	}
+}
+
+func TestImportIDRepeatsAreDistinctButStable(t *testing.T) {
+	line := domain.Transaction{Date: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), Description: "Café", Amount: -500}
+	seen := map[string]int{}
+	a, b := importID("acc", line, seen), importID("acc", line, seen)
+	if a == b {
+		t.Fatal("two equal lines of one file must both be kept")
+	}
+	if again := importID("acc", line, map[string]int{}); again != a {
+		t.Fatal("re-importing the file must give the same ids")
+	}
+	line.ExternalID = "FIT1"
+	if importID("acc", line, seen) != "import:acc:FIT1" {
+		t.Fatal("the file's own id wins")
+	}
+}

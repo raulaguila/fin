@@ -8,6 +8,8 @@ const (
 
 	OutboxPurposeActivation    = "activation"
 	OutboxPurposePasswordReset = "password_reset"
+	// OutboxPurposeAlert carries a finance alert: title on the first line, text after.
+	OutboxPurposeAlert = "alert"
 
 	RevokeUserLogout      = "user_logout"
 	RevokeTokenReuse      = "token_reuse"

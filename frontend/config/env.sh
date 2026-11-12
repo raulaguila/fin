@@ -2,10 +2,17 @@
 # Writes frontend/config/.env. Run from frontend/ (make init).
 
 session_secret=$(openssl rand -hex 32)
+# localhost plus this machine's LAN addresses; edit WEB_HOSTS when the IP changes.
+lan_ips=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -E '^(192\.168|10)\.')
+web_hosts="localhost${lan_ips:+$(printf ', %s' ${lan_ips})}"
+web_sni=$(echo "${lan_ips:-localhost}" | head -n 1)
 
 echo "TZ='America/Manaus'                             # Set system time zone
 WEB_VERSION='0.1.0'                             # Image tag
-WEB_PORT='3016'                                 # Web PORT on the host
+WEB_PORT='3016'                                 # Plain HTTP on this machine only (127.0.0.1)
+WEB_HTTPS_PORT='3443'                           # HTTPS for every device: https://<this machine's IP>:3443
+WEB_HOSTS='${web_hosts}'                        # Names and IPs people type, comma separated; the certificate covers them
+WEB_SNI='${web_sni}'                            # Certificate for a browser that opens the bare IP (it sends no name): this machine's LAN IP
 WEB_IP='172.30.98.10'                           # Container address; must equal WEB_IP of the backend stack
 
 API_PORT='9979'                                 # Backend PORT; dev calls http://localhost:API_PORT, Docker http://backend:API_PORT

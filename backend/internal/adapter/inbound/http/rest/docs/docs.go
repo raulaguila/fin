@@ -559,6 +559,130 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/finance/accounts": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Connections"
+                ],
+                "summary": "Create an account for imported statements (OFX or CSV)",
+                "parameters": [
+                    {
+                        "description": "Institution, name and type",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/finance.manualAccountDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/finance.accountDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/accounts/{id}/import": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Connections"
+                ],
+                "summary": "Import statement lines into an imported account; the browser parses the file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Account ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Up to 2000 lines",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/finance.importDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "inserted": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/finance/assistant/chat": {
             "post": {
                 "security": [
@@ -619,6 +743,36 @@ const docTemplate = `{
                     },
                     "429": {
                         "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/calendar": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Expected bills, charges and income of the next 30 days with the projected balance",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/finance.calendarDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
                         }
@@ -1044,6 +1198,198 @@ const docTemplate = `{
                 "responses": {
                     "202": {
                         "description": "Accepted"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/goals": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Goals"
+                ],
+                "summary": "List savings goals with their progress",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "items": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/finance.goalDTO"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Goals"
+                ],
+                "summary": "Create a savings goal",
+                "parameters": [
+                    {
+                        "description": "Name, target, saved amount or linked account, due date",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/finance.goalDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/finance.goalDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/goals/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Goals"
+                ],
+                "summary": "Replace a savings goal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Goal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Every field of the goal",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/finance.goalDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/finance.goalDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Goals"
+                ],
+                "summary": "Delete a savings goal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Goal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     },
                     "401": {
                         "description": "Unauthorized",
@@ -1598,6 +1944,100 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/finance/transactions/{id}/split": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Move part of a transaction to another category",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Transaction ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Part and its category",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/finance.splitDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Join the parts of a split transaction again",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID of the original transaction",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/finance/trend": {
             "get": {
                 "security": [
@@ -1634,6 +2074,50 @@ const docTemplate = `{
                                     }
                                 }
                             }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/year": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Totals of a calendar year by category and month, for the income tax return",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Year; the current one when absent",
+                        "name": "year",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/finance.yearDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
                         }
                     },
                     "401": {
@@ -4548,6 +5032,48 @@ const docTemplate = `{
                 }
             }
         },
+        "finance.calendarDTO": {
+            "type": "object",
+            "properties": {
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/finance.calendarEventDTO"
+                    }
+                },
+                "lowest": {
+                    "type": "integer"
+                },
+                "start": {
+                    "description": "bank balance today",
+                    "type": "integer"
+                }
+            }
+        },
+        "finance.calendarEventDTO": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "balance": {
+                    "description": "bank balance after the event",
+                    "type": "integer"
+                },
+                "date": {
+                    "type": "string",
+                    "example": "2026-11-20"
+                },
+                "kind": {
+                    "description": "bill, recurring or income",
+                    "type": "string",
+                    "example": "bill"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "finance.categoryDTO": {
             "type": "object",
             "properties": {
@@ -4661,6 +5187,10 @@ const docTemplate = `{
                 "last_sync_at": {
                     "type": "string"
                 },
+                "manual": {
+                    "description": "imported statements, no bank behind it",
+                    "type": "boolean"
+                },
                 "status": {
                     "type": "string",
                     "example": "ok"
@@ -4698,6 +5228,70 @@ const docTemplate = `{
                 }
             }
         },
+        "finance.goalDTO": {
+            "type": "object",
+            "properties": {
+                "account_id": {
+                    "description": "empty: progress is saved",
+                    "type": "string"
+                },
+                "current": {
+                    "type": "integer"
+                },
+                "due_date": {
+                    "description": "YYYY-MM-DD or empty",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "saved": {
+                    "description": "typed by the user; ignored when an account is linked",
+                    "type": "integer"
+                },
+                "target": {
+                    "type": "integer"
+                }
+            }
+        },
+        "finance.importDTO": {
+            "type": "object",
+            "properties": {
+                "balance": {
+                    "description": "cents; becomes the account balance when given",
+                    "type": "integer"
+                },
+                "transactions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/finance.importLineDTO"
+                    }
+                }
+            }
+        },
+        "finance.importLineDTO": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "description": "cents; negative leaves the user",
+                    "type": "integer"
+                },
+                "date": {
+                    "type": "string",
+                    "example": "2026-11-10"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "description": "the file's own id (OFX FITID), optional",
+                    "type": "string"
+                }
+            }
+        },
         "finance.installmentDTO": {
             "type": "object",
             "properties": {
@@ -4709,6 +5303,45 @@ const docTemplate = `{
                 },
                 "remaining": {
                     "type": "integer"
+                }
+            }
+        },
+        "finance.investmentDTO": {
+            "type": "object",
+            "properties": {
+                "balance": {
+                    "type": "integer"
+                },
+                "connection_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "FIXED_INCOME"
+                }
+            }
+        },
+        "finance.manualAccountDTO": {
+            "type": "object",
+            "properties": {
+                "institution": {
+                    "type": "string",
+                    "example": "Nubank"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Cartão"
+                },
+                "type": {
+                    "description": "BANK or CREDIT",
+                    "type": "string",
+                    "example": "CREDIT"
                 }
             }
         },
@@ -4829,6 +5462,18 @@ const docTemplate = `{
                 }
             }
         },
+        "finance.splitDTO": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "description": "cents, same sign as the transaction and smaller",
+                    "type": "integer"
+                },
+                "category_id": {
+                    "type": "string"
+                }
+            }
+        },
         "finance.summaryDTO": {
             "type": "object",
             "properties": {
@@ -4869,6 +5514,12 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
+                    }
+                },
+                "investments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/finance.investmentDTO"
                     }
                 },
                 "month": {
@@ -4937,6 +5588,10 @@ const docTemplate = `{
                 "institution": {
                     "type": "string"
                 },
+                "split_of": {
+                    "description": "the original transaction when this row is a split part",
+                    "type": "string"
+                },
                 "status": {
                     "type": "string"
                 }
@@ -4962,6 +5617,32 @@ const docTemplate = `{
                 },
                 "itemId": {
                     "type": "string"
+                }
+            }
+        },
+        "finance.yearDTO": {
+            "type": "object",
+            "properties": {
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/finance.categoryTotalDTO"
+                    }
+                },
+                "expense": {
+                    "type": "integer"
+                },
+                "income": {
+                    "type": "integer"
+                },
+                "months": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/finance.monthTotalDTO"
+                    }
+                },
+                "year": {
+                    "type": "integer"
                 }
             }
         },

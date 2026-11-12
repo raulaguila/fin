@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -23,8 +23,11 @@ const ibmPlexMono = localFont({
 });
 
 export const metadata: Metadata = {
-  icons: { icon: [{ url: "/favicon.svg", type: "image/svg+xml" }] },
+  icons: { icon: [{ url: "/favicon.svg", type: "image/svg+xml" }], apple: "/apple-touch-icon.png" },
+  appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "default" },
 };
+
+export const viewport: Viewport = { themeColor: "#3658c9" };
 
 // Density, radius and the collapsed sidebar apply before paint, so the first
 // frame matches the saved choice.

@@ -15,6 +15,8 @@ With Docker, start the backend stack first (`make compose-build` in `backend/`),
 make compose-build
 ```
 
+Other devices open `https://<this machine's IP>:3443`: the `proxy` container (Caddy) serves HTTPS with its own local CA, and the plain port 3016 answers only on this machine. Run `make https-ca` once and install `config/fin-root-ca.crt` as a trusted root on each device (or accept the browser warning). `WEB_HOSTS` lists the names and IPs the certificate covers and `WEB_SNI` the one a browser gets when it opens the bare IP; update both when the machine's IP changes, then `make compose-up`.
+
 The container joins `fin_network` at `WEB_IP` (default `172.30.99.10`). The backend trusts `X-Real-IP` only from that address, so keep `WEB_IP` equal in both stacks.
 
 `make check` runs the typecheck, lint and tests. Other targets: `make help`.
@@ -31,7 +33,7 @@ The container joins `fin_network` at `WEB_IP` (default `172.30.99.10`). The back
 - Menus and buttons follow `permissions` and `is_superuser`, for display only: the API still checks every call.
 - Theme and language follow the saved `preferences` and are written back when changed.
 
-Screens: dashboard (with month forecast and 12-month trend), transactions, budget, people, categories and rules (with suggestions), bank connections (Pluggy Connect widget) and the assistant; plus login, register, activation, password reset, profile (name, password, sessions, preferences), notifications, users, roles with the permission matrix and members, and the products example.
+Screens: dashboard (with month forecast, 12-month trend and net worth with investments), transactions (with splits), next 30 days, budget, goals, people, yearly report, categories and rules (with suggestions), bank connections (Pluggy Connect widget, and OFX/CSV import parsed in the browser by `src/lib/statement.ts`) and the assistant; the app installs as a PWA over HTTPS; plus login, register, activation, password reset, profile (name, password, sessions, preferences), notifications, users, roles with the permission matrix and members, and the products example.
 
 ## Add a screen
 

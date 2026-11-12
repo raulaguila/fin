@@ -14,7 +14,7 @@ define require_env_file
 	@test -f config/.env || (echo -e "$(RED)config/.env not found. Run make init first.$(RESET)" && exit 1)
 endef
 
-.PHONY: help init install dev check build compose-up compose-build compose-down compose-logs
+.PHONY: help init install dev check build compose-up compose-build compose-down compose-logs https-ca
 
 help: ## Display available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "$(CYAN)%-16s$(RESET) %s\n", $$1, $$2}'
@@ -54,3 +54,8 @@ compose-down: ## Stop and remove the web container
 compose-logs: ## Follow the web container logs
 	$(call require_env_file)
 	@$(COMPOSE) logs -f web
+
+https-ca: ## Save the HTTPS root certificate to config/fin-root-ca.crt, to trust it on each device
+	$(call require_env_file)
+	@$(COMPOSE) exec -T proxy cat /data/caddy/pki/authorities/local/root.crt > config/fin-root-ca.crt
+	@echo -e "$(GREEN)✅ config/fin-root-ca.crt: install it as a trusted root on each device that opens Fin.$(RESET)"

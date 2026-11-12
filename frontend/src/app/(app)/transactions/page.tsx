@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, Sparkles } from "lucide-react";
+import { Search, Sparkles, Split, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { MonthSwitcher, NoConnections, useAccountLabel } from "@/components/finance";
 import { PageBody, PageHeader } from "@/components/bits";
@@ -12,12 +12,14 @@ import { ListSkeleton } from "@/components/skeletons";
 import { TablePagination } from "@/components/table-pagination";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { finance, monthKey, monthRange, type Category, type Transaction } from "@/lib/api/finance";
 import { errorMessage } from "@/lib/errors";
-import { amountClass, fill, useFinanceFormat } from "@/lib/finance-format";
+import { amountClass, fill, parseCents, useFinanceFormat } from "@/lib/finance-format";
 import { useDebounced } from "@/lib/hooks/use-debounced";
 import { useListParams } from "@/lib/hooks/use-list-params";
 import { useI18n } from "@/lib/i18n/provider";
@@ -47,6 +49,59 @@ function CategoryPicker({ tx, categories, onPick }: { tx: Transaction; categorie
   );
 }
 
+/** Moves part of a transaction to another category: a shared bill, a purchase with two uses. */
+function SplitDialog({ tx, categories, onClose }: { tx: Transaction | null; categories: Category[]; onClose: () => void }) {
+  const { t } = useI18n();
+  const f = useFinanceFormat();
+  const client = useQueryClient();
+  const [amount, setAmount] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const cents = parseCents(amount);
+  const whole = Math.abs(tx?.amount ?? 0);
+  const valid = cents !== null && cents > 0 && cents < whole && categoryId !== "";
+  const save = useMutation({
+    mutationFn: () => finance.split(tx!.id, tx!.amount < 0 ? -cents! : cents!, categoryId),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["finance"] });
+      toast.success(t("fin.split.done"));
+      close();
+    },
+    onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
+  });
+  const close = () => { setAmount(""); setCategoryId(""); onClose(); };
+  const items: Record<string, string> = {};
+  for (const c of categories) items[c.id] = c.name;
+  return (
+    <Dialog open={!!tx} onOpenChange={(o) => !o && close()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("fin.split.title")}</DialogTitle>
+          <DialogDescription>{tx && fill(t("fin.split.desc"), { d: tx.description, v: f.money(tx.amount) })}</DialogDescription>
+        </DialogHeader>
+        <form id="split-form" className="grid gap-3" onSubmit={(e) => { e.preventDefault(); if (valid) save.mutate(); }}>
+          <div className="grid gap-1.5">
+            <Label htmlFor="split-amount">{t("fin.split.amount")}</Label>
+            <Input id="split-amount" inputMode="decimal" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)}
+              aria-invalid={amount !== "" && !valid && categoryId !== ""} className="text-right font-mono" placeholder="0,00" />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>{t("fin.split.category")}</Label>
+            <Select value={categoryId} items={items} onValueChange={(v) => setCategoryId(String(v ?? ""))}>
+              <SelectTrigger aria-label={t("fin.split.category")}><SelectValue placeholder={t("fin.split.category")} /></SelectTrigger>
+              <SelectContent>{Object.entries(items).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          {cents !== null && cents > 0 && cents < whole && <p className="text-xs text-muted-foreground">{fill(t("fin.split.rest"), { v: f.money(whole - cents) })}</p>}
+        </form>
+        <DialogFooter>
+          <Button variant="ghost" onClick={close}>{t("common.cancel")}</Button>
+          <Button type="submit" form="split-form" disabled={!valid || save.isPending}>{t("fin.split.save")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function TransactionsPage() {
   const { t } = useI18n();
   const f = useFinanceFormat();
@@ -54,6 +109,7 @@ export default function TransactionsPage() {
   const [params, set] = useListParams({ page: 1, limit: 50, q: "", month: monthKey(), account: "", category: "" });
   const [search, setSearch] = useState(params.q);
   const [suggestion, setSuggestion] = useState<{ keyword: string; categoryId: string; categoryName: string } | null>(null);
+  const [splitting, setSplitting] = useState<Transaction | null>(null);
   const q = searchTerm(useDebounced(params.q));
   const range = monthRange(params.month);
 
@@ -82,6 +138,15 @@ export default function TransactionsPage() {
       setSuggestion(null);
       void client.invalidateQueries({ queryKey: ["finance"] });
       toast.success(fill(t("fin.tx.rule_created"), { n: r.applied }));
+    },
+    onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
+  });
+
+  const unsplit = useMutation({
+    mutationFn: (originalId: string) => finance.unsplit(originalId),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["finance"] });
+      toast.success(t("fin.split.undone"));
     },
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
   });
@@ -145,6 +210,7 @@ export default function TransactionsPage() {
                   <TableHead>{t("fin.tx.description")}</TableHead>
                   <TableHead className="w-52">{t("fin.tx.category")}</TableHead>
                   <TableHead className="w-36 text-right">{t("fin.tx.amount")}</TableHead>
+                  <TableHead className="w-12"><span className="sr-only">{t("fin.split.action")}</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -157,12 +223,22 @@ export default function TransactionsPage() {
                         {tx.institution} · {tx.account_name}
                         {tx.installments > 1 && ` · ${tx.installment}/${tx.installments}`}
                         {tx.status === "PENDING" && ` · ${t("fin.tx.pending")}`}
+                        {tx.split_of && ` · ${t("fin.split.part")}`}
                       </p>
                     </TableCell>
                     <TableCell data-label={t("fin.tx.category")} data-cell="sub">
                       <CategoryPicker tx={tx} categories={categories.data?.items ?? []} onPick={(tx, categoryId) => setCategory.mutate({ tx, categoryId })} />
                     </TableCell>
                     <TableCell data-label={t("fin.tx.amount")} data-cell="sub" className={cn("text-right font-mono tabular-nums", amountClass(tx.amount))}>{f.money(tx.amount)}</TableCell>
+                    <TableCell data-cell="sub" className="text-right">
+                      {tx.split_of ? (
+                        <Button size="icon" variant="ghost" aria-label={`${t("fin.split.undo")}: ${tx.description}`} title={t("fin.split.undo")}
+                          disabled={unsplit.isPending} onClick={() => unsplit.mutate(tx.split_of)}><Undo2 className="size-4" /></Button>
+                      ) : (
+                        <Button size="icon" variant="ghost" aria-label={`${t("fin.split.action")}: ${tx.description}`} title={t("fin.split.action")}
+                          onClick={() => setSplitting(tx)}><Split className="size-4" /></Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -172,6 +248,7 @@ export default function TransactionsPage() {
               onPageChange={(n) => set({ page: n })} onPageSizeChange={(n) => set({ limit: n, page: 1 })} />
           </Card>
         )}
+        <SplitDialog tx={splitting} categories={categories.data?.items ?? []} onClose={() => setSplitting(null)} />
       </PageBody>
     </>
   );

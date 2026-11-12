@@ -78,6 +78,13 @@ func fake(t *testing.T) (*httptest.Server, *atomic.Int32) {
 		_, _ = w.Write([]byte(`{"results":[{"id":"b1","dueDate":"2026-10-05T00:00:00.000Z","totalAmount":800.5},
 			{"id":"b2","dueDate":"2026-11-05T00:00:00.000Z","totalAmount":1173.78}]}`))
 	}))
+	mux.HandleFunc("GET /investments", authed(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("itemId") != "item-9" {
+			http.Error(w, "bad itemId", http.StatusBadRequest)
+			return
+		}
+		_, _ = w.Write([]byte(`{"page":1,"totalPages":1,"results":[{"id":"i1","name":" CDB Banco X ","type":"FIXED_INCOME","balance":10500.25}]}`))
+	}))
 	mux.HandleFunc("DELETE /items/{id}", authed(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "{}", http.StatusNotFound)
 	}))
@@ -132,6 +139,11 @@ func TestClientFlow(t *testing.T) {
 	if txs[0].Amount != -2350 || txs[0].Description != "UBER *TRIP" || txs[0].Category != "Taxi and ride-hailing" ||
 		txs[1].Amount != 15920 || txs[1].Installment != 2 || txs[1].Installments != 10 {
 		t.Fatalf("transaction fields: %+v", txs)
+	}
+
+	inv, err := c.Investments(ctx, "item-9")
+	if err != nil || len(inv) != 1 || inv[0].Name != "CDB Banco X" || inv[0].Balance != 1050025 || inv[0].Type != "FIXED_INCOME" {
+		t.Fatalf("investments: %+v, %v", inv, err)
 	}
 
 	if err := c.DeleteItem(ctx, "gone"); err != nil {

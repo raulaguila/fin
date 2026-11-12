@@ -22,7 +22,8 @@ const (
 	trendMax        = 24
 )
 
-// Recategorize runs the categorizer again over the rows it set itself.
+// Recategorize runs the categorizer again over every row the user did not set by
+// hand, so a deleted rule or category stops counting.
 func (s *Service) Recategorize(ctx context.Context, userID string) (int64, error) {
 	cat, err := s.categorizer(ctx, userID)
 	if err != nil {

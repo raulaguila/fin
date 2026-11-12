@@ -11,19 +11,10 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { finance, monthKey, type CategoryTotal } from "@/lib/api/finance";
 import { errorMessage } from "@/lib/errors";
-import { fill, useFinanceFormat } from "@/lib/finance-format";
+import { fill, parseCents, useFinanceFormat } from "@/lib/finance-format";
 import { useListParams } from "@/lib/hooks/use-list-params";
 import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
-
-/** "1.234,56" or "1234.56" to cents; null when it is not a number. */
-function parseCents(text: string): number | null {
-  const s = text.trim().replace(/[R$\s]/g, "");
-  if (s === "") return 0;
-  const normalized = s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s;
-  const n = Number(normalized);
-  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
-}
 
 function LimitRow({ c }: { c: CategoryTotal }) {
   const { t } = useI18n();

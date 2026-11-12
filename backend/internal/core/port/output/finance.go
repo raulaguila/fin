@@ -22,6 +22,8 @@ type OpenFinance interface {
 	LastBill(ctx context.Context, accountID string) (due *time.Time, amount *domain.Money, err error)
 	// Transactions returns every transaction of the account dated from `from` on.
 	Transactions(ctx context.Context, accountID string, from time.Time) ([]domain.OFTransaction, error)
+	// Investments returns the positions of the item at their current value.
+	Investments(ctx context.Context, itemID string) ([]domain.OFInvestment, error)
 }
 
 // FinanceRepository persists the app.fin_* tables. Methods that take a userID
@@ -47,8 +49,8 @@ type FinanceRepository interface {
 	// category, up to limit, newest first: input for recurring and insights.
 	Spending(ctx context.Context, userID string, from, to time.Time, limit int) ([]domain.Transaction, error)
 	SetTransactionCategory(ctx context.Context, userID, id, categoryID string) error
-	// Categorizable returns, newest first, the transactions categorized
-	// automatically (id, description, amount, provider category, category).
+	// Categorizable returns, newest first, the transactions not categorized by
+	// hand (id, description, amount, provider category, category, source).
 	Categorizable(ctx context.Context, userID string, limit int) ([]domain.Transaction, error)
 	// SetCategories writes category id and source of each transaction, skipping
 	// any the user set by hand meanwhile. It returns how many changed.
@@ -80,6 +82,24 @@ type FinanceRepository interface {
 	CountMatches(ctx context.Context, userID, keyword string) (int64, error)
 	// ApplyRule sets categoryID on matching transactions not set by the user.
 	ApplyRule(ctx context.Context, userID, keyword, categoryID string) (int64, error)
+
+	// DeleteMissingPending removes the pending transactions of the account dated
+	// from `from` on whose external id is not in keep: the bank replaced them.
+	DeleteMissingPending(ctx context.Context, accountID string, from time.Time, keep []string) (int64, error)
+	// SplitTransaction moves amount of the transaction (same sign, smaller) to a
+	// new row in categoryID; the original keeps the rest.
+	SplitTransaction(ctx context.Context, userID, id string, amount domain.Money, categoryID string) error
+	// UnsplitTransaction folds the split parts of the original transaction id back into it.
+	UnsplitTransaction(ctx context.Context, userID, id string) error
+
+	// UpsertInvestments saves the connection's positions and drops the ones the provider no longer lists.
+	UpsertInvestments(ctx context.Context, userID, connectionID string, list []domain.OFInvestment) error
+	Investments(ctx context.Context, userID string) ([]domain.Investment, error)
+
+	Goals(ctx context.Context, userID string) ([]domain.Goal, error)
+	CreateGoal(ctx context.Context, userID string, g *domain.Goal) error
+	UpdateGoal(ctx context.Context, userID string, g *domain.Goal) error
+	DeleteGoal(ctx context.Context, userID, id string) error
 
 	// MarkAlert records key for the user and reports whether it is new.
 	MarkAlert(ctx context.Context, userID, key string) (bool, error)

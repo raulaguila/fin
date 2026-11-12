@@ -1,0 +1,17 @@
+# HTTPS in front of the web app, so the password and the session cookie never
+# cross the network in clear text. Certificates come from Caddy's own local CA:
+# trust its root once on each device (make https-ca).
+{
+	admin off
+	local_certs
+	skip_install_trust
+	auto_https disable_redirects
+	# A browser opening https://<IP> sends no server name; answer with this one's certificate.
+	default_sni {$WEB_SNI:localhost}
+}
+
+# WEB_HOSTS: the names and IPs people type, comma separated (localhost, 192.168.0.101).
+{$WEB_HOSTS:localhost} {
+	tls internal
+	reverse_proxy web:3005
+}

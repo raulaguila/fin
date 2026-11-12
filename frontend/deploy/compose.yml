@@ -23,7 +23,8 @@ services:
       start_period: 20s
       retries: 3
     ports:
-      - ${WEB_PORT:-3016}:3005
+      # Plain HTTP only on this machine; other devices use HTTPS through the proxy below.
+      - 127.0.0.1:${WEB_PORT:-3016}:3005
     env_file: ../config/.env
     environment:
       - API_URL=http://backend:${API_PORT:-9979}
@@ -36,6 +37,34 @@ services:
       fin_network:
         # The backend trusts X-Real-IP only from this address (its WEB_IP).
         ipv4_address: ${WEB_IP:-172.30.98.10}
+
+  proxy:
+
+    container_name: fin_proxy
+    image: caddy:2.10.0-alpine
+    restart: always
+    depends_on:
+      - web
+    ports:
+      - ${WEB_HTTPS_PORT:-3443}:443
+    environment:
+      - WEB_HOSTS=${WEB_HOSTS:-localhost}
+      - WEB_SNI=${WEB_SNI:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The local CA and its certificates: kept, so devices trust it once.
+      - proxy_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    networks:
+      - fin_network
+
+volumes:
+
+  proxy_data:
+    name: fin_proxy_data
 
 networks:
 

@@ -17,6 +17,7 @@
 !**/.env.template
 **/*.pem
 **/*.key
+**/*.crt
 
 # Uploaded files of the local storage driver
 backend/data/

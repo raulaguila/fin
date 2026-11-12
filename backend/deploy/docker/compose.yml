@@ -34,7 +34,8 @@ services:
       start_period: 20s
       retries: 3
     ports:
-      - ${API_PORT}:${API_PORT}
+      # Loopback only: the web app reaches the API on the Docker network; the LAN goes through the web app.
+      - 127.0.0.1:${API_PORT}:${API_PORT}
     tty: true
     extra_hosts:
       - host.docker.internal:host-gateway  # reach a host Ollama (AI_OPENAI_URL)

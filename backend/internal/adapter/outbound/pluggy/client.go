@@ -327,6 +327,33 @@ func (c *Client) Transactions(ctx context.Context, accountID string, from time.T
 	return nil, errors.New("pluggy: too many transaction pages")
 }
 
+// Investments reads the item's positions; balance is the current gross value.
+func (c *Client) Investments(ctx context.Context, itemID string) ([]domain.OFInvestment, error) {
+	var all []domain.OFInvestment
+	for page := 1; page <= maxPages; page++ {
+		var out struct {
+			Results []struct {
+				ID      string      `json:"id"`
+				Name    string      `json:"name"`
+				Type    string      `json:"type"`
+				Balance json.Number `json:"balance"`
+			} `json:"results"`
+			TotalPages int `json:"totalPages"`
+		}
+		q := url.Values{"itemId": {itemID}, "pageSize": {"500"}, "page": {strconv.Itoa(page)}}
+		if err := c.do(ctx, http.MethodGet, "/investments?"+q.Encode(), nil, &out); err != nil {
+			return nil, err
+		}
+		for _, i := range out.Results {
+			all = append(all, domain.OFInvestment{ID: i.ID, Name: strings.TrimSpace(i.Name), Type: i.Type, Balance: cents(i.Balance)})
+		}
+		if page >= out.TotalPages {
+			return all, nil
+		}
+	}
+	return nil, errors.New("pluggy: too many investment pages")
+}
+
 // cents turns a decimal amount into integer cents; an absent value is 0.
 func cents(n json.Number) domain.Money {
 	f, err := strconv.ParseFloat(n.String(), 64)

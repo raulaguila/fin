@@ -24,8 +24,8 @@ type FinanceService interface {
 	Summary(ctx context.Context, userID string, month time.Time) (*domain.MonthSummary, error)
 	Transactions(ctx context.Context, userID string, filter domain.TransactionFilter) ([]domain.Transaction, int64, error)
 	SetCategory(ctx context.Context, userID, transactionID, categoryID string) error
-	// Recategorize runs the automatic categorization again over the history,
-	// leaving choices made by hand or by a rule alone. It returns how many changed.
+	// Recategorize runs the rules and the automatic categorization again over
+	// the history, leaving choices made by hand alone. It returns how many changed.
 	Recategorize(ctx context.Context, userID string) (int64, error)
 	// Trend is income and expense of the last months, oldest first.
 	Trend(ctx context.Context, userID string, months int) ([]domain.MonthTotal, error)
@@ -44,6 +44,26 @@ type FinanceService interface {
 	DeleteRule(ctx context.Context, userID, id string) error
 	// RuleSuggestions lists merchants that repeat among uncategorized transactions.
 	RuleSuggestions(ctx context.Context, userID string) ([]domain.RuleSuggestion, error)
+
+	// SplitTransaction moves part of a transaction to another category.
+	SplitTransaction(ctx context.Context, userID, id string, amount domain.Money, categoryID string) error
+	// UnsplitTransaction joins the parts of a split transaction again.
+	UnsplitTransaction(ctx context.Context, userID, id string) error
+	// YearReport totals a calendar year by category and month.
+	YearReport(ctx context.Context, userID string, year int) (*domain.YearReport, error)
+	// Calendar projects the bank balance over the next 30 days.
+	Calendar(ctx context.Context, userID string) (*domain.Calendar, error)
+
+	// CreateManualAccount makes an account that takes imported statements.
+	CreateManualAccount(ctx context.Context, userID, institution, name, accountType string) (*domain.Account, error)
+	// Import saves statement lines into a manual account; balance, when given,
+	// becomes the account balance. It returns how many were new.
+	Import(ctx context.Context, userID, accountID string, txs []domain.Transaction, balance *domain.Money) (int, error)
+
+	Goals(ctx context.Context, userID string) ([]domain.Goal, error)
+	CreateGoal(ctx context.Context, userID string, g domain.Goal) (*domain.Goal, error)
+	UpdateGoal(ctx context.Context, userID, id string, g domain.Goal) (*domain.Goal, error)
+	DeleteGoal(ctx context.Context, userID, id string) error
 
 	Chat(ctx context.Context, userID string, history []domain.ChatMessage) (string, error)
 }

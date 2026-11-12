@@ -14,6 +14,7 @@ import { finance, monthKey, type Connection, type Summary } from "@/lib/api/fina
 import { amountClass, fill, useFinanceFormat } from "@/lib/finance-format";
 import { useListParams } from "@/lib/hooks/use-list-params";
 import { useI18n } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n/messages";
 import { cn } from "@/lib/utils";
 
 function Stat({ label, value, note, icon: Icon, tone }: { label: string; value: string; note?: React.ReactNode; icon: LucideIcon; tone?: string }) {
@@ -173,6 +174,40 @@ function Recent({ s }: { s: Summary }) {
   );
 }
 
+const INVESTMENT_TYPES = ["FIXED_INCOME", "SECURITY", "MUTUAL_FUND", "EQUITY", "COE", "ETF", "OTHER"];
+
+/** Net worth: bank balances and investments, less what the cards owe. */
+function Wealth({ s }: { s: Summary }) {
+  const { t } = useI18n();
+  const f = useFinanceFormat();
+  if (s.investments.length === 0) return null;
+  const banks = s.accounts.reduce((n, a) => n + (a.type === "BANK" ? a.balance : 0), 0);
+  const cards = s.accounts.reduce((n, a) => n + (a.type === "CREDIT" ? a.balance : 0), 0);
+  const invested = s.investments.reduce((n, i) => n + i.balance, 0);
+  return (
+    <Card className="gap-3 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-sm font-medium">{t("fin.dash.net_worth")}</h2>
+        <span className="text-2xl font-semibold tabular-nums">{f.money(banks + invested - cards)}</span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {fill(t("fin.dash.net_worth_parts"), { b: f.money(banks), i: f.money(invested), c: f.money(cards) })}
+      </p>
+      <ul className="divide-y">
+        {s.investments.map((i) => (
+          <li key={i.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+            <div className="min-w-0">
+              <p className="truncate">{i.name}</p>
+              <p className="truncate text-xs text-muted-foreground">{s.institutions[i.connection_id]}{i.type && ` · ${INVESTMENT_TYPES.includes(i.type) ? t(`fin.inv.${i.type}` as MessageKey) : i.type}`}</p>
+            </div>
+            <span className="shrink-0 font-mono tabular-nums">{f.money(i.balance)}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 function Commitments({ s }: { s: Summary }) {
   const { t } = useI18n();
   const f = useFinanceFormat();
@@ -251,6 +286,7 @@ export default function DashboardPage() {
                 <Recent s={s} />
               </div>
               <Commitments s={s} />
+              <Wealth s={s} />
             </>
           )
         )}

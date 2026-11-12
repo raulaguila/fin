@@ -53,10 +53,14 @@ func (s *Service) Summary(ctx context.Context, userID string, month time.Time) (
 	if err != nil {
 		return nil, err
 	}
+	investments, err := s.repo().Investments(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
 
 	sum := &domain.MonthSummary{
 		Month: from, Previous: map[string]domain.Money{}, Institutions: map[string]string{},
-		Recent: recent, Recurring: recurring(spending), Installments: installments(spending, from, to),
+		Recent: recent, Recurring: recurring(spending), Installments: installments(spending, from, to), Investments: investments,
 	}
 	sum.Income, sum.Expense, sum.Categories = combine(cats, totals)
 	for _, t := range prevTotals {

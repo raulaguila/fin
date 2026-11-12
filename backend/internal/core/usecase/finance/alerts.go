@@ -52,11 +52,30 @@ func (s *Service) notify(ctx context.Context, userID string, a alert) error {
 		if err != nil || !isNew {
 			return err
 		}
-		return uow.Notifications().Create(ctx, &domain.Notification{
+		err = uow.Notifications().Create(ctx, &domain.Notification{
 			UserID: userID, Level: a.level, Kind: a.kind,
 			Title: validate.Text(a.title, 120), Message: validate.Text(a.text, 4000),
 		})
+		if err != nil || s.Mail == nil || a.level == domain.NotificationInfo {
+			return err
+		}
+		return s.email(ctx, uow, userID, a)
 	})
+}
+
+// email queues the alert for the mailer, in the same transaction as the notification.
+// Only warnings and critical alerts go out: info stays in the app.
+func (s *Service) email(ctx context.Context, uow output.UnitOfWork, userID string, a alert) error {
+	u, err := uow.Users().FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	// The codec seals Token at rest: the outbox never holds the alert in clear text.
+	payload, err := s.Mail.Encode(output.EmailToken{Email: u.Email, Token: validate.Text(a.title, 120) + "\n" + validate.Text(a.text, 4000)})
+	if err != nil {
+		return err
+	}
+	return uow.Outbox().Enqueue(ctx, domain.OutboxPurposeAlert, payload)
 }
 
 // Alerts checks the user's data and notifies what needs attention.

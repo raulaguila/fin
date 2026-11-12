@@ -22,5 +22,6 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.svg|fonts).*)"],
+  // The manifest and icons stay public: the browser fetches them without the session to offer the install.
+  matcher: ["/((?!api|_next/static|_next/image|favicon.svg|fonts|manifest.webmanifest|icon-192.png|icon-512.png|apple-touch-icon.png).*)"],
 };

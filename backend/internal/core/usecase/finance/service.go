@@ -37,6 +37,8 @@ type Service struct {
 	AI    output.Assistant
 	Clock output.Clock
 	Log   output.Logger
+	// Mail seals alert emails for the mailer; nil sends none (SMTP off).
+	Mail output.EmailTokenCodec
 }
 
 var _ input.FinanceService = (*Service)(nil)
@@ -49,6 +51,10 @@ func (s *Service) repo() output.FinanceRepository { return s.Store.Finance() }
 
 func (s *Service) OpenFinanceEnabled() bool { return s.OF != nil && s.OF.Enabled() }
 func (s *Service) AssistantEnabled() bool   { return s.AI != nil }
+
+func errManual() error {
+	return apperror.New(apperror.CodeConflict, "an imported account has no bank to reach").WithDetails("feature", "manual")
+}
 
 func disabled(what string) error {
 	return apperror.New(apperror.CodeConflict, what+" is not configured").WithDetails("feature", what)
@@ -80,6 +86,9 @@ func (s *Service) ConnectToken(ctx context.Context, userID, connectionID string)
 		c, err := s.ownConnection(ctx, userID, connectionID)
 		if err != nil {
 			return "", err
+		}
+		if c.Manual() {
+			return "", errManual()
 		}
 		itemID = c.ItemID
 	}
@@ -139,6 +148,9 @@ func (s *Service) SyncConnection(ctx context.Context, userID, id string) error {
 	if err != nil {
 		return err
 	}
+	if c.Manual() {
+		return errManual()
+	}
 	// Ask the bank for fresh data; the sync job reads it once the item is updated.
 	if err := s.OF.RefreshItem(ctx, c.ItemID); err != nil {
 		return err
@@ -157,7 +169,7 @@ func (s *Service) DeleteConnection(ctx context.Context, userID, id string) error
 	if err != nil {
 		return err
 	}
-	if s.OpenFinanceEnabled() {
+	if s.OpenFinanceEnabled() && !c.Manual() {
 		// Revoke at the provider first: a local delete alone leaves the consent alive.
 		if err := s.OF.DeleteItem(ctx, c.ItemID); err != nil {
 			return err
@@ -217,6 +229,9 @@ func (s *Service) sync(ctx context.Context, connectionID string) (*domain.Connec
 	if err != nil {
 		return nil, err
 	}
+	if c.Manual() {
+		return c, nil // imported data, nothing to read
+	}
 	item, err := s.OF.Item(ctx, c.ItemID)
 	if err != nil {
 		return nil, err
@@ -266,14 +281,26 @@ func (s *Service) sync(ctx context.Context, connectionID string) (*domain.Connec
 			return nil, err
 		}
 		txs := make([]domain.Transaction, 0, len(raw))
+		ids := make([]string, 0, len(raw))
 		for _, r := range raw {
 			txs = append(txs, cat.apply(normalize(r, acc.Type)))
+			ids = append(ids, r.ID)
 		}
 		n, err := s.repo().UpsertTransactions(ctx, c.UserID, acc.ID, txs)
 		if err != nil {
 			return nil, err
 		}
 		inserted += n
+		// A pending charge the bank no longer lists was replaced by the posted one.
+		if _, err := s.repo().DeleteMissingPending(ctx, acc.ID, from, ids); err != nil {
+			return nil, err
+		}
+	}
+	// Investments are optional at the provider: without them the sync still counts.
+	if inv, err := s.OF.Investments(ctx, c.ItemID); err != nil {
+		s.Log.Warn("Open finance investments unavailable", slog.String("error", err.Error()))
+	} else if err := s.repo().UpsertInvestments(ctx, c.UserID, c.ID, cleanInvestments(inv)); err != nil {
+		return nil, err
 	}
 	if err := s.repo().SaveConnectionState(ctx, c, true); err != nil {
 		return nil, err
@@ -285,6 +312,18 @@ func (s *Service) sync(ctx context.Context, connectionID string) (*domain.Connec
 	}
 	s.Log.Info(fmt.Sprintf("Open finance sync: %d accounts, %d new transactions, %d recategorized", len(accounts), inserted, changed))
 	return c, nil
+}
+
+func cleanInvestments(list []domain.OFInvestment) []domain.OFInvestment {
+	out := make([]domain.OFInvestment, 0, len(list))
+	for _, i := range list {
+		if i.ID == "" {
+			continue
+		}
+		i.Name, i.Type = validate.Text(i.Name, 200), validate.Text(i.Type, 40)
+		out = append(out, i)
+	}
+	return out
 }
 
 // normalize turns a provider transaction into the app sign: negative leaves the user.

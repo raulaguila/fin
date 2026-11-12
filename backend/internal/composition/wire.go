@@ -80,7 +80,11 @@ func NewFinance(cfg *config.Environment, res *infra.Resources, log *logger.Logge
 	} else if !errors.Is(err, ai.ErrDisabled) {
 		log.Warn("Assistant disabled", slog.String("error", err.Error()))
 	}
-	return finance.New(store, store, pluggy.New(cfg.Pluggy), assistant, output.RealClock{}, log)
+	svc := finance.New(store, store, pluggy.New(cfg.Pluggy), assistant, output.RealClock{}, log)
+	if cfg.SMTP.Enabled {
+		svc.Mail = emailpayload.New(cfg.SMTP.TokenKey())
+	}
+	return svc
 }
 
 func NewJobs(cfg *config.Environment, res *infra.Resources, log *logger.Logger) *jobs.Worker {

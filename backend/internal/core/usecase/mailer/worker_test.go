@@ -122,6 +122,20 @@ func TestBodyFollowsTheUsersLanguage(t *testing.T) {
 	}
 }
 
+func TestAlertCarriesTitleAndText(t *testing.T) {
+	payload, _ := json.Marshal(map[string]string{"email": "a@acme.io", "token": sealed(t, "Conta no negativo\nO saldo está em -R$ 10,00.")})
+	box := &fakeOutbox{msgs: []domain.OutboxMessage{{ID: "1", Purpose: domain.OutboxPurposeAlert, Payload: payload}}}
+	mail := &fakeMail{}
+	w := &Worker{Outbox: box, Mail: mail, Codec: emailpayload.New(testKey), Clock: fixedClock{}, AppURL: "https://fin.local"}
+	if err := w.tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(box.sent) != 1 || !strings.Contains(mail.bodies[0], "O saldo está em -R$ 10,00.") || !strings.Contains(mail.bodies[0], "https://fin.local/notifications") ||
+		strings.Contains(mail.bodies[0], "Conta no negativo") {
+		t.Fatalf("sent %v body %q", box.sent, mail.bodies)
+	}
+}
+
 func TestUnreadableTokenFailsWithoutSending(t *testing.T) {
 	box := &fakeOutbox{msgs: []domain.OutboxMessage{message(t, "1", "plain-legacy-token", 0)}}
 	mail := &fakeMail{}

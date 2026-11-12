@@ -19,6 +19,7 @@ const (
 	catLoans       = "Empréstimos"
 	catInterest    = "Juros e encargos"
 	catRefunds     = "Reembolsos"
+	catIgnored     = "Ignoradas"
 )
 
 // DefaultCategories is what a new user starts with; every name is editable later.
@@ -50,6 +51,8 @@ var DefaultCategories = []domain.Category{
 	{Name: catInvest, Kind: domain.KindTransfer},
 	// A loan is money you owe, not income: it counts nowhere.
 	{Name: catLoans, Kind: domain.KindTransfer},
+	// Where the user files a duplicate or anything that should count nowhere.
+	{Name: catIgnored, Kind: domain.KindTransfer},
 }
 
 // descriptionMap maps words of the description (lower case) to a category

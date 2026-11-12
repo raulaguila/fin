@@ -42,6 +42,8 @@ export interface Connection {
   last_sync_at: string | null;
   created_at: string;
   accounts: Account[];
+  /** Imported statements: no bank behind it, nothing to sync. */
+  manual: boolean;
 }
 
 export interface Transaction {
@@ -60,6 +62,8 @@ export interface Transaction {
   category_source: "auto" | "rule" | "user";
   installment: number;
   installments: number;
+  /** The original transaction when this row is a split part. */
+  split_of: string;
 }
 
 export interface Category {
@@ -100,6 +104,57 @@ export interface Summary {
   installments: { description: string; amount: Cents; remaining: number }[];
   /** Only for the current month. */
   forecast: { days_left: number; pending_bills: Cents; expected_income: Cents; projected: Cents } | null;
+  investments: Investment[];
+}
+
+export interface Investment {
+  id: string;
+  connection_id: string;
+  name: string;
+  type: string;
+  balance: Cents;
+}
+
+export interface YearReport {
+  year: number;
+  income: Cents;
+  expense: Cents;
+  categories: CategoryTotal[];
+  months: MonthTotal[];
+}
+
+export interface CalendarEvent {
+  date: string;
+  kind: "bill" | "recurring" | "income";
+  name: string;
+  amount: Cents;
+  /** Bank balance after this event. */
+  balance: Cents;
+}
+
+export interface Calendar {
+  start: Cents;
+  lowest: Cents;
+  events: CalendarEvent[];
+}
+
+export interface Goal {
+  id: string;
+  name: string;
+  target: Cents;
+  /** Typed by the user; ignored when an account is linked. */
+  saved: Cents;
+  account_id: string;
+  due_date: string;
+  current: Cents;
+}
+
+/** One statement line, parsed in the browser from an OFX or CSV file. */
+export interface ImportLine {
+  id?: string;
+  date: string;
+  description: string;
+  amount: Cents;
 }
 
 export interface MonthTotal {
@@ -180,6 +235,20 @@ export const finance = {
   createRule: (keyword: string, categoryId: string) =>
     apiFetch<{ rule: Rule; applied: number }>(`${base}/rules`, { method: "POST", json: { keyword, category_id: categoryId } }),
   removeRule: (ruleId: string) => apiFetch<void>(`${base}/rules/${id(ruleId)}`, { method: "DELETE" }),
+
+  split: (transactionId: string, amount: Cents, categoryId: string) =>
+    apiFetch<void>(`${base}/transactions/${id(transactionId)}/split`, { method: "POST", json: { amount, category_id: categoryId } }),
+  unsplit: (transactionId: string) => apiFetch<void>(`${base}/transactions/${id(transactionId)}/split`, { method: "DELETE" }),
+  year: (year: number) => apiFetch<YearReport>(`${base}/year${query({ year })}`),
+  calendar: () => apiFetch<Calendar>(`${base}/calendar`),
+  createManualAccount: (a: { institution: string; name: string; type: "BANK" | "CREDIT" }) =>
+    apiFetch<Account>(`${base}/accounts`, { method: "POST", json: a }),
+  importLines: (accountId: string, transactions: ImportLine[], balance?: Cents) =>
+    apiFetch<{ inserted: number }>(`${base}/accounts/${id(accountId)}/import`, { method: "POST", json: { transactions, balance } }),
+  goals: () => apiFetch<{ items: Goal[] }>(`${base}/goals`),
+  createGoal: (g: Omit<Goal, "id" | "current">) => apiFetch<Goal>(`${base}/goals`, { method: "POST", json: g }),
+  updateGoal: (goalId: string, g: Omit<Goal, "id" | "current">) => apiFetch<Goal>(`${base}/goals/${id(goalId)}`, { method: "PUT", json: g }),
+  removeGoal: (goalId: string) => apiFetch<void>(`${base}/goals/${id(goalId)}`, { method: "DELETE" }),
 
   chat: (messages: ChatMessage[]) => apiFetch<{ answer: string }>(`${base}/assistant/chat`, { method: "POST", json: { messages } }),
 };

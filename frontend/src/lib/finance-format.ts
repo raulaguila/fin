@@ -31,5 +31,14 @@ export function useFinanceFormat() {
   }, [locale]);
 }
 
+/** "1.234,56" or "1234.56" to cents; null when it is not a non-negative number. */
+export function parseCents(text: string): number | null {
+  const s = text.trim().replace(/[R$\s]/g, "");
+  if (s === "") return 0;
+  const normalized = s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s;
+  const n = Number(normalized);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
+}
+
 /** Text color of an amount: green in, default out. */
 export const amountClass = (c: Cents) => (c > 0 ? "text-emerald-700 dark:text-emerald-400" : "");

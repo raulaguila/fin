@@ -16,14 +16,17 @@ Princípios:
 
 | Tela | Para quê |
 |------|----------|
-| **Painel** | Saldo das contas, entradas e saídas do mês, previsão até o fim do mês (sobra prevista e quanto dá para gastar por dia), últimos 12 meses, gastos por categoria, faturas (próximo vencimento e última fechada), contas recorrentes e parcelas a vencer. |
-| **Transações** | Tudo que entrou e saiu, com busca, filtro por conta e categoria e troca de categoria em um clique. |
+| **Painel** | Saldo das contas, patrimônio com os investimentos, entradas e saídas do mês, previsão até o fim do mês (sobra prevista e quanto dá para gastar por dia), últimos 12 meses, gastos por categoria, faturas (próximo vencimento e última fechada), contas recorrentes e parcelas a vencer. |
+| **Transações** | Tudo que entrou e saiu, com busca, filtro por conta e categoria e troca de categoria em um clique. Uma compra pode ser **dividida** entre categorias, e o que não deve contar (uma cobrança duplicada, por exemplo) vai para **Ignoradas**. |
+| **Próximos 30 dias** | Faturas, contas recorrentes e salário previstos, com o saldo da conta dia a dia e o aviso de quando ele ficaria negativo. |
 | **Orçamento** | Limite mensal por categoria, com barra de quanto já foi usado. |
+| **Metas** | Objetivos de economia (reserva de emergência, viagem), com o progresso seguindo o saldo de uma conta ou um valor informado, e quanto guardar por mês até a data. |
+| **Relatório anual** | O ano por categoria e por mês, com saúde e educação destacadas, para conferir a declaração do Imposto de Renda. |
 | **Pessoas** | Pix e TED por pessoa nos últimos 12 meses: quanto enviou e recebeu. Um botão marca o que alguém te devolve como **reembolso**, que abate a despesa em vez de inflar a receita. |
 | **Categorias e regras** | Suas categorias e regras por palavra-chave ("uber" → Transporte), com sugestões tiradas dos estabelecimentos que se repetem sem categoria. Uma regra nova recategoriza o passado; sua escolha manual nunca é sobrescrita por uma sincronização. |
-| **Conexões** | Conectar, sincronizar e remover bancos; mostra o vencimento do consentimento. |
+| **Conexões** | Conectar, sincronizar e remover bancos; mostra o vencimento do consentimento. Para um banco que o Open Finance não alcança, **Importar extrato** cria uma conta e lê arquivos OFX ou CSV (Nubank e outros); reenviar o mesmo arquivo não duplica nada. |
 | **Assistente** | Perguntas em linguagem natural: "posso gastar R$ 500 este mês?", "onde gastei mais?". |
-| **Notificações** | Orçamento estourado, fatura vencendo, gasto grande fora do padrão, conta no negativo e cobrança de juros, cobrança repetida no mesmo dia, conta recorrente que ficou mais cara, consentimento perto de vencer, conexão com erro e resumo do mês. |
+| **Notificações** | Orçamento estourado, fatura vencendo, gasto grande fora do padrão, conta no negativo e cobrança de juros, cobrança repetida no mesmo dia, conta recorrente que ficou mais cara, consentimento perto de vencer, conexão com erro e resumo do mês. Com SMTP ligado, os avisos e os críticos também chegam por e-mail. |
 
 Uma rotina diária sincroniza os bancos e gera os alertas.
 
@@ -71,10 +74,13 @@ make admin-bootstrap # nome, e-mail e senha do primeiro usuário
 
 ```bash
 cd frontend
-make dev             # http://localhost:3016
+make compose-build   # web e proxy HTTPS
+make https-ca        # salva config/fin-root-ca.crt
 ```
 
-A API responde em `API_PORT` (9979 por padrão). Mudou o `.env` do backend? Recrie os containers com `make compose-down && make compose-build`, pois o arquivo é lido na criação (os dados ficam no volume).
+Abra `https://<IP desta máquina>:3443` em qualquer aparelho da rede (nesta máquina, `https://localhost:3443` ou `http://localhost:3016`). O certificado vem de uma autoridade local criada pelo próprio proxy: instale `config/fin-root-ca.crt` como raiz confiável em cada aparelho para o navegador não reclamar e para o Fin poder ser **instalado como app** (PWA) no celular. Se o IP da máquina mudar, ajuste `WEB_HOSTS` e `WEB_SNI` em `frontend/config/.env` e rode `make compose-up`. Para desenvolver com recarga automática, `make dev` (porta 3016).
+
+A API responde em `API_PORT` (9979 por padrão), só nesta máquina: os outros aparelhos passam pelo web. Mudou o `.env` do backend? Recrie os containers com `make compose-down && make compose-build`, pois o arquivo é lido na criação (os dados ficam no volume).
 
 ### 4. Conectar o banco
 
@@ -94,7 +100,11 @@ Limites conhecidos:
 
 ### Backup
 
-O serviço `fin_backup` (sobe com `make compose-build`) grava todo dia um dump do banco em `backend/backups/` (`BACKUP_DIR`), um arquivo por dia da semana (`fin-1.dump` é segunda): ficam sempre os últimos 7 dias, sem apagar nada. Os arquivos têm todos os seus dados e ficam só para o root; copie-os para outro disco de vez em quando.
+O serviço `fin_backup` (sobe com `make compose-build`) grava todo dia um dump do banco em `backend/backups/` (`BACKUP_DIR`), um arquivo por dia da semana (`fin-1.dump` é segunda): ficam sempre os últimos 7 dias, sem apagar nada. Os arquivos têm todos os seus dados e ficam só para o root. Um disco só não é backup: copie-os para outro disco ou um NAS com `make backup-copy DEST=/media/hd/fin` (em `backend/`). Para fazer isso todo dia, uma linha no `sudo crontab -e`:
+
+```
+30 4 * * * cd /caminho/do/fin/backend && make backup-copy DEST=/media/hd/fin
+```
 
 Restaurar um dump (de `backend/`, com a stack no ar; troque `5445` pelo seu `POSTGRES_PORT`; substitui o banco atual):
 
@@ -106,10 +116,10 @@ sudo cat backups/fin-1.dump | docker exec -i fin_postgres sh -c 'pg_restore --cl
 
 - `backend/`: serviço Go (Fiber, GORM, Postgres), com `go.mod`, `Makefile`, migrações e testes próprios. `make dev-backend`, `make dev-mailer`, `make help`.
 - `frontend/`: app Next.js que funciona como BFF. Veja [frontend/README.md](frontend/README.md).
-- Testes com Postgres precisam de um banco vazio em `TEST_POSTGRES_URL`; sem ele, pulam:
+- Testes com Postgres precisam de um banco vazio em `TEST_POSTGRES_URL`; sem ele, pulam. `make test-integration` (em `backend/`, com a stack no ar) cria um `fin_test` limpo no `fin_postgres` e roda todos:
 
 ```bash
-TEST_POSTGRES_URL='postgres://postgres:test@localhost:5445/fin_test?sslmode=disable' go test -race ./...
+make test-integration
 ```
 
 Mais:

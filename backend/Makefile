@@ -262,6 +262,18 @@ test: ## Run tests
 	@echo "$(GREEN)✅ Tests completed.$(RESET)"
 	@echo
 
+test-integration: ## Run the Postgres integration tests on a fresh fin_test database inside fin_postgres
+	$(call require_env_file)
+	@echo "$(BLUE)🔍 Running integration tests...$(RESET)"
+	@set -a && . ./config/.env && set +a; \
+	$(DOCKER) exec fin_postgres psql -q -U "$${POSTGRES_USER}" -d "$${POSTGRES_BASE}" -p "$${POSTGRES_PORT}" \
+		-c "DROP DATABASE IF EXISTS fin_test WITH (FORCE)" -c "CREATE DATABASE fin_test" && \
+	pass=$$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["POSTGRES_PASS"], safe=""))') && \
+	TEST_POSTGRES_URL="postgres://$${POSTGRES_USER}:$${pass}@127.0.0.1:$${POSTGRES_PORT}/fin_test?sslmode=disable" \
+		$(GO) test -count=1 ./tests/integration/
+	@echo "$(GREEN)✅ Integration tests completed.$(RESET)"
+	@echo
+
 coverage: ## Run tests and generate coverage report
 	@echo "$(BLUE)🔍 Running tests with coverage...$(RESET)"
 	@set -e; \
@@ -394,6 +406,13 @@ compose-up: ## Create and start containers
 	@$(COMPOSE_COMMAND) up -d
 	@echo "$(GREEN)✅ Containers are up and running!$(RESET)"
 	@echo
+
+backup-copy: ## Copy the daily database dumps to another disk: make backup-copy DEST=/media/hd/fin
+	@test -n "$(DEST)" || { echo "Usage: make backup-copy DEST=/path/on/another/disk"; exit 1; }
+	@set -a && . ./config/.env && set +a; \
+	sudo install -d -m 700 "$(abspath $(DEST))" && \
+	cd deploy/docker && sudo cp -p "$${BACKUP_DIR:-../../backups}"/fin-*.dump "$(abspath $(DEST))/"
+	@echo "$(GREEN)✅ Dumps copied to $(DEST)$(RESET)"
 
 compose-build: ## Build, create and start containers
 	@echo "$(BLUE)🚢 Building and starting Docker containers...$(RESET)"

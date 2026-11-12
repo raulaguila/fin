@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // Money is integer cents. A negative transaction amount is money leaving the user.
 type Money = int64
@@ -48,6 +51,12 @@ type Connection struct {
 	CreatedAt        time.Time
 	Accounts         []Account
 }
+
+// ManualItemPrefix marks a connection made for imported files: no provider behind it.
+const ManualItemPrefix = "manual:"
+
+// Manual reports whether the connection holds imported data instead of a bank link.
+func (c Connection) Manual() bool { return strings.HasPrefix(c.ItemID, ManualItemPrefix) }
 
 type Account struct {
 	ID            string
@@ -104,6 +113,7 @@ type Transaction struct {
 	CategorySource   string
 	Installment      int
 	Installments     int
+	SplitOf          string // the original transaction when this row is a split part
 }
 
 type Rule struct {
@@ -200,6 +210,52 @@ type MonthSummary struct {
 	Recurring    []Recurring
 	Installments []Installment
 	Forecast     *Forecast // only for the current month
+	Investments  []Investment
+}
+
+// Investment is a position the provider reports (fund, CDB, stocks), at its current value.
+type Investment struct {
+	ID           string
+	ConnectionID string
+	Name         string
+	Type         string
+	Balance      Money
+}
+
+// Goal is a savings target; Current is the linked account balance, or Saved without one.
+type Goal struct {
+	ID        string
+	Name      string
+	Target    Money
+	Saved     Money
+	AccountID string
+	DueDate   *time.Time
+	Current   Money
+}
+
+// CalendarEvent is money expected on a day of the next weeks.
+type CalendarEvent struct {
+	Date    time.Time
+	Kind    string // bill, recurring or income
+	Name    string
+	Amount  Money
+	Balance Money // bank balance after this event
+}
+
+// Calendar projects the bank balance through the expected events.
+type Calendar struct {
+	Start  Money // bank balance today
+	Events []CalendarEvent
+	Lowest Money // lowest balance reached
+}
+
+// YearReport is one calendar year by category and by month, for the income tax return.
+type YearReport struct {
+	Year       int
+	Income     Money
+	Expense    Money
+	Categories []CategoryTotal
+	Months     []MonthTotal
 }
 
 // ChatMessage is one turn of the assistant conversation; the client keeps the history.
@@ -234,6 +290,13 @@ type OFAccount struct {
 	BillDueDate   *time.Time
 	LastBillDue   *time.Time
 	LastBill      *Money
+}
+
+type OFInvestment struct {
+	ID      string
+	Name    string
+	Type    string
+	Balance Money
 }
 
 type OFTransaction struct {

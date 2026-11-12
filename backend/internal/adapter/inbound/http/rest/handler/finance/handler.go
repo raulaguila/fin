@@ -46,6 +46,7 @@ func (h *Handler) Routes(r fiber.Router, chatLimit fiber.Handler) {
 	r.Get("/rules/suggestions", h.RuleSuggestions)
 	r.Post("/rules", h.CreateRule)
 	r.Delete("/rules/:id", h.DeleteRule)
+	h.planningRoutes(r)
 	r.Post("/assistant/chat", chatLimit, h.Chat)
 }
 
@@ -87,11 +88,12 @@ type connectionDTO struct {
 	LastSyncAt       *time.Time   `json:"last_sync_at"`
 	CreatedAt        time.Time    `json:"created_at"`
 	Accounts         []accountDTO `json:"accounts"`
+	Manual           bool         `json:"manual"` // imported statements, no bank behind it
 }
 
 func toConnection(c domain.Connection) connectionDTO {
 	out := connectionDTO{ID: c.ID, ItemID: c.ItemID, Institution: c.Institution, ImageURL: c.ImageURL, Status: c.Status, Error: c.Error,
-		ConsentExpiresAt: c.ConsentExpiresAt, LastSyncAt: c.LastSyncAt, CreatedAt: c.CreatedAt, Accounts: []accountDTO{}}
+		ConsentExpiresAt: c.ConsentExpiresAt, LastSyncAt: c.LastSyncAt, CreatedAt: c.CreatedAt, Accounts: []accountDTO{}, Manual: c.Manual()}
 	for _, a := range c.Accounts {
 		out.Accounts = append(out.Accounts, toAccount(a))
 	}
@@ -114,12 +116,13 @@ type transactionDTO struct {
 	CategorySource string `json:"category_source" example:"auto"`
 	Installment    int    `json:"installment"`
 	Installments   int    `json:"installments"`
+	SplitOf        string `json:"split_of"` // the original transaction when this row is a split part
 }
 
 func toTransaction(t domain.Transaction) transactionDTO {
 	return transactionDTO{ID: t.ID, AccountID: t.AccountID, AccountName: t.AccountName, AccountType: t.AccountType, Institution: t.Institution,
 		Date: t.Date.Format(time.DateOnly), Description: t.Description, Amount: t.Amount, Status: t.Status, CategoryID: t.CategoryID,
-		CategoryName: t.CategoryName, CategoryKind: t.CategoryKind, CategorySource: t.CategorySource, Installment: t.Installment, Installments: t.Installments}
+		CategoryName: t.CategoryName, CategoryKind: t.CategoryKind, CategorySource: t.CategorySource, Installment: t.Installment, Installments: t.Installments, SplitOf: t.SplitOf}
 }
 
 func toTransactions(list []domain.Transaction) []transactionDTO {
@@ -314,6 +317,15 @@ type summaryDTO struct {
 	Recurring    []recurringDTO     `json:"recurring"`
 	Installments []installmentDTO   `json:"installments"`
 	Forecast     *forecastDTO       `json:"forecast"` // only for the current month
+	Investments  []investmentDTO    `json:"investments"`
+}
+
+type investmentDTO struct {
+	ID           string `json:"id"`
+	ConnectionID string `json:"connection_id"`
+	Name         string `json:"name"`
+	Type         string `json:"type" example:"FIXED_INCOME"`
+	Balance      int64  `json:"balance"`
 }
 
 func parseMonth(s string) (time.Time, error) {
@@ -346,7 +358,7 @@ func (h *Handler) Summary(c fiber.Ctx) error {
 		return mapper.WriteError(c, err)
 	}
 	out := summaryDTO{Month: s.Month.Format("2006-01"), Income: s.Income, Expense: s.Expense, Institutions: s.Institutions,
-		Categories: []categoryTotalDTO{}, Accounts: []accountDTO{}, Recent: toTransactions(s.Recent), Recurring: []recurringDTO{}, Installments: []installmentDTO{}}
+		Categories: []categoryTotalDTO{}, Accounts: []accountDTO{}, Recent: toTransactions(s.Recent), Recurring: []recurringDTO{}, Installments: []installmentDTO{}, Investments: []investmentDTO{}}
 	for _, t := range s.Categories {
 		dto := categoryTotalDTO{CategoryID: t.CategoryID, Name: t.Name, Kind: t.Kind, Limit: t.Limit, Total: t.Total, Count: t.Count}
 		if t.CategoryID != "" || t.Total < 0 {
@@ -365,6 +377,9 @@ func (h *Handler) Summary(c fiber.Ctx) error {
 	}
 	for _, i := range s.Installments {
 		out.Installments = append(out.Installments, installmentDTO{Description: i.Description, Amount: i.Amount, Remaining: i.Remaining})
+	}
+	for _, i := range s.Investments {
+		out.Investments = append(out.Investments, investmentDTO{ID: i.ID, ConnectionID: i.ConnectionID, Name: i.Name, Type: i.Type, Balance: i.Balance})
 	}
 	return c.JSON(out)
 }

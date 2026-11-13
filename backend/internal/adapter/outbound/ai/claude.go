@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -20,12 +21,13 @@ type Claude struct {
 	cfg config.AIConfig
 }
 
-func (c Claude) Ask(ctx context.Context, system, prompt string) (string, error) {
-	args := []string{
-		"-p", "--output-format", "json",
-		"--tools", "", "--strict-mcp-config",
-		"--no-session-persistence", "--setting-sources", "",
+func (c Claude) Ask(ctx context.Context, system, prompt string, onDelta func(string)) (string, error) {
+	format := []string{"--output-format", "json"}
+	if onDelta != nil {
+		format = []string{"--output-format", "stream-json", "--verbose", "--include-partial-messages"}
 	}
+	args := append([]string{"-p"}, format...)
+	args = append(args, "--tools", "", "--strict-mcp-config", "--no-session-persistence", "--setting-sources", "")
 	if system != "" {
 		args = append(args, "--system-prompt", system)
 	}
@@ -38,6 +40,9 @@ func (c Claude) Ask(ctx context.Context, system, prompt string) (string, error) 
 	cmd.Stdin = strings.NewReader(prompt) // financial data stays out of argv and ps
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
+	if onDelta != nil {
+		return streamClaude(cmd, &stderr, onDelta)
+	}
 
 	out, runErr := cmd.Output()
 	if len(out) > 0 {
@@ -86,4 +91,47 @@ func parseClaude(out []byte) (string, error) {
 		return "", fmt.Errorf("claude: %s", r.Result)
 	}
 	return r.Result, nil
+}
+
+// streamClaude reads --output-format stream-json: one JSON event per line, text
+// deltas in stream_event lines and the outcome in the last, result, line.
+func streamClaude(cmd *exec.Cmd, stderr *bytes.Buffer, onDelta func(string)) (string, error) {
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("claude: %w", err)
+	}
+	var result []byte
+	sc := bufio.NewScanner(out)
+	sc.Buffer(make([]byte, 64<<10), 4<<20)
+	for sc.Scan() {
+		var ev struct {
+			Type  string `json:"type"`
+			Event struct {
+				Delta struct {
+					Type string `json:"type"`
+					Text string `json:"text"`
+				} `json:"delta"`
+			} `json:"event"`
+		}
+		if json.Unmarshal(sc.Bytes(), &ev) != nil {
+			continue
+		}
+		switch {
+		case ev.Type == "stream_event" && ev.Event.Delta.Type == "text_delta" && ev.Event.Delta.Text != "":
+			onDelta(ev.Event.Delta.Text)
+		case ev.Type == "result":
+			result = append(result[:0], sc.Bytes()...)
+		}
+	}
+	waitErr := cmd.Wait()
+	if result != nil {
+		return parseClaude(result)
+	}
+	if waitErr != nil {
+		return "", fmt.Errorf("claude: %w: %s", waitErr, strings.TrimSpace(stderr.String()))
+	}
+	return "", errors.New("claude: no result in output")
 }

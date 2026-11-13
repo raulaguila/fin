@@ -114,7 +114,7 @@ func askAI(in *os.File, out, errOut io.Writer) int {
 		return 2
 	}
 	started := time.Now()
-	answer, err := assistant.Ask(context.Background(), "Você é o assistente financeiro do app Fin. Responda em português, de forma breve.", prompt)
+	answer, err := assistant.Ask(context.Background(), "Você é o assistente financeiro do app Fin. Responda em português, de forma breve.", prompt, nil)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1

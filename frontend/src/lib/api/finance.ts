@@ -1,6 +1,6 @@
 // Personal finance API (/v1/finance). Money is integer cents; a negative amount leaves the user.
-import { apiFetch } from "@/lib/api/client";
-import type { Paged } from "@/lib/api/types";
+import { apiFetch, apiStream } from "@/lib/api/client";
+import type { ApiErrorBody, Paged } from "@/lib/api/types";
 
 export type Cents = number;
 export type CategoryKind = "expense" | "income" | "transfer";
@@ -219,6 +219,23 @@ export interface ChatMessage {
   content: string;
 }
 
+/** A change the assistant proposes; nothing happens until the user applies it. */
+export interface ChatAction {
+  kind: "rule" | "subscription";
+  keyword: string;
+  category_id?: string;
+  category_name?: string;
+  name?: string;
+  amount?: Cents;
+  day?: number;
+}
+
+export type ChatEvent =
+  | { type: "delta" | "status"; text: string }
+  | { type: "reset" }
+  | { type: "done"; answer: string; actions?: ChatAction[] }
+  | { type: "error"; error: ApiErrorBody };
+
 export interface TransactionQuery {
   page: number;
   limit: number;
@@ -288,7 +305,8 @@ export const finance = {
   updateGoal: (goalId: string, g: Omit<Goal, "id" | "current">) => apiFetch<Goal>(`${base}/goals/${id(goalId)}`, { method: "PUT", json: g }),
   removeGoal: (goalId: string) => apiFetch<void>(`${base}/goals/${id(goalId)}`, { method: "DELETE" }),
 
-  chat: (messages: ChatMessage[]) => apiFetch<{ answer: string }>(`${base}/assistant/chat`, { method: "POST", json: { messages } }),
+  chat: (messages: ChatMessage[], onEvent: (e: ChatEvent) => void, signal?: AbortSignal) =>
+    apiStream<ChatEvent>(`${base}/assistant/chat`, { method: "POST", json: { messages }, signal }, onEvent),
 };
 
 /** Month as YYYY-MM of a date, in local time. */

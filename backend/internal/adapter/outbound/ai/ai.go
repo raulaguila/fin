@@ -33,8 +33,8 @@ type timed struct {
 	cfg  config.AIConfig
 }
 
-func (t timed) Ask(ctx context.Context, system, prompt string) (string, error) {
+func (t timed) Ask(ctx context.Context, system, prompt string, onDelta func(string)) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, t.cfg.Timeout)
 	defer cancel()
-	return t.next.Ask(ctx, system, prompt)
+	return t.next.Ask(ctx, system, prompt, onDelta)
 }

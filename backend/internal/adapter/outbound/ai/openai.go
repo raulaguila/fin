@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -30,13 +31,13 @@ type chatMessage struct {
 	Content string `json:"content"`
 }
 
-func (o OpenAI) Ask(ctx context.Context, system, prompt string) (string, error) {
+func (o OpenAI) Ask(ctx context.Context, system, prompt string, onDelta func(string)) (string, error) {
 	messages := make([]chatMessage, 0, 2)
 	if system != "" {
 		messages = append(messages, chatMessage{Role: "system", Content: system})
 	}
 	messages = append(messages, chatMessage{Role: "user", Content: prompt})
-	body, err := json.Marshal(map[string]any{"model": o.cfg.Model, "messages": messages})
+	body, err := json.Marshal(map[string]any{"model": o.cfg.Model, "messages": messages, "stream": onDelta != nil})
 	if err != nil {
 		return "", err
 	}
@@ -56,12 +57,16 @@ func (o OpenAI) Ask(ctx context.Context, system, prompt string) (string, error) 
 		return "", fmt.Errorf("openai: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		data, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return "", fmt.Errorf("openai: status %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+	if onDelta != nil {
+		return readOpenAIStream(io.LimitReader(resp.Body, maxResponse), onDelta)
+	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponse))
 	if err != nil {
 		return "", fmt.Errorf("openai: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("openai: status %d: %s", resp.StatusCode, strings.TrimSpace(string(data[:min(len(data), 512)])))
 	}
 
 	var r struct {
@@ -76,4 +81,45 @@ func (o OpenAI) Ask(ctx context.Context, system, prompt string) (string, error) 
 		return "", errors.New("openai: no choices in response")
 	}
 	return r.Choices[0].Message.Content, nil
+}
+
+// readOpenAIStream reads the server-sent events of a streamed completion:
+// "data: {chunk}" lines, then "data: [DONE]".
+func readOpenAIStream(r io.Reader, onDelta func(string)) (string, error) {
+	var answer strings.Builder
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 64<<10), maxResponse)
+	for sc.Scan() {
+		data, ok := strings.CutPrefix(sc.Text(), "data:")
+		data = strings.TrimSpace(data)
+		if !ok || data == "" {
+			continue
+		}
+		if data == "[DONE]" {
+			break
+		}
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content string `json:"content"`
+				} `json:"delta"`
+			} `json:"choices"`
+		}
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			return "", fmt.Errorf("openai: unreadable chunk: %w", err)
+		}
+		for _, c := range chunk.Choices {
+			if c.Delta.Content != "" {
+				answer.WriteString(c.Delta.Content)
+				onDelta(c.Delta.Content)
+			}
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return "", fmt.Errorf("openai: %w", err)
+	}
+	if answer.Len() == 0 {
+		return "", errors.New("openai: empty answer")
+	}
+	return answer.String(), nil
 }

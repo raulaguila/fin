@@ -150,38 +150,111 @@ func percent(part, whole domain.Money) int64 {
 	return part * 100 / whole
 }
 
-func (s *Service) Chat(ctx context.Context, userID string, history []domain.ChatMessage) (string, error) {
+// Chat answers from the computed facts. The model may ask for more with a tool
+// call (read only) a few times, and may propose actions the user applies later.
+func (s *Service) Chat(ctx context.Context, userID string, history []domain.ChatMessage, emit func(kind, text string)) (*domain.ChatReply, error) {
 	if s.AI == nil {
-		return "", disabled("assistant")
+		return nil, disabled("assistant")
 	}
 	if len(history) == 0 || history[len(history)-1].Role != "user" {
-		return "", apperror.New(apperror.CodeInvalidInput, "the last message must be the user's").WithField("messages")
+		return nil, apperror.New(apperror.CodeInvalidInput, "the last message must be the user's").WithField("messages")
+	}
+	if emit == nil {
+		emit = func(string, string) {}
 	}
 	history = history[max(0, len(history)-maxChatTurns):]
-	facts, err := s.financialContext(ctx, userID, s.Clock.Now())
+	var conv strings.Builder
+	for _, m := range history {
+		text := strings.TrimSpace(validate.Text(m.Content, maxChatMessage))
+		if text == "" {
+			return nil, apperror.New(apperror.CodeInvalidInput, "empty message").WithField("messages")
+		}
+		switch m.Role {
+		case "user":
+			conv.WriteString("Usuário: ")
+		case "assistant":
+			conv.WriteString("Fin: ")
+		default:
+			return nil, apperror.New(apperror.CodeInvalidInput, "role must be user or assistant").WithField("messages")
+		}
+		conv.WriteString(text)
+		conv.WriteString("\n")
+	}
+
+	now := s.Clock.Now()
+	facts, err := s.financialContext(ctx, userID, now)
 	if err != nil {
-		return "", err
+		return nil, err
+	}
+	cats, err := s.repo().Categories(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	plan, err := s.planningContext(ctx, userID, cats)
+	if err != nil {
+		return nil, err
 	}
 	var b strings.Builder
 	b.WriteString("DADOS (calculados pelo app):\n")
 	b.WriteString(facts)
+	b.WriteString(plan)
 	b.WriteString("\nCONVERSA:\n")
-	for _, m := range history {
-		text := strings.TrimSpace(validate.Text(m.Content, maxChatMessage))
-		if text == "" {
-			return "", apperror.New(apperror.CodeInvalidInput, "empty message").WithField("messages")
+	b.WriteString(conv.String())
+
+	for round := 0; ; round++ {
+		answer, streamed, err := s.askStreaming(ctx, b.String()+"\nResponda à última mensagem do usuário.", emit)
+		if err != nil {
+			return nil, err
 		}
-		switch m.Role {
-		case "user":
-			b.WriteString("Usuário: ")
-		case "assistant":
-			b.WriteString("Fin: ")
-		default:
-			return "", apperror.New(apperror.CodeInvalidInput, "role must be user or assistant").WithField("messages")
+		call, isCall := parseToolCall(answer)
+		if !isCall {
+			text, actions := parseActions(answer, cats)
+			switch {
+			case text != "":
+			case len(actions) > 0:
+				text = "Minhas sugestões:" // the history sent back must not hold an empty turn
+			default:
+				text = "Não consegui responder agora. Tente de novo."
+			}
+			return &domain.ChatReply{Answer: text, Actions: actions}, nil
 		}
-		b.WriteString(text)
-		b.WriteString("\n")
+		if streamed {
+			emit("reset", "")
+		}
+		if round == maxToolRounds {
+			return &domain.ChatReply{Answer: "Não consegui reunir os dados para responder. Tente perguntar de outro jeito."}, nil
+		}
+		emit("status", call.status())
+		result, err := s.runTool(ctx, userID, now, call, cats)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Fprintf(&b, "\nFin pediu: %s\nRESULTADO (calculado pelo app):\n%s\n", call.raw, result)
 	}
-	b.WriteString("\nResponda à última mensagem do usuário.")
-	return s.AI.Ask(ctx, systemPrompt, b.String())
+}
+
+// askStreaming forwards the answer as it arrives, unless it opens like a tool
+// call ("{" or a code fence): that one the user never sees.
+func (s *Service) askStreaming(ctx context.Context, prompt string, emit func(kind, text string)) (answer string, streamed bool, err error) {
+	var head strings.Builder
+	decided, hidden := false, false
+	answer, err = s.AI.Ask(ctx, systemPrompt+"\n\n"+toolsPrompt, prompt, func(d string) {
+		if decided {
+			if !hidden {
+				emit("delta", d)
+			}
+			return
+		}
+		head.WriteString(d)
+		t := strings.TrimSpace(head.String())
+		if t == "" {
+			return
+		}
+		decided, hidden = true, strings.HasPrefix(t, "{") || strings.HasPrefix(t, "`")
+		if !hidden {
+			streamed = true
+			emit("delta", head.String())
+		}
+	})
+	return answer, streamed, err
 }

@@ -2,7 +2,10 @@
 package finance
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
+	"fmt"
 	"crypto/subtle"
 	"time"
 
@@ -13,6 +16,7 @@ import (
 	"github.com/raulaguila/fin/internal/core/domain"
 	"github.com/raulaguila/fin/internal/core/port/input"
 	"github.com/raulaguila/fin/pkg/apperror"
+	"github.com/raulaguila/fin/pkg/reqctx"
 )
 
 type Handler struct {
@@ -738,16 +742,39 @@ type chatDTO struct {
 	Messages []chatMessageDTO `json:"messages"`
 }
 
+type chatActionDTO struct {
+	Kind         string `json:"kind" enums:"rule,subscription"`
+	Keyword      string `json:"keyword"`
+	CategoryID   string `json:"category_id,omitempty"`
+	CategoryName string `json:"category_name,omitempty"`
+	Name         string `json:"name,omitempty"`
+	Amount       int64  `json:"amount,omitempty"`
+	Day          int    `json:"day,omitempty"`
+}
+
+// chatEventDTO is one server-sent event of the chat stream.
+type chatEventDTO struct {
+	Type    string          `json:"type" enums:"delta,reset,status,done,error"`
+	Text    string          `json:"text,omitempty"`
+	Answer  string          `json:"answer"`
+	Actions []chatActionDTO `json:"actions,omitempty"`
+	Error   any             `json:"error,omitempty"`
+}
+
+// streamWindow is how long one write of the stream may take; each event
+// extends it, so the answer can outlast API_WRITE_TIMEOUT.
+const streamWindow = 30 * time.Second
+
 // @Summary Ask the assistant about the current user's finances; the client keeps the history
+// @Description Server-sent events, one JSON object per "data:" line: delta (answer text), reset (drop the text so far: it was a tool call), status (what the assistant is reading), then done (clean answer and proposed actions) or error. Actions change nothing until the client calls the rule or subscription endpoint.
 // @Tags Assistant
 // @Accept json
-// @Produce json
+// @Produce text/event-stream
 // @Param body body chatDTO true "Conversation, oldest first, ending with the user's message"
 // @Security BearerAuth
-// @Success 200 {object} object{answer=string}
+// @Success 200 {object} chatEventDTO
 // @Failure 400 {object} mapper.errorBody
 // @Failure 401 {object} mapper.errorBody
-// @Failure 409 {object} mapper.errorBody
 // @Failure 429 {object} mapper.errorBody
 // @Router /v1/finance/assistant/chat [post]
 func (h *Handler) Chat(c fiber.Ctx) error {
@@ -759,12 +786,34 @@ func (h *Handler) Chat(c fiber.Ctx) error {
 	for _, m := range body.Messages {
 		history = append(history, domain.ChatMessage{Role: m.Role, Content: m.Content})
 	}
-	// The model takes longer than the request timeout; AI_TIMEOUT bounds it instead.
-	answer, err := h.svc.Chat(context.WithoutCancel(c.Context()), middleware.UserID(c), history)
-	if err != nil {
-		return mapper.WriteError(c, err)
-	}
-	return c.JSON(fiber.Map{"answer": answer})
+	userID := middleware.UserID(c)
+	// The stream outlives the handler and its request context; AI_TIMEOUT bounds each model call.
+	ctx, cancel := context.WithCancel(reqctx.WithRequestID(context.Background(), reqctx.RequestID(c.Context())))
+	conn := c.RequestCtx().Conn()
+	c.Set(fiber.HeaderContentType, "text/event-stream")
+	c.Set(fiber.HeaderCacheControl, "no-cache")
+	c.Set("X-Accel-Buffering", "no")
+	return c.SendStreamWriter(func(w *bufio.Writer) {
+		defer cancel()
+		send := func(ev chatEventDTO) {
+			data, _ := json.Marshal(ev)
+			_ = conn.SetWriteDeadline(time.Now().Add(streamWindow))
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
+			if w.Flush() != nil {
+				cancel() // the browser went away: stop paying for the answer
+			}
+		}
+		reply, err := h.svc.Chat(ctx, userID, history, func(kind, text string) { send(chatEventDTO{Type: kind, Text: text}) })
+		if err != nil {
+			send(chatEventDTO{Type: "error", Error: mapper.ErrorJSON(err)})
+			return
+		}
+		actions := make([]chatActionDTO, 0, len(reply.Actions))
+		for _, a := range reply.Actions {
+			actions = append(actions, chatActionDTO{Kind: a.Kind, Keyword: a.Keyword, CategoryID: a.CategoryID, CategoryName: a.CategoryName, Name: a.Name, Amount: int64(a.Amount), Day: a.Day})
+		}
+		send(chatEventDTO{Type: "done", Answer: reply.Answer, Actions: actions})
+	})
 }
 
 // ---- webhook ----

@@ -26,7 +26,7 @@ Princípios:
 | **Pessoas** | Pix e TED por pessoa nos últimos 12 meses: quanto enviou e recebeu. Um botão marca o que alguém te devolve como **reembolso**, que abate a despesa em vez de inflar a receita. |
 | **Categorias e regras** | Suas categorias e regras por palavra-chave ("uber" → Transporte), com sugestões tiradas dos estabelecimentos que se repetem sem categoria. Uma regra nova recategoriza o passado; sua escolha manual nunca é sobrescrita por uma sincronização. |
 | **Conexões** | Conectar, sincronizar e remover bancos; mostra o vencimento do consentimento. Para um banco que o Open Finance não alcança, **Importar extrato** cria uma conta e lê arquivos OFX ou CSV (Nubank e outros); reenviar o mesmo arquivo não duplica nada. |
-| **Assistente** | Perguntas em linguagem natural: "posso gastar R$ 500 este mês?", "onde gastei mais?". |
+| **Assistente** | Botão flutuante em qualquer tela, com sugestões da tela atual. Responde em tempo real a partir do mês, do ano, das assinaturas, metas e próximos 30 dias; busca transações de qualquer período, um mês ou as transferências por pessoa quando precisa; propõe regras e assinaturas que você aplica com um clique. Toda segunda manda o resumo da semana. Só lê: nunca move dinheiro. |
 | **Notificações** | Orçamento estourado, fatura vencendo, gasto grande fora do padrão, conta no negativo e cobrança de juros, cobrança repetida no mesmo dia, conta recorrente que ficou mais cara, consentimento perto de vencer, conexão com erro e resumo do mês. Com SMTP ligado, os avisos e os críticos também chegam por e-mail. |
 
 Uma rotina diária sincroniza os bancos e gera os alertas.

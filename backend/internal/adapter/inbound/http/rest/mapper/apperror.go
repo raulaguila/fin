@@ -20,6 +20,15 @@ type errorBody struct {
 	Details map[string]any `json:"details,omitempty"`
 }
 
+// ErrorJSON is the body WriteError would send, for errors told inside a stream.
+func ErrorJSON(err error) any {
+	var appErr *apperror.Error
+	if !errors.As(err, &appErr) {
+		appErr = apperror.New(apperror.CodeInternal, "internal error")
+	}
+	return errorBody{Code: string(appErr.Code), Message: appErr.Message, Field: appErr.Field, Details: appErr.Details}
+}
+
 // WriteError maps apperror (or generic error) to an HTTP JSON response.
 func WriteError(c fiber.Ctx, err error) error {
 	var appErr *apperror.Error

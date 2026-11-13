@@ -292,6 +292,29 @@ type ChatMessage struct {
 	Content string
 }
 
+// Kinds of ChatAction.
+const (
+	ActionRule         = "rule"
+	ActionSubscription = "subscription"
+)
+
+// ChatAction is a change the assistant proposes; it happens only when the user applies it.
+type ChatAction struct {
+	Kind         string
+	Keyword      string // both kinds
+	CategoryID   string // rule
+	CategoryName string // rule
+	Name         string // subscription
+	Amount       Money  // subscription, positive
+	Day          int    // subscription, monthly
+}
+
+// ChatReply is the assistant's answer and the changes it proposes.
+type ChatReply struct {
+	Answer  string
+	Actions []ChatAction
+}
+
 // Open Finance data as the provider returns it, before normalization.
 
 type OFItem struct {

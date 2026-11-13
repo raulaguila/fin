@@ -51,11 +51,22 @@ func (f *fakeBank) Investments(context.Context, string) ([]domain.OFInvestment, 
 	return []domain.OFInvestment{{ID: "inv-" + f.owner, Name: "CDB Banco Teste", Type: "FIXED_INCOME", Balance: 1500000}}, nil
 }
 
-type fakeAI struct{ prompts []string }
+// fakeAI answers with replies in order, then with a fixed text.
+type fakeAI struct {
+	prompts []string
+	replies []string
+}
 
-func (a *fakeAI) Ask(_ context.Context, _, prompt string) (string, error) {
+func (a *fakeAI) Ask(_ context.Context, _, prompt string, onDelta func(string)) (string, error) {
 	a.prompts = append(a.prompts, prompt)
-	return "Resposta do modelo.", nil
+	answer := "Resposta do modelo."
+	if len(a.replies) > 0 {
+		answer, a.replies = a.replies[0], a.replies[1:]
+	}
+	if onDelta != nil {
+		onDelta(answer)
+	}
+	return answer, nil
 }
 
 var _ output.OpenFinance = (*fakeBank)(nil)
@@ -305,12 +316,22 @@ func TestFinanceSyncSummaryRulesAndAlerts(t *testing.T) {
 	}
 
 	// The assistant gets the computed facts, never an account number.
-	answer, err := svc.Chat(ctx, userID, []domain.ChatMessage{{Role: "user", Content: "Posso gastar R$ 500?"}})
-	if err != nil || answer == "" {
-		t.Fatalf("chat %q %v", answer, err)
+	// It may search with a tool (the call never reaches the user) and propose an action.
+	ai.replies = []string{
+		`{"ferramenta":"buscar_transacoes","texto":"uber"}`,
+		"Gastou com Uber.\nAÇÃO {\"tipo\":\"regra\",\"palavra\":\"uber\",\"categoria\":\"Transporte\"}",
+	}
+	var events []string
+	reply, err := svc.Chat(ctx, userID, []domain.ChatMessage{{Role: "user", Content: "Quanto gastei de Uber?"}}, func(kind, _ string) { events = append(events, kind) })
+	if err != nil || reply.Answer != "Gastou com Uber." || len(reply.Actions) != 1 || reply.Actions[0].CategoryName != "Transporte" {
+		t.Fatalf("chat %+v %v", reply, err)
+	}
+	if strings.Join(events, ",") != "status,delta" {
+		t.Fatalf("events %v", events)
 	}
 	prompt := ai.prompts[len(ai.prompts)-1]
-	if !strings.Contains(prompt, "R$ 10.000,00") || !strings.Contains(prompt, "Cartão Gold") || strings.Contains(prompt, "0001") {
+	if !strings.Contains(prompt, "R$ 10.000,00") || !strings.Contains(prompt, "Cartão Gold") || strings.Contains(prompt, "0001") ||
+		!strings.Contains(prompt, "RESULTADO") || !strings.Contains(prompt, "UBER *TRIP") {
 		t.Fatalf("prompt:\n%s", prompt)
 	}
 

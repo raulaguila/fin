@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
 const MAX_BODY = 104 * 1024; // the backend refuses more: a 100 KB picture is its largest body
 const TOKEN_PATHS = /^v1\/auth\/(login|refresh|logout|register|activate|password-reset)(\/|$)/;
 const PASSTHROUGH = ["content-type", "content-disposition", "retry-after", "x-request-id"];
-const COMPRESSIBLE = /^(application\/json|text\/)/;
+const COMPRESSIBLE = /^(application\/json|text\/(?!event-stream))/; // gzip would hold back a stream's events
+const STREAM_PATHS = /^v1\/finance\/assistant\//;
 const MIN_GZIP = 1024; // below this the gzip header costs more than it saves
 
 /** Gzips JSON and text when the browser takes it: Next compresses pages, not route handler streams. */
@@ -48,7 +49,8 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
       },
       body,
       cache: "no-store",
-      signal: AbortSignal.any([req.signal, AbortSignal.timeout(30_000)]),
+      // The assistant streams its answer for minutes; everything else answers fast.
+      signal: AbortSignal.any([req.signal, AbortSignal.timeout(STREAM_PATHS.test(routed) ? 600_000 : 30_000)]),
     });
 
   let rotated: Session | null = null;

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -63,13 +65,13 @@ func TestOpenAI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := assistant.Ask(context.Background(), "sys", "pergunta")
+	got, err := assistant.Ask(context.Background(), "sys", "pergunta", nil)
 	if err != nil || got != "resposta" {
 		t.Fatalf("got %q, %v", got, err)
 	}
 
 	cfg.OpenAIKey = "wrong"
-	if _, err := NewOpenAI(cfg).Ask(context.Background(), "sys", "x"); err == nil || !strings.Contains(err.Error(), "status 400") {
+	if _, err := NewOpenAI(cfg).Ask(context.Background(), "sys", "x", nil); err == nil || !strings.Contains(err.Error(), "status 400") {
 		t.Fatalf("want status error, got %v", err)
 	}
 }
@@ -77,5 +79,45 @@ func TestOpenAI(t *testing.T) {
 func TestNewDisabled(t *testing.T) {
 	if _, err := New(config.AIConfig{}); !errors.Is(err, ErrDisabled) {
 		t.Fatalf("want ErrDisabled, got %v", err)
+	}
+}
+
+func TestOpenAIStream(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Stream bool `json:"stream"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if !body.Stream {
+			http.Error(w, "want stream", http.StatusBadRequest)
+			return
+		}
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"res\"}}]}\n\n" +
+			": keep-alive\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"posta\"}}]}\n\ndata: [DONE]\n\n"))
+	}))
+	defer srv.Close()
+	var parts []string
+	got, err := NewOpenAI(config.AIConfig{Model: "m", OpenAIURL: srv.URL}).Ask(context.Background(), "", "p", func(d string) { parts = append(parts, d) })
+	if err != nil || got != "resposta" || strings.Join(parts, "|") != "res|posta" {
+		t.Fatalf("got %q %v %v", got, parts, err)
+	}
+}
+
+func TestClaudeStream(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "claude")
+	script := `#!/bin/sh
+cat >/dev/null
+echo '{"type":"system","subtype":"init"}'
+echo '{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"o"}}}'
+echo '{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"i"}}}'
+echo '{"type":"result","subtype":"success","is_error":false,"result":"oi"}'
+`
+	if err := os.WriteFile(bin, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	var parts []string
+	got, err := Claude{cfg: config.AIConfig{ClaudeBin: bin}}.Ask(context.Background(), "s", "p", func(d string) { parts = append(parts, d) })
+	if err != nil || got != "oi" || strings.Join(parts, "") != "oi" {
+		t.Fatalf("got %q %v %v", got, parts, err)
 	}
 }

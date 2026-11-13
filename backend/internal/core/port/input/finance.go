@@ -72,5 +72,7 @@ type FinanceService interface {
 	UpdateGoal(ctx context.Context, userID, id string, g domain.Goal) (*domain.Goal, error)
 	DeleteGoal(ctx context.Context, userID, id string) error
 
-	Chat(ctx context.Context, userID string, history []domain.ChatMessage) (string, error)
+	// Chat answers the last user message. emit, when set, gets progress as it
+	// happens: "delta" (answer text), "reset" (drop the text so far) or "status".
+	Chat(ctx context.Context, userID string, history []domain.ChatMessage, emit func(kind, text string)) (*domain.ChatReply, error)
 }

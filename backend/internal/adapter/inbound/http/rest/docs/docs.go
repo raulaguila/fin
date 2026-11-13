@@ -690,11 +690,12 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "Server-sent events, one JSON object per \"data:\" line: delta (answer text), reset (drop the text so far: it was a tool call), status (what the assistant is reading), then done (clean answer and proposed actions) or error. Actions change nothing until the client calls the rule or subscription endpoint.",
                 "consumes": [
                     "application/json"
                 ],
                 "produces": [
-                    "application/json"
+                    "text/event-stream"
                 ],
                 "tags": [
                     "Assistant"
@@ -715,12 +716,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "properties": {
-                                "answer": {
-                                    "type": "string"
-                                }
-                            }
+                            "$ref": "#/definitions/finance.chatEventDTO"
                         }
                     },
                     "400": {
@@ -731,12 +727,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/mapper.errorBody"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
                         }
@@ -5365,6 +5355,36 @@ const docTemplate = `{
                 }
             }
         },
+        "finance.chatActionDTO": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "category_id": {
+                    "type": "string"
+                },
+                "category_name": {
+                    "type": "string"
+                },
+                "day": {
+                    "type": "integer"
+                },
+                "keyword": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "rule",
+                        "subscription"
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "finance.chatDTO": {
             "type": "object",
             "properties": {
@@ -5373,6 +5393,34 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/finance.chatMessageDTO"
                     }
+                }
+            }
+        },
+        "finance.chatEventDTO": {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/finance.chatActionDTO"
+                    }
+                },
+                "answer": {
+                    "type": "string"
+                },
+                "error": {},
+                "text": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "delta",
+                        "reset",
+                        "status",
+                        "done",
+                        "error"
+                    ]
                 }
             }
         },

@@ -79,6 +79,25 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
   return (await res.json()) as T;
 }
 
+/** Reads a server-sent events answer, calling onEvent with each "data:" JSON object. */
+export async function apiStream<E>(path: string, opts: FetchOpts, onEvent: (event: E) => void): Promise<void> {
+  const res = await apiResponse(path, opts);
+  if (!res.body) return;
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+    let end;
+    while ((end = buffer.indexOf("\n\n")) >= 0) {
+      const block = buffer.slice(0, end);
+      buffer = buffer.slice(end + 2);
+      for (const line of block.split("\n")) if (line.startsWith("data:")) onEvent(JSON.parse(line.slice(5)) as E);
+    }
+  }
+}
+
 /** Saves a file answer (such as a CSV export) under the name the server gave. */
 export async function apiDownload(path: string, fallbackName: string): Promise<void> {
   const res = await apiResponse(path, {});

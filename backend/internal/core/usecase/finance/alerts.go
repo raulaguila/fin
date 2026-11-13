@@ -1,9 +1,11 @@
 package finance
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -24,6 +26,7 @@ const (
 	NotifyOverdraft  = "finance_overdraft"
 	NotifyDuplicate  = "finance_duplicate"
 	NotifyPrice      = "finance_price"
+	NotifyWeekly     = "finance_weekly"
 )
 
 const (
@@ -109,7 +112,10 @@ func (s *Service) Alerts(ctx context.Context, userID string) error {
 			return err
 		}
 	}
-	return s.monthlySummary(ctx, userID, now)
+	if err := s.monthlySummary(ctx, userID, now); err != nil {
+		return err
+	}
+	return s.weeklySummary(ctx, userID, now, spending)
 }
 
 func (s *Service) budgetAlerts(ctx context.Context, userID string, now time.Time) ([]alert, error) {
@@ -277,7 +283,7 @@ func (s *Service) monthlySummary(ctx context.Context, userID string, now time.Ti
 				return err
 			}
 			answer, err := s.AI.Ask(ctx, systemPrompt, "DADOS (calculados pelo app):\n"+facts+
-				"\nEscreva o resumo do mês "+monthName(prev)+" em até 6 frases: como foi, onde mais gastou, o que mudou e uma dica concreta de economia.")
+				"\nEscreva o resumo do mês "+monthName(prev)+" em até 6 frases: como foi, onde mais gastou, o que mudou e uma dica concreta de economia.", nil)
 			if err != nil {
 				s.Log.Warn("Monthly summary by the assistant failed", slog.String("error", err.Error()))
 			} else if answer = strings.TrimSpace(answer); answer != "" {
@@ -286,6 +292,77 @@ func (s *Service) monthlySummary(ctx context.Context, userID string, now time.Ti
 		}
 	}
 	return s.notify(ctx, userID, alert{key: key, level: domain.NotificationInfo, kind: NotifySummary, title: title, text: text})
+}
+
+// weeklySummary sends, on Mondays, what the last 7 days cost against the 7
+// before and what falls due this week. With the assistant on, the model writes it.
+func (s *Service) weeklySummary(ctx context.Context, userID string, now time.Time, spending []domain.Transaction) error {
+	if now.Weekday() != time.Monday {
+		return nil
+	}
+	day := monthDay(now)
+	year, week := day.ISOWeek()
+	key := fmt.Sprintf("week:%d-%02d", year, week)
+	text, ok := weekFacts(spending, day)
+	if !ok {
+		return nil
+	}
+	cal, err := s.Calendar(ctx, userID)
+	if err != nil {
+		return err
+	}
+	var due []string
+	for _, e := range cal.Events {
+		if e.Amount < 0 && e.Date.Before(day.AddDate(0, 0, 7)) {
+			due = append(due, fmt.Sprintf("%s %s %s", e.Date.Format("02/01"), e.Name, brl(-e.Amount)))
+		}
+	}
+	if len(due) > 0 {
+		text += " Vence esta semana: " + strings.Join(due, "; ") + "."
+	}
+	if s.AI != nil {
+		// Check first: a repeated run must not pay for a second answer.
+		isNew, err := s.repo().MarkAlert(ctx, userID, key+":ai")
+		if err != nil {
+			return err
+		}
+		if isNew {
+			answer, err := s.AI.Ask(ctx, systemPrompt, "DADOS (calculados pelo app):\n"+text+
+				"\nEscreva o resumo da semana em até 4 frases: quanto gastou, onde, comparação com a semana anterior, o que vence e uma dica concreta.", nil)
+			if err != nil {
+				s.Log.Warn("Weekly summary by the assistant failed", slog.String("error", err.Error()))
+			} else if answer = strings.TrimSpace(answer); answer != "" {
+				text = answer
+			}
+		}
+	}
+	return s.notify(ctx, userID, alert{key: key, level: domain.NotificationInfo, kind: NotifyWeekly, title: "Sua semana", text: text})
+}
+
+// weekFacts tells what the 7 days before day cost, against the 7 before them,
+// and the top 3 categories. ok is false for a week without spending.
+func weekFacts(spending []domain.Transaction, day time.Time) (string, bool) {
+	weekAgo, twoAgo := day.AddDate(0, 0, -7), day.AddDate(0, 0, -14)
+	var last, before domain.Money
+	byCat := map[string]domain.Money{}
+	for _, t := range spending {
+		switch {
+		case !t.Date.Before(weekAgo) && t.Date.Before(day):
+			last += t.Amount
+			byCat[cmp.Or(t.CategoryName, "Sem categoria")] += t.Amount
+		case !t.Date.Before(twoAgo) && t.Date.Before(weekAgo):
+			before += t.Amount
+		}
+	}
+	if last == 0 {
+		return "", false
+	}
+	names := slices.SortedFunc(maps.Keys(byCat), func(a, b string) int { return cmp.Compare(byCat[a], byCat[b]) })
+	top := make([]string, 0, 3)
+	for _, n := range names[:min(len(names), 3)] {
+		top = append(top, fmt.Sprintf("%s %s", n, brl(-byCat[n])))
+	}
+	return fmt.Sprintf("Gastou %s nos últimos 7 dias (%s na semana anterior). Mais em: %s.", brl(-last), brl(-before), strings.Join(top, ", ")), true
 }
 
 var months = []string{"janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"}

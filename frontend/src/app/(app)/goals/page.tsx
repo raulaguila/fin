@@ -8,11 +8,11 @@ import { Meter, useAccountLabel } from "@/components/finance";
 import { PageBody, PageHeader } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
+import { FormSheet } from "@/components/form-sheet";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -58,47 +58,36 @@ function GoalDialog({ goal, open, onClose }: { goal: Goal | null; open: boolean;
   const accounts: Record<string, string> = { [NO_ACCOUNT]: t("fin.goal.no_account") };
   for (const c of connections.data?.items ?? []) for (const a of c.accounts) if (a.type === "BANK") accounts[a.id] = `${c.institution} · ${label(a)}`;
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{goal ? t("fin.goal.edit") : t("fin.goal.new")}</DialogTitle>
-          <DialogDescription>{t("fin.goal.help")}</DialogDescription>
-        </DialogHeader>
-        <form id="goal-form" className="grid gap-3" onSubmit={(e) => { e.preventDefault(); if (valid) save.mutate(); }}>
-          <div className="grid gap-1.5">
-            <Label htmlFor="goal-name">{t("fin.goal.name")}</Label>
-            <Input id="goal-name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder={t("fin.goal.name_hint")} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="goal-target">{t("fin.goal.target")}</Label>
-              <Input id="goal-target" inputMode="decimal" className="text-right font-mono" value={target} onChange={(e) => setTarget(e.target.value)} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="goal-due">{t("fin.goal.due")}</Label>
-              <Input id="goal-due" type="date" value={due} onChange={(e) => setDue(e.target.value)} />
-            </div>
-          </div>
-          <div className="grid gap-1.5">
-            <Label>{t("fin.goal.account")}</Label>
-            <Select value={accountId} items={accounts} onValueChange={(v) => setAccountId(String(v ?? NO_ACCOUNT))}>
-              <SelectTrigger aria-label={t("fin.goal.account")}><SelectValue /></SelectTrigger>
-              <SelectContent>{Object.entries(accounts).map(([value, l]) => <SelectItem key={value} value={value}>{l}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          {accountId === NO_ACCOUNT && (
-            <div className="grid gap-1.5">
-              <Label htmlFor="goal-saved">{t("fin.goal.saved_label")}</Label>
-              <Input id="goal-saved" inputMode="decimal" className="text-right font-mono" value={saved} onChange={(e) => setSaved(e.target.value)} />
-            </div>
-          )}
-        </form>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
-          <Button type="submit" form="goal-form" disabled={!valid || save.isPending}>{t("fin.goal.save")}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FormSheet open={open} onClose={onClose} title={goal ? t("fin.goal.edit") : t("fin.goal.new")} description={t("fin.goal.help")}
+      submitLabel={t("fin.goal.save")} canSubmit={valid} pending={save.isPending} onSubmit={() => save.mutate()}>
+      <div className="grid gap-1.5">
+        <Label htmlFor="goal-name">{t("fin.goal.name")}</Label>
+        <Input id="goal-name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder={t("fin.goal.name_hint")} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-1.5">
+          <Label htmlFor="goal-target">{t("fin.goal.target")}</Label>
+          <Input id="goal-target" inputMode="decimal" className="text-right font-mono" value={target} onChange={(e) => setTarget(e.target.value)} />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="goal-due">{t("fin.goal.due")}</Label>
+          <Input id="goal-due" type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+        </div>
+      </div>
+      <div className="grid gap-1.5">
+        <Label>{t("fin.goal.account")}</Label>
+        <Select value={accountId} items={accounts} onValueChange={(v) => setAccountId(String(v ?? NO_ACCOUNT))}>
+          <SelectTrigger className="w-full" aria-label={t("fin.goal.account")}><SelectValue /></SelectTrigger>
+          <SelectContent>{Object.entries(accounts).map(([value, l]) => <SelectItem key={value} value={value}>{l}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      {accountId === NO_ACCOUNT && (
+        <div className="grid gap-1.5">
+          <Label htmlFor="goal-saved">{t("fin.goal.saved_label")}</Label>
+          <Input id="goal-saved" inputMode="decimal" className="text-right font-mono" value={saved} onChange={(e) => setSaved(e.target.value)} />
+        </div>
+      )}
+    </FormSheet>
   );
 }
 

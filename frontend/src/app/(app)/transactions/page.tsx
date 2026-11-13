@@ -7,12 +7,12 @@ import { toast } from "sonner";
 import { MonthSwitcher, NoConnections, useAccountLabel } from "@/components/finance";
 import { PageBody, PageHeader } from "@/components/bits";
 import { EmptyState } from "@/components/empty-state";
+import { FormSheet } from "@/components/form-sheet";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
 import { TablePagination } from "@/components/table-pagination";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -66,33 +66,23 @@ function SplitDialog({ tx, categories, onClose }: { tx: Transaction | null; cate
   const items: Record<string, string> = {};
   for (const c of categories) items[c.id] = c.name;
   return (
-    <Dialog open={!!tx} onOpenChange={(o) => !o && close()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t("fin.split.title")}</DialogTitle>
-          <DialogDescription>{tx && fill(t("fin.split.desc"), { d: tx.description, v: f.money(tx.amount) })}</DialogDescription>
-        </DialogHeader>
-        <form id="split-form" className="grid gap-3" onSubmit={(e) => { e.preventDefault(); if (valid) save.mutate(); }}>
-          <div className="grid gap-1.5">
-            <Label htmlFor="split-amount">{t("fin.split.amount")}</Label>
-            <Input id="split-amount" inputMode="decimal" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)}
-              aria-invalid={amount !== "" && !valid && categoryId !== ""} className="text-right font-mono" placeholder="0,00" />
-          </div>
-          <div className="grid gap-1.5">
-            <Label>{t("fin.split.category")}</Label>
-            <Select value={categoryId} items={items} onValueChange={(v) => setCategoryId(String(v ?? ""))}>
-              <SelectTrigger aria-label={t("fin.split.category")}><SelectValue placeholder={t("fin.split.category")} /></SelectTrigger>
-              <SelectContent>{Object.entries(items).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          {cents !== null && cents > 0 && cents < whole && <p className="text-xs text-muted-foreground">{fill(t("fin.split.rest"), { v: f.money(whole - cents) })}</p>}
-        </form>
-        <DialogFooter>
-          <Button variant="ghost" onClick={close}>{t("common.cancel")}</Button>
-          <Button type="submit" form="split-form" disabled={!valid || save.isPending}>{t("fin.split.save")}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FormSheet open={!!tx} onClose={close} title={t("fin.split.title")}
+      description={tx && fill(t("fin.split.desc"), { d: tx.description, v: f.money(tx.amount) })}
+      submitLabel={t("fin.split.save")} canSubmit={valid} pending={save.isPending} onSubmit={() => save.mutate()}>
+      <div className="grid gap-1.5">
+        <Label htmlFor="split-amount">{t("fin.split.amount")}</Label>
+        <Input id="split-amount" inputMode="decimal" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)}
+          aria-invalid={amount !== "" && !valid && categoryId !== ""} className="text-right font-mono" placeholder="0,00" />
+        {cents !== null && cents > 0 && cents < whole && <p className="text-xs text-muted-foreground">{fill(t("fin.split.rest"), { v: f.money(whole - cents) })}</p>}
+      </div>
+      <div className="grid gap-1.5">
+        <Label>{t("fin.split.category")}</Label>
+        <Select value={categoryId} items={items} onValueChange={(v) => setCategoryId(String(v ?? ""))}>
+          <SelectTrigger className="w-full" aria-label={t("fin.split.category")}><SelectValue placeholder={t("fin.split.category")} /></SelectTrigger>
+          <SelectContent>{Object.entries(items).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+    </FormSheet>
   );
 }
 

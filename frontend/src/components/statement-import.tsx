@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FileUp } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FormSheet } from "@/components/form-sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -79,36 +79,23 @@ export function ManualAccountDialog({ open, onClose }: { open: boolean; onClose:
   });
   const types = { CREDIT: t("fin.acc.CREDIT_CARD"), BANK: t("fin.acc.CHECKING_ACCOUNT") };
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t("fin.imp.new")}</DialogTitle>
-          <DialogDescription>{t("fin.imp.help")}</DialogDescription>
-        </DialogHeader>
-        <form id="manual-form" className="grid gap-3" onSubmit={(e) => { e.preventDefault(); if (valid) create.mutate(); }}>
-          <div className="grid gap-1.5">
-            <Label htmlFor="manual-inst">{t("fin.imp.institution")}</Label>
-            <Input id="manual-inst" maxLength={60} value={institution} onChange={(e) => setInstitution(e.target.value)} placeholder="Nubank" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="manual-name">{t("fin.imp.name")}</Label>
-              <Input id="manual-name" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>{t("fin.imp.type")}</Label>
-              <Select value={type} items={types} onValueChange={(v) => setType(v === "BANK" ? "BANK" : "CREDIT")}>
-                <SelectTrigger aria-label={t("fin.imp.type")}><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(types).map(([value, l]) => <SelectItem key={value} value={value}>{l}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-          </div>
-        </form>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
-          <Button type="submit" form="manual-form" disabled={!valid || create.isPending}>{t("fin.imp.create")}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FormSheet open={open} onClose={onClose} title={t("fin.imp.new")} description={t("fin.imp.help")}
+      submitLabel={t("fin.imp.create")} canSubmit={valid} pending={create.isPending} onSubmit={() => create.mutate()}>
+      <div className="grid gap-1.5">
+        <Label htmlFor="manual-inst">{t("fin.imp.institution")}</Label>
+        <Input id="manual-inst" maxLength={60} value={institution} onChange={(e) => setInstitution(e.target.value)} placeholder="Nubank" />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="manual-name">{t("fin.imp.name")}</Label>
+        <Input id="manual-name" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="grid gap-1.5">
+        <Label>{t("fin.imp.type")}</Label>
+        <Select value={type} items={types} onValueChange={(v) => setType(v === "BANK" ? "BANK" : "CREDIT")}>
+          <SelectTrigger className="w-full" aria-label={t("fin.imp.type")}><SelectValue /></SelectTrigger>
+          <SelectContent>{Object.entries(types).map(([value, l]) => <SelectItem key={value} value={value}>{l}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+    </FormSheet>
   );
 }

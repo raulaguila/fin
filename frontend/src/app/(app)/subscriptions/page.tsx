@@ -8,11 +8,11 @@ import { useAccountLabel } from "@/components/finance";
 import { PageBody, PageHeader } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
+import { FormSheet } from "@/components/form-sheet";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -72,76 +72,45 @@ function SubscriptionDialog({ draft, onClose }: { draft: Draft; onClose: () => v
   const accounts: Record<string, string> = { [NONE]: t("fin.sub.no_account") };
   for (const c of connections.data?.items ?? []) for (const a of c.accounts) accounts[a.id] = `${c.institution} · ${label(a)}`;
 
+  const pick = (label: string, value: string, items: Record<string, string>, set: (v: string) => void) => (
+    <div className="grid gap-1.5">
+      <Label>{label}</Label>
+      <Select value={value} items={items} onValueChange={(v) => set(String(v ?? NONE))}>
+        <SelectTrigger className="w-full" aria-label={label}><SelectValue /></SelectTrigger>
+        <SelectContent>{Object.entries(items).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+      </Select>
+    </div>
+  );
+
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{draft.id ? t("fin.sub.edit") : t("fin.sub.new")}</DialogTitle>
-          <DialogDescription>{t("fin.sub.help")}</DialogDescription>
-        </DialogHeader>
-        <form id="sub-form" className="grid gap-3" onSubmit={(e) => { e.preventDefault(); if (valid) save.mutate(); }}>
-          <div className="grid grid-cols-[1fr_8rem] gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="sub-name">{t("fin.sub.name")}</Label>
-              <Input id="sub-name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder={t("fin.sub.name_hint")} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="sub-amount">{t("fin.sub.amount")}</Label>
-              <Input id="sub-amount" inputMode="decimal" className="text-right font-mono" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>{t("fin.sub.frequency")}</Label>
-              <Select value={yearly ? "yearly" : "monthly"} items={frequencies} onValueChange={(v) => setYearly(v === "yearly")}>
-                <SelectTrigger className="w-full" aria-label={t("fin.sub.frequency")}><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(frequencies).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className={cn("grid gap-3", yearly && "grid-cols-[4.5rem_1fr]")}>
-              <div className="grid gap-1.5">
-                <Label htmlFor="sub-day">{t("fin.sub.day")}</Label>
-                <Input id="sub-day" inputMode="numeric" className="font-mono" value={day} maxLength={2} onChange={(e) => setDay(e.target.value.replace(/\D/g, ""))} />
-              </div>
-              {yearly && (
-                <div className="grid gap-1.5">
-                  <Label>{t("fin.sub.month")}</Label>
-                  <Select value={month} items={months} onValueChange={(v) => setMonth(String(v))}>
-                    <SelectTrigger className="w-full" aria-label={t("fin.sub.month")}><SelectValue /></SelectTrigger>
-                    <SelectContent>{Object.entries(months).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="sub-keyword">{t("fin.sub.keyword")}</Label>
-            <Input id="sub-keyword" value={keyword} maxLength={60} onChange={(e) => setKeyword(e.target.value)} aria-describedby="sub-keyword-help" />
-            <p id="sub-keyword-help" className="text-xs text-muted-foreground">{t("fin.sub.keyword_help")}</p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="grid gap-1.5">
-              <Label>{t("fin.sub.category")}</Label>
-              <Select value={categoryId} items={cats} onValueChange={(v) => setCategoryId(String(v ?? NONE))}>
-                <SelectTrigger className="w-full" aria-label={t("fin.sub.category")}><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(cats).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>{t("fin.sub.account")}</Label>
-              <Select value={accountId} items={accounts} onValueChange={(v) => setAccountId(String(v ?? NONE))}>
-                <SelectTrigger className="w-full" aria-label={t("fin.sub.account")}><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(accounts).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-          </div>
-        </form>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
-          <Button type="submit" form="sub-form" disabled={!valid || save.isPending}>{t("fin.sub.save")}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FormSheet onClose={onClose} title={draft.id ? t("fin.sub.edit") : t("fin.sub.new")} description={t("fin.sub.help")}
+      submitLabel={t("fin.sub.save")} canSubmit={valid} pending={save.isPending} onSubmit={() => save.mutate()}>
+      <div className="grid gap-1.5">
+        <Label htmlFor="sub-name">{t("fin.sub.name")}</Label>
+        <Input id="sub-name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder={t("fin.sub.name_hint")} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-1.5">
+          <Label htmlFor="sub-amount">{t("fin.sub.amount")}</Label>
+          <Input id="sub-amount" inputMode="decimal" className="text-right font-mono" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" />
+        </div>
+        {pick(t("fin.sub.frequency"), yearly ? "yearly" : "monthly", frequencies, (v) => setYearly(v === "yearly"))}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-1.5">
+          <Label htmlFor="sub-day">{t("fin.sub.day")}</Label>
+          <Input id="sub-day" inputMode="numeric" className="font-mono" value={day} maxLength={2} onChange={(e) => setDay(e.target.value.replace(/\D/g, ""))} />
+        </div>
+        {yearly && pick(t("fin.sub.month"), month, months, setMonth)}
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="sub-keyword">{t("fin.sub.keyword")}</Label>
+        <Input id="sub-keyword" value={keyword} maxLength={60} onChange={(e) => setKeyword(e.target.value)} aria-describedby="sub-keyword-help" />
+        <p id="sub-keyword-help" className="text-xs text-muted-foreground">{t("fin.sub.keyword_help")}</p>
+      </div>
+      {pick(t("fin.sub.category"), categoryId, cats, setCategoryId)}
+      {pick(t("fin.sub.account"), accountId, accounts, setAccountId)}
+    </FormSheet>
   );
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { createElement, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Landmark } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
@@ -11,6 +11,7 @@ import { amountClass, fill, useFinanceFormat } from "@/lib/finance-format";
 import { financePt as MESSAGES_PT } from "@/lib/i18n/finance-messages";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/provider";
+import { categoryColor, categoryIcon } from "@/lib/merchant";
 import { cn } from "@/lib/utils";
 
 export const useFinanceStatus = () => useQuery({ queryKey: ["finance", "status"], queryFn: finance.status, staleTime: 5 * 60_000 });
@@ -120,6 +121,17 @@ export function TrendChart({ items }: { items: MonthTotal[] }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** The category's icon on its color; the same category looks the same everywhere. */
+export function CategoryDot({ name, className }: { name: string; className?: string }) {
+  const color = categoryColor(name);
+  return (
+    <span aria-hidden="true" className={cn("flex size-8 shrink-0 items-center justify-center rounded-full", className)}
+      style={{ backgroundColor: `color-mix(in oklch, ${color} 16%, transparent)`, color }}>
+      {createElement(categoryIcon(name), { className: "size-4" })}
+    </span>
   );
 }
 

@@ -160,7 +160,7 @@ export function AssistantButton() {
       <Button
         aria-label={t("nav.assistant")}
         title={t("nav.assistant")}
-        className="fixed right-4 bottom-4 z-30 size-12 rounded-full shadow-lg"
+        className="fixed right-4 bottom-20 z-30 size-12 rounded-full shadow-lg md:bottom-4"
         onClick={() => setOpen(true)}
       >
         {ask.isPending ? <Loader2 className="size-5 animate-spin" /> : <Bot className="size-5" />}

@@ -16,6 +16,7 @@ import (
 
 func (h *Handler) extrasRoutes(r fiber.Router) {
 	r.Post("/transactions", h.AddTransaction)
+	r.Post("/transactions/categorize", h.CategorizeMany)
 	r.Get("/transactions/export", h.ExportTransactions)
 	r.Delete("/transactions/:id", h.DeleteTransaction)
 	r.Get("/networth", h.NetWorth)
@@ -65,6 +66,34 @@ func (h *Handler) AddTransaction(c fiber.Ctx) error {
 		return mapper.WriteError(c, err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(toTransaction(*t))
+}
+
+type categorizeDTO struct {
+	IDs        []string `json:"ids"`         // 1 to 200
+	CategoryID string   `json:"category_id"` // empty clears it
+}
+
+// @Summary Set one category on many transactions; syncs and rules never change it again
+// @Tags Transactions
+// @Accept json
+// @Produce json
+// @Param body body categorizeDTO true "Transactions and category"
+// @Security BearerAuth
+// @Success 200 {object} object{changed=int}
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Failure 404 {object} mapper.errorBody
+// @Router /v1/finance/transactions/categorize [post]
+func (h *Handler) CategorizeMany(c fiber.Ctx) error {
+	var body categorizeDTO
+	if err := c.Bind().Body(&body); err != nil {
+		return mapper.WriteError(c, invalidBody())
+	}
+	n, err := h.svc.CategorizeMany(c.Context(), middleware.UserID(c), body.IDs, body.CategoryID)
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.JSON(fiber.Map{"changed": n})
 }
 
 // @Summary Delete a transaction recorded by hand or imported; the account balance gives it back

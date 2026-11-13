@@ -325,8 +325,11 @@ export const finance = {
   transactions: (p: TransactionQuery, signal?: AbortSignal) => apiFetch<Paged<Transaction>>(`${base}/transactions${query(p)}`, { signal }),
   setCategory: (transactionId: string, categoryId: string) =>
     apiFetch<{ keyword: string }>(`${base}/transactions/${id(transactionId)}`, { method: "PATCH", json: { category_id: categoryId } }),
-  setDetails: (transactionId: string, note: string, tags: string[]) =>
-    apiFetch<{ keyword: string }>(`${base}/transactions/${id(transactionId)}`, { method: "PATCH", json: { note, tags } }),
+  /** Category, note and tags in one call; keyword is what a rule for the merchant would match. */
+  updateTransaction: (transactionId: string, patch: { category_id?: string; note: string; tags: string[] }) =>
+    apiFetch<{ keyword: string }>(`${base}/transactions/${id(transactionId)}`, { method: "PATCH", json: patch }),
+  categorizeMany: (ids: string[], categoryId: string) =>
+    apiFetch<{ changed: number }>(`${base}/transactions/categorize`, { method: "POST", json: { ids, category_id: categoryId } }),
   addTransaction: (t: NewTransaction) => apiFetch<Transaction>(`${base}/transactions`, { method: "POST", json: t }),
   removeTransaction: (transactionId: string) => apiFetch<void>(`${base}/transactions/${id(transactionId)}`, { method: "DELETE" }),
   exportTransactions: (p: Omit<TransactionQuery, "page" | "limit">) => apiDownload(`${base}/transactions/export${query(p)}`, "transacoes.csv"),

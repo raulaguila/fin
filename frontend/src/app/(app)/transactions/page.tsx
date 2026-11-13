@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, NotebookPen, Plus, Search, Sparkles, Split, Trash2, Undo2, X } from "lucide-react";
+import { Download, ListChecks, Plus, Search, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
-import { MonthSwitcher, NoConnections, useAccountLabel } from "@/components/finance";
+import { CategoryDot, MonthSwitcher, NoConnections, useAccountLabel } from "@/components/finance";
 import { PageBody, PageHeader } from "@/components/bits";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
@@ -12,7 +12,9 @@ import { FormSheet } from "@/components/form-sheet";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
 import { TablePagination } from "@/components/table-pagination";
-import { DetailsSheet, NewTransactionSheet } from "@/components/transaction-forms";
+import { ReviewSheet } from "@/components/review-sheet";
+import { SelectAllHead, SelectCell, SelectionBar, useSelection } from "@/components/selection";
+import { NewTransactionSheet, TransactionSheet } from "@/components/transaction-forms";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -25,6 +27,7 @@ import { amountClass, fill, parseCents, useFinanceFormat } from "@/lib/finance-f
 import { useDebounced } from "@/lib/hooks/use-debounced";
 import { useListParams } from "@/lib/hooks/use-list-params";
 import { useI18n } from "@/lib/i18n/provider";
+import { merchantName } from "@/lib/merchant";
 import { cn, searchTerm } from "@/lib/utils";
 
 const NONE = "none";
@@ -88,6 +91,35 @@ function SplitDialog({ tx, categories, onClose }: { tx: Transaction | null; cate
   );
 }
 
+/** The line under a transaction's name: where it came from and what it is. */
+function TxMeta({ tx }: { tx: Transaction }) {
+  const { t } = useI18n();
+  return (
+    <>
+      {tx.institution} · {tx.account_name}
+      {tx.installments > 1 && ` · ${tx.installment}/${tx.installments}`}
+      {tx.status === "PENDING" && ` · ${t("fin.tx.pending")}`}
+      {tx.split_of && ` · ${t("fin.split.part")}`}
+    </>
+  );
+}
+
+/** Clickable filters on desktop; plain text inside the phone row, which is already a button. */
+function Tags({ tx, onTag }: { tx: Transaction; onTag?: (tag: string) => void }) {
+  const { t } = useI18n();
+  if (!tx.tags?.length) return null;
+  return (
+    <span className="mt-1 flex flex-wrap gap-1">
+      {tx.tags.map((tag) => !onTag ? (
+        <span key={tag} className="rounded-md bg-secondary px-1.5 py-0.5 text-xs text-secondary-foreground">#{tag}</span>
+      ) : (
+        <button key={tag} type="button" onClick={(e) => { e.stopPropagation(); onTag(tag); }} title={fill(t("fin.tx.filter_tag"), { t: tag })}
+          className="rounded-md bg-secondary px-1.5 py-0.5 text-xs text-secondary-foreground hover:bg-secondary/70">#{tag}</button>
+      ))}
+    </span>
+  );
+}
+
 export default function TransactionsPage() {
   const { t } = useI18n();
   const f = useFinanceFormat();
@@ -96,9 +128,11 @@ export default function TransactionsPage() {
   const [search, setSearch] = useState(params.q);
   const [suggestion, setSuggestion] = useState<{ keyword: string; categoryId: string; categoryName: string } | null>(null);
   const [splitting, setSplitting] = useState<Transaction | null>(null);
-  const [editing, setEditing] = useState<Transaction | null>(null);
+  const [open, setOpen] = useState<Transaction | null>(null);
   const [removing, setRemoving] = useState<Transaction | null>(null);
   const [adding, setAdding] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [bulkCategory, setBulkCategory] = useState("");
   const q = searchTerm(useDebounced(params.q));
   const range = monthRange(params.month);
   const filter = { search: q, ...range, account_id: params.account, category_id: params.category, tag: params.tag };
@@ -110,14 +144,23 @@ export default function TransactionsPage() {
     queryFn: ({ signal }) => finance.transactions({ page: params.page, limit: params.limit, ...filter }, signal),
     placeholderData: keepPreviousData,
   });
+  // Only the count: the review sheet loads its own rows.
+  const toReview = useQuery({
+    queryKey: ["finance", "transactions", "uncategorized", params.month],
+    queryFn: () => finance.transactions({ page: 1, limit: 1, ...range, category_id: "none" }),
+    select: (r) => r.pagination.total_items,
+  });
 
+  const suggest = (keyword: string, categoryId: string) => {
+    // The server picks the merchant out of the description ("Pagamento de Pix … Uber" gives "uber").
+    const cat = categories.data?.items.find((c) => c.id === categoryId);
+    setSuggestion(cat && keyword ? { keyword, categoryId, categoryName: cat.name } : null);
+  };
   const setCategory = useMutation({
     mutationFn: ({ tx, categoryId }: { tx: Transaction; categoryId: string }) => finance.setCategory(tx.id, categoryId),
     onSuccess: ({ keyword }, { categoryId }) => {
       void client.invalidateQueries({ queryKey: ["finance"] });
-      // The server picks the merchant out of the description ("Pagamento de Pix … Uber" gives "uber").
-      const cat = categories.data?.items.find((c) => c.id === categoryId);
-      setSuggestion(cat && keyword ? { keyword, categoryId, categoryName: cat.name } : null);
+      suggest(keyword, categoryId);
       toast.success(t("fin.tx.saved"));
     },
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
@@ -131,7 +174,6 @@ export default function TransactionsPage() {
     },
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
   });
-
   const unsplit = useMutation({
     mutationFn: (originalId: string) => finance.unsplit(originalId),
     onSuccess: () => {
@@ -140,7 +182,6 @@ export default function TransactionsPage() {
     },
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
   });
-
   const exportCsv = useMutation({
     mutationFn: () => finance.exportTransactions(filter),
     onError: (err) => toast.error(errorMessage(err, "fin.tx.export_failed", t)),
@@ -159,10 +200,24 @@ export default function TransactionsPage() {
   const manual = (tx: Transaction) => !tx.split_of && tx.account_id in manualItems;
   const categoryItems: Record<string, string> = { "": t("fin.tx.all_categories"), [NONE]: t("fin.uncategorized") };
   for (const c of categories.data?.items ?? []) categoryItems[c.id] = c.name;
+  const bulkItems: Record<string, string> = { [NONE]: t("fin.uncategorized") };
+  for (const c of categories.data?.items ?? []) bulkItems[c.id] = c.name;
 
   const items = list.data?.items ?? [];
+  const selection = useSelection(items.map((tx) => tx.id));
+  const bulk = useMutation({
+    mutationFn: (categoryId: string) => finance.categorizeMany(selection.ids, categoryId === NONE ? "" : categoryId),
+    onSuccess: (r) => {
+      selection.clear();
+      setBulkCategory("");
+      void client.invalidateQueries({ queryKey: ["finance"] });
+      toast.success(fill(t("fin.tx.bulk_done"), { n: r.changed }));
+    },
+    onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
+  });
   const outflow = items.reduce((n, tx) => n + (tx.amount < 0 && tx.category_kind !== "transfer" ? tx.amount : 0), 0);
   const filtered = q || params.account || params.category || params.tag;
+  const filterTag = (tag: string) => set({ tag, page: 1 });
 
   return (
     <>
@@ -172,12 +227,19 @@ export default function TransactionsPage() {
           <Button variant="outline" size="icon" aria-label={t("fin.tx.export")} title={t("fin.tx.export")} disabled={exportCsv.isPending} onClick={() => exportCsv.mutate()}>
             <Download className="size-4" />
           </Button>
-          {Object.keys(manualItems).length > 0 && <Button onClick={() => setAdding(true)}><Plus className="size-4" />{t("fin.tx.new")}</Button>}
+          <Button onClick={() => setAdding(true)}><Plus className="size-4" />{t("fin.tx.new")}</Button>
         </div>
       } />
       <PageBody>
-        <div className="flex flex-wrap gap-2 max-sm:grid max-sm:grid-cols-1">
-          <div className="relative min-w-56 flex-1 sm:max-w-sm max-sm:min-w-0">
+        {!!toReview.data && (
+          <Card className="flex-row flex-wrap items-center gap-3 p-3 text-sm">
+            <ListChecks className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="min-w-0 flex-1">{fill(t("fin.review.banner"), { n: toReview.data })}</span>
+            <Button size="sm" onClick={() => setReviewing(true)}>{fill(t("fin.review.open"), { n: toReview.data })}</Button>
+          </Card>
+        )}
+        <div className="flex flex-wrap gap-2 max-sm:grid max-sm:grid-cols-2">
+          <div className="relative min-w-56 flex-1 sm:max-w-sm max-sm:col-span-2 max-sm:min-w-0">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input type="search" aria-label={t("common.search")} placeholder={t("fin.tx.search")} className="pl-9" value={search}
               onChange={(e) => { setSearch(e.target.value); set({ q: e.target.value.trim(), page: 1 }); }} />
@@ -219,57 +281,55 @@ export default function TransactionsPage() {
             action={filtered && <Button variant="outline" onClick={() => { setSearch(""); set({ q: "", account: "", category: "", tag: "", page: 1 }); }}>{t("common.clear_filters")}</Button>} />
         ) : (
           <Card className="gap-0 overflow-hidden p-0">
-            <Table data-responsive data-compact>
+            {/* Phone: one compact line per transaction; a tap opens it. */}
+            <ul className="divide-y md:hidden">
+              {items.map((tx) => (
+                <li key={tx.id}>
+                  <button type="button" onClick={() => setOpen(tx)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/50">
+                    <CategoryDot name={tx.category_name} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{merchantName(tx.description)}</span>
+                      <span className={cn("block truncate text-xs", tx.category_id ? "text-muted-foreground" : "text-amber-700 dark:text-amber-400")}>
+                        {tx.category_name || t("fin.uncategorized")} · {f.day(tx.date)}{tx.installments > 1 && ` · ${tx.installment}/${tx.installments}`}
+                      </span>
+                      <Tags tx={tx} />
+                    </span>
+                    <span className={cn("shrink-0 font-mono text-sm tabular-nums", amountClass(tx.amount))}>{f.money(tx.amount)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {/* Desktop: the table, with the category one click away and rows to tick for bulk changes. */}
+            <Table className="max-md:hidden" data-compact>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-24">{t("fin.tx.date")}</TableHead>
+                  <SelectAllHead selection={selection} />
+                  <TableHead className="w-20">{t("fin.tx.date")}</TableHead>
                   <TableHead>{t("fin.tx.description")}</TableHead>
                   <TableHead className="w-52">{t("fin.tx.category")}</TableHead>
                   <TableHead className="w-36 text-right">{t("fin.tx.amount")}</TableHead>
-                  <TableHead className="w-28"><span className="sr-only">{t("fin.tx.actions")}</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {items.map((tx) => (
-                  <TableRow key={tx.id}>
-                    <TableCell data-label={t("fin.tx.date")} data-cell="date" className="text-muted-foreground tabular-nums">{f.day(tx.date)}</TableCell>
-                    <TableCell data-label={t("fin.tx.description")} data-cell="name" className="w-full max-w-0">
-                      <p className="truncate font-medium" title={tx.description}>{tx.description}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {tx.institution} · {tx.account_name}
-                        {tx.installments > 1 && ` · ${tx.installment}/${tx.installments}`}
-                        {tx.status === "PENDING" && ` · ${t("fin.tx.pending")}`}
-                        {tx.split_of && ` · ${t("fin.split.part")}`}
-                      </p>
-                      {tx.note && <p className="truncate text-xs italic text-muted-foreground" title={tx.note}>{tx.note}</p>}
-                      {(tx.tags ?? []).length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {tx.tags!.map((tag) => (
-                            <button key={tag} type="button" onClick={() => set({ tag, page: 1 })} title={fill(t("fin.tx.filter_tag"), { t: tag })}
-                              className="rounded-md bg-secondary px-1.5 py-0.5 text-xs text-secondary-foreground hover:bg-secondary/70">#{tag}</button>
-                          ))}
+                  <TableRow key={tx.id} className="cursor-pointer" onClick={() => setOpen(tx)} data-state={selection.has(tx.id) ? "selected" : undefined}>
+                    <SelectCell selection={selection} id={tx.id} label={`${t("fin.tx.select")}: ${tx.description}`} />
+                    <TableCell className="text-muted-foreground tabular-nums">{f.day(tx.date)}</TableCell>
+                    <TableCell className="w-full max-w-0">
+                      <div className="flex items-center gap-3">
+                        <CategoryDot name={tx.category_name} />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium" title={tx.description}>{merchantName(tx.description)}</p>
+                          <p className="truncate text-xs text-muted-foreground">{tx.description} · <TxMeta tx={tx} /></p>
+                          {tx.note && <p className="truncate text-xs italic text-muted-foreground" title={tx.note}>{tx.note}</p>}
+                          <Tags tx={tx} onTag={filterTag} />
                         </div>
-                      )}
+                      </div>
                     </TableCell>
-                    <TableCell data-label={t("fin.tx.category")} data-cell="sub">
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <CategoryPicker tx={tx} categories={categories.data?.items ?? []} onPick={(tx, categoryId) => setCategory.mutate({ tx, categoryId })} />
                     </TableCell>
-                    <TableCell data-label={t("fin.tx.amount")} data-cell="status" className={cn("text-right font-mono tabular-nums", amountClass(tx.amount))}>{f.money(tx.amount)}</TableCell>
-                    <TableCell data-cell="meta" className="whitespace-nowrap text-right">
-                      <Button size="icon" variant="ghost" aria-label={`${t("fin.tx.details")}: ${tx.description}`} title={t("fin.tx.details")}
-                        onClick={() => setEditing(tx)}><NotebookPen className="size-4" /></Button>
-                      {manual(tx) && (
-                        <Button size="icon" variant="ghost" aria-label={`${t("fin.tx.remove")}: ${tx.description}`} title={t("fin.tx.remove")}
-                          onClick={() => setRemoving(tx)}><Trash2 className="size-4" /></Button>
-                      )}
-                      {tx.split_of ? (
-                        <Button size="icon" variant="ghost" aria-label={`${t("fin.split.undo")}: ${tx.description}`} title={t("fin.split.undo")}
-                          disabled={unsplit.isPending} onClick={() => unsplit.mutate(tx.split_of)}><Undo2 className="size-4" /></Button>
-                      ) : (
-                        <Button size="icon" variant="ghost" aria-label={`${t("fin.split.action")}: ${tx.description}`} title={t("fin.split.action")}
-                          onClick={() => setSplitting(tx)}><Split className="size-4" /></Button>
-                      )}
-                    </TableCell>
+                    <TableCell className={cn("text-right font-mono tabular-nums", amountClass(tx.amount))}>{f.money(tx.amount)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -279,9 +339,22 @@ export default function TransactionsPage() {
               onPageChange={(n) => set({ page: n })} onPageSizeChange={(n) => set({ limit: n, page: 1 })} />
           </Card>
         )}
+        <SelectionBar selection={selection}>
+          <Select value={bulkCategory} items={bulkItems} onValueChange={(v) => { const id = String(v ?? ""); setBulkCategory(id); if (id) bulk.mutate(id); }}>
+            <SelectTrigger className="w-56" aria-label={t("fin.tx.bulk_category")} disabled={bulk.isPending}><SelectValue placeholder={t("fin.tx.bulk_category")} /></SelectTrigger>
+            <SelectContent>{Object.entries(bulkItems).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
+          </Select>
+        </SelectionBar>
         <SplitDialog tx={splitting} categories={categories.data?.items ?? []} onClose={() => setSplitting(null)} />
-        {editing && <DetailsSheet key={editing.id} tx={editing} onClose={() => setEditing(null)} />}
+        {open && (
+          <TransactionSheet key={open.id} tx={open} categories={categories.data?.items ?? []} manual={manual(open)} onClose={() => setOpen(null)}
+            onCategorized={suggest}
+            onSplit={() => { setSplitting(open); setOpen(null); }}
+            onUnsplit={() => { unsplit.mutate(open.split_of); setOpen(null); }}
+            onRemove={() => { setRemoving(open); setOpen(null); }} />
+        )}
         {adding && <NewTransactionSheet accounts={manualItems} categories={categories.data?.items ?? []} onClose={() => setAdding(false)} />}
+        {reviewing && <ReviewSheet range={range} categories={categories.data?.items ?? []} onClose={() => setReviewing(false)} />}
         <ConfirmDialog open={!!removing} onOpenChange={(o) => !o && setRemoving(null)} destructive
           title={fill(t("fin.tx.remove_title"), { d: removing?.description ?? "" })} description={t("fin.tx.remove_help")} confirmLabel={t("fin.tx.remove")}
           onConfirm={async () => {

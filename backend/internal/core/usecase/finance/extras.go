@@ -120,6 +120,25 @@ func (s *Service) SetTransactionDetails(ctx context.Context, userID, id, note st
 	return s.repo().SetTransactionDetails(ctx, userID, id, note, tags)
 }
 
+const maxBatch = 200
+
+func (s *Service) CategorizeMany(ctx context.Context, userID string, ids []string, categoryID string) (int64, error) {
+	if len(ids) == 0 || len(ids) > maxBatch {
+		return 0, apperror.New(apperror.CodeInvalidInput, "send 1 to 200 ids").WithField("ids")
+	}
+	for _, id := range ids {
+		if err := validate.ID(id); err != nil {
+			return 0, err
+		}
+	}
+	if categoryID != "" {
+		if _, err := s.ownCategory(ctx, userID, categoryID); err != nil {
+			return 0, err
+		}
+	}
+	return s.repo().SetTransactionsCategory(ctx, userID, ids, categoryID)
+}
+
 func (s *Service) ExportTransactions(ctx context.Context, userID string, f domain.TransactionFilter) ([]domain.Transaction, error) {
 	if err := s.checkFilter(&f); err != nil {
 		return nil, err

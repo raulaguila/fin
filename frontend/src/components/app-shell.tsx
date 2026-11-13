@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, ChevronRight, Menu } from "lucide-react";
+import { Bell, ChevronRight } from "lucide-react";
 import { AppRail, useWideRail } from "@/components/app-rail";
 import { AssistantButton } from "@/components/assistant-button";
 import { SectionTabs } from "@/components/section-tabs";
 import { initials } from "@/components/bits";
 import { CommandPalette } from "@/components/command-palette";
-import { LanguageSwitcher } from "@/components/language-switcher";
+import { BottomNav } from "@/components/bottom-nav";
 import { QueryErrorState } from "@/components/query-error-state";
 import { SessionKeepalive } from "@/components/session-keepalive";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -89,15 +89,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <header className="sticky top-0 z-20 flex h-[var(--header-h)] shrink-0 items-center border-b bg-background px-[var(--space-page)]">
             <div className="flex w-full items-center justify-between">
             <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
-              <button
-                type="button"
-                onClick={() => setMobileOpen(true)}
-                aria-label={t("a11y.open_menu")}
-                aria-expanded={mobileOpen}
-                className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground md:hidden"
-              >
-                <Menu className="size-5" />
-              </button>
               {/* Top-level pages already name themselves in the h1; the trail starts one level down. */}
               {crumb && section && (
                 <nav aria-label="breadcrumb" className="flex min-w-0 items-center gap-1.5">
@@ -122,7 +113,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 )}
               </Link>
               <ThemeToggle />
-              <LanguageSwitcher />
               <DropdownMenu>
                 <DropdownMenuTrigger aria-label={t("a11y.account_menu")} className="ml-1 flex size-11 items-center justify-center rounded-md md:size-8">
                   <Avatar className="size-8">
@@ -146,13 +136,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </header>
 
-          <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 overflow-auto bg-content outline-none">
+          <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 overflow-auto bg-content pb-16 outline-none md:pb-0">
             <div className="app-page">
               {failed ? <div className="p-[var(--space-page)]"><QueryErrorState onRetry={retry} /></div> : <>{section && <SectionTabs item={section} />}{children}</>}
             </div>
           </main>
         </div>
       </div>
+      <BottomNav onMore={() => setMobileOpen(true)} />
       <AssistantButton />
       <SessionKeepalive />
     </div>

@@ -81,6 +81,13 @@ func (r *Repository) SetTransactionDetails(ctx context.Context, userID, id, note
 	return nil
 }
 
+func (r *Repository) SetTransactionsCategory(ctx context.Context, userID string, ids []string, categoryID string) (int64, error) {
+	res := r.db.WithContext(ctx).Exec(`
+		UPDATE app.fin_transaction SET category_id = NULLIF(?, '')::uuid, category_source = 'user'
+		WHERE user_id = ? AND id = ANY(string_to_array(?, ',')::uuid[])`, categoryID, userID, strings.Join(ids, ","))
+	return res.RowsAffected, shared.WrapError(res.Error, "transaction")
+}
+
 func (r *Repository) CardTransactions(ctx context.Context, userID string, from time.Time, limit int) ([]domain.Transaction, error) {
 	var rows []transactionRow
 	err := r.db.WithContext(ctx).Raw(`

@@ -116,6 +116,8 @@ type FinanceRepository interface {
 	// one a bank keeps, never a split part) and takes it back off the balance.
 	DeleteManualTransaction(ctx context.Context, userID, id string) error
 	SetTransactionDetails(ctx context.Context, userID, id, note string, tags []string) error
+	// SetTransactionsCategory sets the category of the user's transactions in ids, as the user's choice.
+	SetTransactionsCategory(ctx context.Context, userID string, ids []string, categoryID string) (int64, error)
 	// ExportTransactions returns up to limit rows of the filter, with notes and tags, newest first.
 	ExportTransactions(ctx context.Context, userID string, f domain.TransactionFilter, limit int) ([]domain.Transaction, error)
 	// CountTransactions counts the rows of the filter.

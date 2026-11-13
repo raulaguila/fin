@@ -419,6 +419,12 @@ func TestFinanceSyncSummaryRulesAndAlerts(t *testing.T) {
 	if err := svc.DeleteTransaction(ctx, userID, synced[0].ID); !apperror.IsNotFound(err) {
 		t.Fatalf("delete of a bank's transaction: %v", err)
 	}
+	if n, err := svc.CategorizeMany(ctx, other, []string{typed.ID}, ""); err != nil || n != 0 {
+		t.Fatalf("bulk category on another user's transaction: %d %v", n, err)
+	}
+	if n, err := svc.CategorizeMany(ctx, userID, []string{typed.ID, synced[0].ID}, ""); err != nil || n != 2 {
+		t.Fatalf("bulk category: %d %v", n, err)
+	}
 	if err := svc.DeleteTransaction(ctx, userID, typed.ID); err != nil {
 		t.Fatal(err)
 	}

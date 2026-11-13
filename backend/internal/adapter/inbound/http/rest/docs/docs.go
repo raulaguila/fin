@@ -2446,6 +2446,67 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/finance/transactions/categorize": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Set one category on many transactions; syncs and rules never change it again",
+                "parameters": [
+                    {
+                        "description": "Transactions and category",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/finance.categorizeDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "changed": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/finance/transactions/export": {
             "get": {
                 "security": [
@@ -5780,6 +5841,22 @@ const docTemplate = `{
                 "due": {
                     "description": "empty when the bank gave no due day",
                     "type": "string"
+                }
+            }
+        },
+        "finance.categorizeDTO": {
+            "type": "object",
+            "properties": {
+                "category_id": {
+                    "description": "empty clears it",
+                    "type": "string"
+                },
+                "ids": {
+                    "description": "1 to 200",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

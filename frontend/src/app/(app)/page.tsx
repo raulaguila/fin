@@ -4,28 +4,29 @@ import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CreditCard, Wallet, type LucideIcon } from "lucide-react";
-import { MonthSwitcher, Meter, NetWorthChart, NoConnections, TrendChart } from "@/components/finance";
+import { CategoryDot, MonthSwitcher, Meter, NetWorthChart, NoConnections, TrendChart } from "@/components/finance";
 import { PageBody, PageHeader } from "@/components/bits";
 import { QueryErrorState } from "@/components/query-error-state";
+import { SetupChecklist } from "@/components/setup-checklist";
 import { ListSkeleton } from "@/components/skeletons";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { finance, monthKey, type Connection, type Summary } from "@/lib/api/finance";
 import { amountClass, fill, useFinanceFormat } from "@/lib/finance-format";
 import { useListParams } from "@/lib/hooks/use-list-params";
 import { useI18n } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages";
+import { merchantName } from "@/lib/merchant";
 import { cn } from "@/lib/utils";
 
 function Stat({ label, value, note, icon: Icon, tone }: { label: string; value: string; note?: React.ReactNode; icon: LucideIcon; tone?: string }) {
   return (
-    <Card className="gap-1.5 p-4">
+    <Card className="min-w-0 gap-1.5 p-3 sm:p-4">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm text-muted-foreground">{label}</span>
+        <span className="truncate text-xs text-muted-foreground sm:text-sm">{label}</span>
         <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       </div>
-      <span className={cn("text-2xl font-semibold tabular-nums", tone)}>{value}</span>
-      {note && <span className="text-xs text-muted-foreground">{note}</span>}
+      <span className={cn("truncate text-lg font-semibold tabular-nums sm:text-2xl", tone)}>{value}</span>
+      {note && <span className="text-xs text-muted-foreground max-sm:line-clamp-2">{note}</span>}
     </Card>
   );
 }
@@ -43,11 +44,11 @@ function ConnectionNotices({ connections }: { connections: Connection[] }) {
   });
   if (notices.length === 0) return null;
   return (
-    <Card className="flex-row flex-wrap items-center gap-3 border-amber-500/40 bg-amber-500/10 p-4">
+    <Link href="/connections" className="flex items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs hover:bg-amber-500/15 sm:p-4 sm:text-sm">
       <AlertTriangle className="size-4 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden="true" />
-      <div className="min-w-0 flex-1 space-y-1 text-sm">{notices.map((n) => <p key={n}>{n}</p>)}</div>
-      <Button size="sm" variant="outline" nativeButton={false} render={<Link href="/connections" />}>{t("fin.dash.open_connections")}</Button>
-    </Card>
+      <div className="min-w-0 flex-1 space-y-1">{notices.map((n) => <p key={n}>{n}</p>)}</div>
+      <span className="shrink-0 font-medium underline-offset-2 max-sm:hidden">{t("fin.dash.open_connections")}</span>
+    </Link>
   );
 }
 
@@ -67,7 +68,7 @@ function Overview({ s }: { s: Summary }) {
     </>
   );
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
       <Stat label={t("fin.dash.balance")} value={f.money(balance)} icon={Wallet}
         note={fill(t("fin.dash.accounts_n"), { n: banks.length, b: new Set(banks.map((a) => a.connection_id)).size })} />
       <Stat label={t("fin.dash.income")} value={f.money(s.income)} icon={ArrowDownLeft} tone={amountClass(s.income)} />
@@ -165,9 +166,10 @@ function Recent({ s }: { s: Summary }) {
       {s.recent.length === 0 && <p className="text-sm text-muted-foreground">{t("fin.dash.nothing")}</p>}
       <ul className="divide-y">
         {s.recent.map((tx) => (
-          <li key={tx.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-            <div className="min-w-0">
-              <p className="truncate font-medium">{tx.description}</p>
+          <li key={tx.id} className="flex items-center gap-3 py-2 text-sm">
+            <CategoryDot name={tx.category_name} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium" title={tx.description}>{merchantName(tx.description)}</p>
               <p className="truncate text-xs text-muted-foreground">{f.day(tx.date)} · {tx.category_name || t("fin.uncategorized")} · {tx.account_name}</p>
             </div>
             <span className={cn("shrink-0 font-mono tabular-nums", amountClass(tx.amount))}>{f.money(tx.amount)}</span>
@@ -224,6 +226,7 @@ export default function DashboardPage() {
       <PageHeader title={t("nav.dashboard")} description={t("fin.dash.subtitle")} action={<MonthSwitcher month={params.month} onChange={(m) => set({ month: m })} />} />
       <PageBody>
         {connections.data && <ConnectionNotices connections={connections.data.items} />}
+        <SetupChecklist />
         {summary.isPending ? (
           <ListSkeleton />
         ) : summary.isError ? (

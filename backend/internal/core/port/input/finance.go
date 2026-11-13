@@ -76,6 +76,8 @@ type FinanceService interface {
 	AddTransaction(ctx context.Context, userID string, t domain.Transaction) (*domain.Transaction, error)
 	DeleteTransaction(ctx context.Context, userID, id string) error
 	SetTransactionDetails(ctx context.Context, userID, id, note string, tags []string) error
+	// CategorizeMany sets one category on up to 200 transactions; empty clears it.
+	CategorizeMany(ctx context.Context, userID string, ids []string, categoryID string) (int64, error)
 	// ExportTransactions returns the filter's rows for a CSV, refusing more than the export cap.
 	ExportTransactions(ctx context.Context, userID string, f domain.TransactionFilter) ([]domain.Transaction, error)
 	// NetWorth records today's net worth and returns the history from `months` ago.

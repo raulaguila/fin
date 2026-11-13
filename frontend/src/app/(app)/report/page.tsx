@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, FileText, Printer } from "lucide-react";
 import { PageBody, PageHeader } from "@/components/bits";
 import { EmptyState } from "@/components/empty-state";
+import { MoneyFlow } from "@/components/money-flow";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,10 @@ export default function ReportPage() {
                 <span className="text-xs text-muted-foreground">{t("fin.report.deductible_help")}</span>
               </Card>
             </div>
+            <Card className="gap-3 p-4">
+              <h2 className="text-sm font-medium">{t("fin.flow.title")}</h2>
+              <MoneyFlow income={income} expense={expense} />
+            </Card>
             <div className="grid gap-4 lg:grid-cols-2">
               <CategoryTable title={t("fin.report.income")} rows={income} total={r.income} year={year} />
               <CategoryTable title={t("fin.report.expense")} rows={expense} total={r.expense} year={year} />

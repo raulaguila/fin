@@ -163,12 +163,13 @@ func TestPluggyConfig(t *testing.T) {
 }
 
 func TestAIConfig(t *testing.T) {
-	base := AIConfig{Timeout: time.Second, ClaudeBin: "claude", OpenAIURL: "http://localhost:11434/v1"}
+	base := AIConfig{Timeout: time.Second, ClaudeBin: "claude", OpenAIURL: "http://localhost:11434/v1", OllamaURL: "http://localhost:11434", Context: 16384}
 	with := func(f func(*AIConfig)) AIConfig { c := base; f(&c); return c }
 	ok := map[string]AIConfig{
 		"disabled":      base,
 		"claude local":  with(func(c *AIConfig) { c.Provider = "claude" }),
 		"openai ollama": with(func(c *AIConfig) { c.Provider = "openai"; c.Model = "llama3.1" }),
+		"ollama":        with(func(c *AIConfig) { c.Provider = "ollama"; c.Model = "llama3.1" }),
 	}
 	for name, cfg := range ok {
 		if err := validateAI(cfg, false); err != nil {
@@ -182,6 +183,7 @@ func TestAIConfig(t *testing.T) {
 		"unknown provider":     with(func(c *AIConfig) { c.Provider = "gemini" }),
 		"openai without model": with(func(c *AIConfig) { c.Provider = "openai" }),
 		"openai bad url":       with(func(c *AIConfig) { c.Provider = "openai"; c.Model = "m"; c.OpenAIURL = "localhost:11434" }),
+		"ollama tiny context":  with(func(c *AIConfig) { c.Provider = "ollama"; c.Model = "m"; c.Context = 512 }),
 		"zero timeout":         with(func(c *AIConfig) { c.Provider = "claude"; c.Timeout = 0 }),
 	}
 	for name, cfg := range bad {

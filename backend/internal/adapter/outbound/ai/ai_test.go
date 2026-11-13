@@ -121,3 +121,36 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"oi"}'
 		t.Fatalf("got %q %v %v", got, parts, err)
 	}
 }
+
+func TestOllama(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Stream  bool `json:"stream"`
+			Think   bool `json:"think"`
+			Options struct {
+				NumCtx int `json:"num_ctx"`
+			} `json:"options"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if r.URL.Path != "/api/chat" || body.Think || body.Options.NumCtx != 8192 {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if body.Stream {
+			_, _ = w.Write([]byte(`{"message":{"content":"res"},"done":false}` + "\n" + `{"message":{"content":"posta"},"done":true}` + "\n"))
+			return
+		}
+		_, _ = w.Write([]byte(`{"message":{"content":""},"done":true,"done_reason":"length"}`))
+	}))
+	defer srv.Close()
+	o := NewOllama(config.AIConfig{Model: "m", OllamaURL: srv.URL + "/", Context: 8192})
+	var parts []string
+	got, err := o.Ask(context.Background(), "s", "p", func(d string) { parts = append(parts, d) })
+	if err != nil || got != "resposta" || strings.Join(parts, "|") != "res|posta" {
+		t.Fatalf("got %q %v %v", got, parts, err)
+	}
+	// A thinking model that used the whole context answers nothing: say so.
+	if _, err := o.Ask(context.Background(), "s", "p", nil); err == nil || !strings.Contains(err.Error(), "AI_CONTEXT") {
+		t.Fatalf("want context error, got %v", err)
+	}
+}

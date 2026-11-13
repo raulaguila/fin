@@ -138,7 +138,7 @@ func (c PluggyConfig) Enabled() bool { return c.ClientID != "" }
 
 // AIConfig picks the model behind the assistant. An empty provider disables it.
 type AIConfig struct {
-	Provider string        `env:"AI_PROVIDER" default:""` // claude or openai
+	Provider string        `env:"AI_PROVIDER" default:""` // claude, ollama or openai
 	Model    string        `env:"AI_MODEL" default:""`
 	Timeout  time.Duration `env:"AI_TIMEOUT" default:"120s"`
 	// ClaudeBin runs Claude Code headless on the subscription of ClaudeToken
@@ -148,6 +148,10 @@ type AIConfig struct {
 	// OpenAIURL is any OpenAI-compatible API, e.g. Ollama at http://localhost:11434/v1.
 	OpenAIURL string `env:"AI_OPENAI_URL" default:"http://localhost:11434/v1"`
 	OpenAIKey string `env:"AI_OPENAI_KEY" default:""`
+	// OllamaURL is Ollama's own API: unlike its OpenAI-compatible one it takes
+	// the context size and turns thinking off, which small local models need.
+	OllamaURL string `env:"AI_OLLAMA_URL" default:"http://localhost:11434"`
+	Context   int    `env:"AI_CONTEXT" default:"16384"` // tokens Ollama keeps; the assistant's facts alone take about 4000
 }
 
 type Environment struct {

@@ -76,13 +76,15 @@ PLUGGY_CLIENT_SECRET=''                         # Pluggy client secret - PRIVATE
 PLUGGY_WEBHOOK_URL=''                           # Public https URL of /v1/webhooks/pluggy; empty: no webhook, the daily job syncs
 PLUGGY_WEBHOOK_SECRET=''                        # 16+ chars, sent as ?token= on the webhook URL
 
-AI_PROVIDER=''                                  # Assistant: claude (subscription, production), openai (any OpenAI-compatible API, e.g. Ollama) or empty to disable
+AI_PROVIDER=''                                  # Assistant: claude (subscription, production), ollama (local model), openai (any OpenAI-compatible API) or empty to disable
 AI_MODEL=''                                     # claude: opus, sonnet or a full id (empty = CLI default); openai: the model name, e.g. llama3.1
 AI_TIMEOUT='120s'                               # Limit of one assistant call
 AI_CLAUDE_BIN='claude'                          # Claude Code binary
 CLAUDE_CODE_OAUTH_TOKEN=''                      # Token from claude setup-token (1 year, uses your subscription) - PRIVATE
 AI_OPENAI_URL='http://localhost:11434/v1'       # OpenAI-compatible base URL; Ollama from a container: http://host.docker.internal:11434/v1
 AI_OPENAI_KEY=''                                # API key of that provider; Ollama ignores it - PRIVATE
+AI_OLLAMA_URL='http://localhost:11434'          # Ollama API (ollama provider); from a container: http://host.docker.internal:11434
+AI_CONTEXT='16384'                              # Context tokens Ollama keeps for the assistant (its facts take ~4000)
 
 REGISTRATION_TOKEN_TTL='24h'                      # Registration token time-to-live
 PASSWORD_RESET_TOKEN_TTL='2h'                   # Password reset token time-to-live

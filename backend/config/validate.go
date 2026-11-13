@@ -79,6 +79,16 @@ func validateAI(cfg AIConfig, protected bool) error {
 		if protected && cfg.ClaudeToken == "" {
 			return errors.New("CLAUDE_CODE_OAUTH_TOKEN is required when AI_PROVIDER is claude in a protected environment")
 		}
+	case "ollama":
+		if u, err := url.Parse(cfg.OllamaURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return errors.New("AI_OLLAMA_URL must be an http or https address")
+		}
+		if cfg.Model == "" {
+			return errors.New("AI_MODEL is required when AI_PROVIDER is ollama")
+		}
+		if cfg.Context < 2048 {
+			return errors.New("AI_CONTEXT must be at least 2048")
+		}
 	case "openai":
 		if u, err := url.Parse(cfg.OpenAIURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 			return errors.New("AI_OPENAI_URL must be an http or https address")
@@ -87,7 +97,7 @@ func validateAI(cfg AIConfig, protected bool) error {
 			return errors.New("AI_MODEL is required when AI_PROVIDER is openai")
 		}
 	default:
-		return errors.New("AI_PROVIDER must be empty, claude or openai")
+		return errors.New("AI_PROVIDER must be empty, claude, ollama or openai")
 	}
 	return nil
 }

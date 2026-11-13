@@ -3,6 +3,7 @@ package finance
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -204,11 +205,16 @@ func (s *Service) Chat(ctx context.Context, userID string, history []domain.Chat
 	for round := 0; ; round++ {
 		answer, streamed, err := s.askStreaming(ctx, b.String()+"\nResponda à última mensagem do usuário.", emit)
 		if err != nil {
+			// The client only sees "the assistant did not answer"; the cause stays here.
+			s.Log.Warn("Assistant failed", slog.String("error", err.Error()), slog.Int("prompt_chars", b.Len()), slog.Int("round", round))
 			return nil, err
 		}
 		call, isCall := parseToolCall(answer)
 		if !isCall {
 			text, actions := parseActions(answer, cats)
+			if actions, err = s.dropKnown(ctx, userID, actions); err != nil {
+				return nil, err
+			}
 			switch {
 			case text != "":
 			case len(actions) > 0:

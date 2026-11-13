@@ -1,5 +1,5 @@
 // Package ai implements output.Assistant: Claude Code headless on a Claude
-// subscription, or any OpenAI-compatible API such as a local Ollama.
+// subscription, a local Ollama, or any OpenAI-compatible API.
 package ai
 
 import (
@@ -19,6 +19,8 @@ func New(cfg config.AIConfig) (output.Assistant, error) {
 	switch cfg.Provider {
 	case "claude":
 		return timed{Claude{cfg: cfg}, cfg}, nil
+	case "ollama":
+		return timed{NewOllama(cfg), cfg}, nil
 	case "openai":
 		return timed{NewOpenAI(cfg), cfg}, nil
 	case "":

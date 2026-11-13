@@ -4,9 +4,9 @@ package finance
 import (
 	"bufio"
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
-	"crypto/subtle"
 	"time"
 
 	"github.com/gofiber/fiber/v3"

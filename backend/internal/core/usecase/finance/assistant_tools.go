@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -254,7 +255,7 @@ func (s *Service) searchTool(ctx context.Context, userID string, now time.Time, 
 	if int64(len(txs)) < count {
 		fmt.Fprintf(&b, "Somando só as %d mais recentes: ", len(txs))
 	}
-	fmt.Fprintf(&b, "saídas %s, entradas %s.\n", brl(out), brl(in))
+	fmt.Fprintf(&b, "saídas %s, entradas (estornos, reembolsos) %s, líquido %s. Use esses totais, não some de novo.\n", brl(out), brl(in), brl(out+in))
 	for _, t := range txs[:min(len(txs), toolRows)] {
 		cat := t.CategoryName
 		if cat == "" {
@@ -308,6 +309,30 @@ func parseActions(answer string, cats []domain.Category) (string, []domain.ChatA
 	}
 	text := strings.TrimSpace(actionLine.ReplaceAllString(answer, ""))
 	return text, actions
+}
+
+// dropKnown leaves out the rules and subscriptions the user already has: the
+// model cannot tell an applied proposal from a new one.
+func (s *Service) dropKnown(ctx context.Context, userID string, actions []domain.ChatAction) ([]domain.ChatAction, error) {
+	if len(actions) == 0 {
+		return actions, nil
+	}
+	known := map[string]bool{}
+	rules, err := s.repo().Rules(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range rules {
+		known[domain.ActionRule+normText(r.Keyword)] = true
+	}
+	subs, err := s.repo().Subscriptions(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for _, x := range subs {
+		known[domain.ActionSubscription+normText(x.Keyword)] = true
+	}
+	return slices.DeleteFunc(actions, func(a domain.ChatAction) bool { return known[a.Kind+normText(a.Keyword)] }), nil
 }
 
 // moneyValue reads 55.9, "55,90" or "R$ 1.234,56" as cents.

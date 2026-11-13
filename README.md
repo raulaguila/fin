@@ -40,7 +40,7 @@ A categorização olha, nesta ordem: suas regras, pagamentos de fatura, palavras
 - Docker e Docker Compose; Node 22+ e pnpm para o frontend.
 - Uma conta em [dashboard.pluggy.ai](https://dashboard.pluggy.ai) (client id e secret).
 - Uma conta em [meu.pluggy.ai](https://meu.pluggy.ai) com seus bancos conectados (veja "Dados reais" abaixo).
-- Opcional, para o assistente: assinatura Claude (`claude setup-token`) ou qualquer API compatível com OpenAI, como o [Ollama](https://ollama.com) local.
+- Opcional, para o assistente: assinatura Claude (`claude setup-token`) um [Ollama](https://ollama.com) local ou qualquer API compatível com OpenAI.
 
 ### 2. Configurar
 
@@ -55,10 +55,11 @@ Preencha em `backend/config/.env` (cada opção tem comentário):
 |----------|---------|
 | `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET` | Credenciais da Pluggy. Vazio desliga a sincronização. |
 | `PLUGGY_WEBHOOK_URL`, `PLUGGY_WEBHOOK_SECRET` | Opcional: URL pública https para a Pluggy avisar de dados novos. Sem ela, a rotina diária sincroniza. |
-| `AI_PROVIDER` | `claude`, `openai` ou vazio (assistente desligado). |
+| `AI_PROVIDER` | `claude`, `ollama` (modelo local), `openai` ou vazio (assistente desligado). |
 | `AI_MODEL` | Modelo: `sonnet`/`opus` no Claude; o nome do modelo no provedor OpenAI-compatível. |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Com `AI_PROVIDER=claude`: token do `claude setup-token`. |
-| `AI_OPENAI_URL`, `AI_OPENAI_KEY` | Com `AI_PROVIDER=openai`: endereço e chave (o Ollama ignora a chave). |
+| `AI_OLLAMA_URL`, `AI_CONTEXT` | Com `AI_PROVIDER=ollama`: endereço do Ollama e contexto em tokens (padrão 16384; os dados do assistente ocupam ~4000). O raciocínio do modelo fica desligado: sai mais rápido e não esgota o contexto. |
+| `AI_OPENAI_URL`, `AI_OPENAI_KEY` | Com `AI_PROVIDER=openai`: endereço e chave de uma API compatível com OpenAI. Para Ollama prefira `ollama`: a API compatível usa o contexto padrão do servidor (4096). |
 
 Em `frontend/config/.env`, `NEXT_PUBLIC_PLUGGY_CONNECTORS='200'` mostra só o MeuPluggy no widget de conexão.
 

@@ -334,6 +334,14 @@ func TestFinanceSyncSummaryRulesAndAlerts(t *testing.T) {
 		!strings.Contains(prompt, "RESULTADO") || !strings.Contains(prompt, "UBER *TRIP") {
 		t.Fatalf("prompt:\n%s", prompt)
 	}
+	// Once applied, the same proposal is not offered again.
+	if _, _, err := svc.CreateRule(ctx, userID, "uber", reply.Actions[0].CategoryID); err != nil {
+		t.Fatal(err)
+	}
+	ai.replies = []string{"De novo.\nAÇÃO {\"tipo\":\"regra\",\"palavra\":\"Uber\",\"categoria\":\"Transporte\"}"}
+	if again, err := svc.Chat(ctx, userID, []domain.ChatMessage{{Role: "user", Content: "E agora?"}}, nil); err != nil || len(again.Actions) != 0 {
+		t.Fatalf("known rule proposed again: %+v %v", again, err)
+	}
 
 	// An imported account takes a statement once, however often it is sent.
 	manual, err := svc.CreateManualAccount(ctx, userID, "Nubank", "Cartão", domain.AccountCredit)

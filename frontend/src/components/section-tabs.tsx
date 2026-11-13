@@ -12,7 +12,7 @@ export function SectionTabs({ item }: { item: NavItem }) {
   const pathname = usePathname();
   if (!item.tabs) return null;
   return (
-    <nav aria-label={t(item.key)} className="flex gap-1 overflow-x-auto border-b px-[var(--space-page)] pt-2 [scrollbar-width:none]">
+    <nav aria-label={t(item.key)} className="flex gap-1 overflow-x-auto overflow-y-hidden px-[var(--space-page)] pt-2 shadow-[inset_0_-1px_0_var(--color-border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {item.tabs.map((tab) => {
         const current = isActive(pathname, tab.href);
         return (
@@ -21,7 +21,7 @@ export function SectionTabs({ item }: { item: NavItem }) {
             href={tab.href}
             aria-current={current ? "page" : undefined}
             className={cn(
-              "-mb-px shrink-0 border-b-2 px-3 py-2 text-sm whitespace-nowrap transition-colors",
+              "shrink-0 border-b-2 px-3 py-2 text-sm whitespace-nowrap transition-colors",
               current ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >

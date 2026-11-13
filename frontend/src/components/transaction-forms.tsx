@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Split, Trash2, Undo2 } from "lucide-react";
+import { Repeat, Split, Trash2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { FormSheet } from "@/components/form-sheet";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,7 @@ function NoteField({ id, value, onChange }: { id: string; value: string; onChang
 const NONE = "none";
 
 /** One transaction in full: category, note and tags, and what else can be done with it. */
-export function TransactionSheet({ tx, categories, manual, onClose, onCategorized, onSplit, onUnsplit, onRemove }: {
+export function TransactionSheet({ tx, categories, manual, onClose, onCategorized, onSplit, onUnsplit, onRemove, onFixed }: {
   tx: Transaction;
   categories: Category[];
   /** Typed or imported: it can be deleted. */
@@ -58,6 +58,8 @@ export function TransactionSheet({ tx, categories, manual, onClose, onCategorize
   /** After a category change, with the keyword a rule would match. */
   onCategorized: (keyword: string, categoryId: string) => void;
   onSplit: () => void;
+  /** Register this charge as a fixed monthly bill. */
+  onFixed: () => void;
   onUnsplit: () => void;
   onRemove: () => void;
 }) {
@@ -100,6 +102,7 @@ export function TransactionSheet({ tx, categories, manual, onClose, onCategorize
         ) : (
           <Button type="button" variant="outline" size="sm" onClick={onSplit}><Split className="size-4" />{t("fin.split.action")}</Button>
         )}
+        {tx.amount < 0 && <Button type="button" variant="outline" size="sm" onClick={onFixed}><Repeat className="size-4" />{t("fin.tx.fixed")}</Button>}
         {manual && <Button type="button" variant="outline" size="sm" onClick={onRemove}><Trash2 className="size-4" />{t("fin.tx.remove")}</Button>}
       </div>
     </FormSheet>

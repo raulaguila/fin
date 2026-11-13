@@ -13,6 +13,7 @@ import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
 import { TablePagination } from "@/components/table-pagination";
 import { ReviewSheet } from "@/components/review-sheet";
+import { SubscriptionDialog, type Draft } from "@/components/subscription-dialog";
 import { SelectAllHead, SelectCell, SelectionBar, useSelection } from "@/components/selection";
 import { NewTransactionSheet, TransactionSheet } from "@/components/transaction-forms";
 import { Button } from "@/components/ui/button";
@@ -129,6 +130,7 @@ export default function TransactionsPage() {
   const [suggestion, setSuggestion] = useState<{ keyword: string; categoryId: string; categoryName: string } | null>(null);
   const [splitting, setSplitting] = useState<Transaction | null>(null);
   const [open, setOpen] = useState<Transaction | null>(null);
+  const [fixing, setFixing] = useState<Draft | null>(null);
   const [removing, setRemoving] = useState<Transaction | null>(null);
   const [adding, setAdding] = useState(false);
   const [reviewing, setReviewing] = useState(false);
@@ -351,8 +353,14 @@ export default function TransactionsPage() {
             onCategorized={suggest}
             onSplit={() => { setSplitting(open); setOpen(null); }}
             onUnsplit={() => { unsplit.mutate(open.split_of); setOpen(null); }}
-            onRemove={() => { setRemoving(open); setOpen(null); }} />
+            onRemove={() => { setRemoving(open); setOpen(null); }}
+            onFixed={() => {
+              const name = merchantName(open.description);
+              setFixing({ name, amount: -open.amount, day: Number(open.date.slice(8, 10)), month: 0, keyword: name.toLowerCase(), category_id: open.category_id ?? "", account_id: open.account_id });
+              setOpen(null);
+            }} />
         )}
+        {fixing && <SubscriptionDialog draft={fixing} onClose={() => setFixing(null)} />}
         {adding && <NewTransactionSheet accounts={manualItems} categories={categories.data?.items ?? []} onClose={() => setAdding(false)} />}
         {reviewing && <ReviewSheet range={range} categories={categories.data?.items ?? []} onClose={() => setReviewing(false)} />}
         <ConfirmDialog open={!!removing} onOpenChange={(o) => !o && setRemoving(null)} destructive

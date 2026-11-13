@@ -16,6 +16,7 @@ import { finance, monthKey, type Category, type CategoryKind, type RuleSuggestio
 import { errorMessage } from "@/lib/errors";
 import { fill, useFinanceFormat } from "@/lib/finance-format";
 import { useDebounced } from "@/lib/hooks/use-debounced";
+import { useUndoToast } from "@/lib/hooks/use-undo-toast";
 import { useI18n } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages";
 
@@ -34,12 +35,13 @@ function Rules({ categories }: { categories: Category[] }) {
   const typed = useDebounced(keyword.trim());
   const rules = useQuery({ queryKey: ["finance", "rules"], queryFn: finance.rules });
   const preview = useQuery({ queryKey: ["finance", "rules", "preview", typed], queryFn: () => finance.previewRule(typed), enabled: typed.length >= 2 });
+  const undoToast = useUndoToast();
   const create = useMutation({
     mutationFn: () => finance.createRule(keyword.trim(), categoryId),
     onSuccess: (r) => {
       setKeyword("");
       void invalidate();
-      toast.success(fill(t("fin.tx.rule_created"), { n: r.applied }));
+      undoToast(fill(t("fin.tx.rule_created"), { n: r.applied }), r.undo_id, r.applied);
     },
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
   });
@@ -87,11 +89,12 @@ function Suggestion({ s, categories }: { s: RuleSuggestion; categories: Category
   const invalidate = useInvalidate();
   const [categoryId, setCategoryId] = useState("");
   const items: Record<string, string> = Object.fromEntries(categories.map((c) => [c.id, c.name]));
+  const undoToast = useUndoToast();
   const create = useMutation({
     mutationFn: () => finance.createRule(s.keyword, categoryId),
     onSuccess: (r) => {
       void invalidate();
-      toast.success(fill(t("fin.tx.rule_created"), { n: r.applied }));
+      undoToast(fill(t("fin.tx.rule_created"), { n: r.applied }), r.undo_id, r.applied);
     },
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
   });

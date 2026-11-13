@@ -69,6 +69,8 @@ STORAGE_S3_ACCESS_KEY=''                        # Access key id
 STORAGE_S3_SECRET_KEY=''                        # Secret access key
 
 BACKUP_DIR='../../backups'                      # Daily database dumps, one per weekday (relative to deploy/docker); they hold all your data - PRIVATE
+BACKUP_COPY_DIR=''                              # Another disk, a NAS or a cloud-synced folder; each daily dump is copied there. Empty: no copy
+BACKUP_PASSPHRASE=''                            # Encrypts the copies (AES-256); keep it in your password manager, the copies are useless without it - PRIVATE
 
 PLUGGY_BASE_URL='https://api.pluggy.ai'         # Pluggy API address
 PLUGGY_CLIENT_ID=''                             # Pluggy client id (dashboard.pluggy.ai); empty disables Open Finance sync

@@ -12,6 +12,7 @@ import { finance, type Category } from "@/lib/api/finance";
 import { errorMessage } from "@/lib/errors";
 import { amountClass, fill, useFinanceFormat } from "@/lib/finance-format";
 import { merchantName } from "@/lib/merchant";
+import { useUndoToast } from "@/lib/hooks/use-undo-toast";
 import { useI18n } from "@/lib/i18n/provider";
 
 /** Uncategorized transactions one at a time: a click (or a digit) files it, and a rule can file the similar ones too. */
@@ -29,14 +30,15 @@ export function ReviewSheet({ range, categories, onClose }: { range: { from: str
   const tx = left[0];
   const choices = tx ? categories.filter((c) => (tx.amount < 0 ? c.kind !== "income" : c.kind !== "expense")) : [];
 
+  const undoToast = useUndoToast();
   const file = useMutation({
     mutationFn: async (categoryId: string) => {
       const { keyword } = await finance.setCategory(tx!.id, categoryId);
-      if (rule && keyword) return (await finance.createRule(keyword, categoryId)).applied;
-      return 0;
+      if (rule && keyword) return finance.createRule(keyword, categoryId);
+      return null;
     },
-    onSuccess: (applied) => {
-      if (applied > 0) toast.success(fill(t("fin.review.ruled"), { n: applied }));
+    onSuccess: (r) => {
+      if (r && r.applied > 0) undoToast(fill(t("fin.review.ruled"), { n: r.applied }), r.undo_id, r.applied);
       void client.invalidateQueries({ queryKey: ["finance"] });
     },
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),

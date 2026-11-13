@@ -62,6 +62,9 @@ type FinanceRepository interface {
 	// PersonTransfers returns Pix and TED with a person named in the description
 	// (date, description, amount, provider category, category name).
 	PersonTransfers(ctx context.Context, userID string, from time.Time, limit int) ([]domain.Transaction, error)
+	// CategoryDetail sums one category by month and by description in [from, to).
+	// An empty categoryID is the uncategorized money of that sign (1 or -1).
+	CategoryDetail(ctx context.Context, userID, categoryID string, sign int, from, to time.Time) (*domain.CategoryDetail, error)
 	// MonthlyTotals sums income and expense by month in [from, to).
 	MonthlyTotals(ctx context.Context, userID string, from, to time.Time) ([]domain.MonthTotal, error)
 	// Totals sums [from, to) by category; uncategorized money comes as two rows
@@ -81,8 +84,8 @@ type FinanceRepository interface {
 	DeleteRule(ctx context.Context, userID, id string) error
 	// CountMatches counts transactions whose description contains keyword.
 	CountMatches(ctx context.Context, userID, keyword string) (int64, error)
-	// ApplyRule sets categoryID on matching transactions not set by the user.
-	ApplyRule(ctx context.Context, userID, keyword, categoryID string) (int64, error)
+	// ApplyRule sets categoryID on matching transactions not set by the user, keeping an undo tied to the rule.
+	ApplyRule(ctx context.Context, userID, ruleID, keyword, categoryID string) (domain.Change, error)
 
 	// DeleteMissingPending removes the pending transactions of the account dated
 	// from `from` on whose external id is not in keep: the bank replaced them.
@@ -116,8 +119,29 @@ type FinanceRepository interface {
 	// one a bank keeps, never a split part) and takes it back off the balance.
 	DeleteManualTransaction(ctx context.Context, userID, id string) error
 	SetTransactionDetails(ctx context.Context, userID, id, note string, tags []string) error
-	// SetTransactionsCategory sets the category of the user's transactions in ids, as the user's choice.
-	SetTransactionsCategory(ctx context.Context, userID string, ids []string, categoryID string) (int64, error)
+	// SetTransactionsCategory sets the category of the user's transactions in ids, as the user's choice, keeping an undo.
+	SetTransactionsCategory(ctx context.Context, userID string, ids []string, categoryID string) (domain.Change, error)
+	// Undo puts back what one change overwrote, on rows not changed again since, and drops
+	// the rule that made it; it returns how many rows went back.
+	Undo(ctx context.Context, userID, undoID string) (int64, error)
+	// PruneUndo forgets the undos made before t.
+	PruneUndo(ctx context.Context, before time.Time) error
+	// PairTransfers files as categoryID (source pair) the unambiguous pairs of opposite
+	// amounts of at least minimum between two of the user's accounts, at most days apart,
+	// dated from on, that only automatic categorization touched.
+	PairTransfers(ctx context.Context, userID, categoryID string, from time.Time, days int, minimum domain.Money) (int64, error)
+	// StartBalanceCheck records the balance and the transactions sum of a bank account,
+	// once; reset starts it over from now.
+	StartBalanceCheck(ctx context.Context, userID, accountID string, reset bool) error
+	// ArchiveOverrides lists, newest first, the bank transactions the user filed, noted or tagged.
+	ArchiveOverrides(ctx context.Context, userID string, limit int) ([]domain.ArchiveOverride, error)
+	// ApplyOverrides writes them back on the user's transactions with the same bank id.
+	ApplyOverrides(ctx context.Context, userID string, list []domain.ArchiveOverride) (int64, error)
+	// RestoreTransactions inserts into a manual account the rows not in yet (by external id),
+	// with category by name, note and tags, and adds them to its balance.
+	RestoreTransactions(ctx context.Context, userID, accountID string, txs []domain.Transaction) (int64, error)
+	// DataHealth reads the accounts with their balance check, the counts since from and the last backups.
+	DataHealth(ctx context.Context, userID string, from time.Time) (*domain.DataHealth, error)
 	// ExportTransactions returns up to limit rows of the filter, with notes and tags, newest first.
 	ExportTransactions(ctx context.Context, userID string, f domain.TransactionFilter, limit int) ([]domain.Transaction, error)
 	// CountTransactions counts the rows of the filter.

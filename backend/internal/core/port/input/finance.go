@@ -40,8 +40,8 @@ type FinanceService interface {
 
 	Rules(ctx context.Context, userID string) ([]domain.Rule, error)
 	PreviewRule(ctx context.Context, userID, keyword string) (int64, error)
-	// CreateRule saves the rule and applies it to past transactions, returning how many changed.
-	CreateRule(ctx context.Context, userID, keyword, categoryID string) (*domain.Rule, int64, error)
+	// CreateRule saves the rule and applies it to past transactions, returning how many changed and their undo.
+	CreateRule(ctx context.Context, userID, keyword, categoryID string) (*domain.Rule, domain.Change, error)
 	DeleteRule(ctx context.Context, userID, id string) error
 	// RuleSuggestions lists merchants that repeat among uncategorized transactions.
 	RuleSuggestions(ctx context.Context, userID string) ([]domain.RuleSuggestion, error)
@@ -50,6 +50,9 @@ type FinanceService interface {
 	SplitTransaction(ctx context.Context, userID, id string, amount domain.Money, categoryID string) error
 	// UnsplitTransaction joins the parts of a split transaction again.
 	UnsplitTransaction(ctx context.Context, userID, id string) error
+	// CategoryDetail breaks one category of a year (or one month of it) down by month and description.
+	// categoryID "none" with kind income or expense is the uncategorized money.
+	CategoryDetail(ctx context.Context, userID string, year int, month time.Time, categoryID, kind string) (*domain.CategoryDetail, error)
 	// YearReport totals a calendar year by category and month.
 	YearReport(ctx context.Context, userID string, year int) (*domain.YearReport, error)
 	// Calendar projects the bank balance over the next 30 days.
@@ -77,7 +80,19 @@ type FinanceService interface {
 	DeleteTransaction(ctx context.Context, userID, id string) error
 	SetTransactionDetails(ctx context.Context, userID, id, note string, tags []string) error
 	// CategorizeMany sets one category on up to 200 transactions; empty clears it.
-	CategorizeMany(ctx context.Context, userID string, ids []string, categoryID string) (int64, error)
+	CategorizeMany(ctx context.Context, userID string, ids []string, categoryID string) (domain.Change, error)
+	// Undo puts back what a bulk change or a new rule overwrote, and drops the rule.
+	Undo(ctx context.Context, userID, undoID string) (int64, error)
+	// PairTransfers files transfers between the user's own accounts.
+	PairTransfers(ctx context.Context, userID string) (int64, error)
+	// ResetBalanceCheck accepts the gap of a bank account and checks from now on.
+	ResetBalanceCheck(ctx context.Context, userID, accountID string) error
+	// DataHealth tells whether the numbers can be trusted.
+	DataHealth(ctx context.Context, userID string) (*domain.DataHealth, error)
+	// Export gathers everything the user set up into one archive.
+	Export(ctx context.Context, userID string) (*domain.Archive, error)
+	// ImportArchive adds what an archive part has and the user does not.
+	ImportArchive(ctx context.Context, userID string, a domain.Archive) (*domain.ArchiveResult, error)
 	// ExportTransactions returns the filter's rows for a CSV, refusing more than the export cap.
 	ExportTransactions(ctx context.Context, userID string, f domain.TransactionFilter) ([]domain.Transaction, error)
 	// NetWorth records today's net worth and returns the history from `months` ago.

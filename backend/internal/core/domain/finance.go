@@ -35,6 +35,7 @@ const (
 	SourceAuto = "auto"
 	SourceRule = "rule"
 	SourceUser = "user"
+	SourcePair = "pair" // matched with the opposite movement in another of the user's accounts
 )
 
 // Connection is one bank linked through Open Finance (a Pluggy item).
@@ -184,6 +185,58 @@ type MonthTotal struct {
 	Income  Money
 	Expense Money // negative
 }
+
+// Change is how many transactions a category change touched, and the undo that puts them back.
+type Change struct {
+	Count  int64
+	UndoID string
+}
+
+// AccountHealth is what the data health screen shows of one account.
+type AccountHealth struct {
+	ID          string
+	Name        string
+	Institution string
+	Type        string
+	Manual      bool
+	LastDate    *time.Time // newest transaction
+	CheckSince  *time.Time
+	// Bank accounts: how much the balance moved beyond the transactions since CheckSince.
+	// Not zero means transactions are missing (or extra) in Fin.
+	Gap *Money
+}
+
+// BackupRun is the last outcome of one backup step: dump, copy or restore_check.
+type BackupRun struct {
+	Kind   string
+	OK     bool
+	Detail string
+	At     time.Time
+}
+
+// DataHealth tells whether the numbers can be trusted.
+type DataHealth struct {
+	Accounts      []AccountHealth
+	Uncategorized int64 // in the last 90 days
+	Paired        int64 // transfers matched between own accounts, last 90 days
+	Backups       []BackupRun
+}
+
+// KeyTotal is a sum with its count under a key: a month (YYYY-MM) or a description.
+type KeyTotal struct {
+	Key   string
+	Total Money
+	Count int64
+}
+
+// CategoryDetail is where one category's money went in a period.
+type CategoryDetail struct {
+	Months       []KeyTotal // oldest first
+	Descriptions []KeyTotal // biggest first, at most CategoryDetailTop
+}
+
+// CategoryDetailTop caps the descriptions a category detail lists.
+const CategoryDetailTop = 50
 
 // Person is someone the user sent money to or received money from (Pix, TED).
 type Person struct {

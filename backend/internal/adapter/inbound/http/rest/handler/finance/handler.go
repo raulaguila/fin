@@ -52,6 +52,7 @@ func (h *Handler) Routes(r fiber.Router, chatLimit fiber.Handler) {
 	r.Delete("/rules/:id", h.DeleteRule)
 	h.planningRoutes(r)
 	h.extrasRoutes(r)
+	h.trustRoutes(r)
 	r.Post("/assistant/chat", chatLimit, h.Chat)
 }
 
@@ -732,7 +733,7 @@ type createRuleDTO struct {
 // @Produce json
 // @Param body body createRuleDTO true "Keyword and category"
 // @Security BearerAuth
-// @Success 201 {object} object{rule=ruleDTO,applied=int}
+// @Success 201 {object} object{rule=ruleDTO,applied=int,undo_id=string}
 // @Failure 400 {object} mapper.errorBody
 // @Failure 401 {object} mapper.errorBody
 // @Failure 404 {object} mapper.errorBody
@@ -747,7 +748,7 @@ func (h *Handler) CreateRule(c fiber.Ctx) error {
 	if err != nil {
 		return mapper.WriteError(c, err)
 	}
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"rule": toRule(*rule), "applied": applied})
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"rule": toRule(*rule), "applied": applied.Count, "undo_id": applied.UndoID})
 }
 
 // @Summary Delete a rule; transactions keep their category

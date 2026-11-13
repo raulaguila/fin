@@ -16,6 +16,7 @@ func (h *Handler) planningRoutes(r fiber.Router) {
 	r.Post("/transactions/:id/split", h.Split)
 	r.Delete("/transactions/:id/split", h.Unsplit)
 	r.Get("/year", h.Year)
+	r.Get("/year/category", h.YearCategory)
 	r.Get("/calendar", h.Calendar)
 	r.Post("/accounts", h.CreateManualAccount)
 	r.Post("/accounts/:id/import", h.Import)
@@ -106,6 +107,49 @@ func (h *Handler) Year(c fiber.Ctx) error {
 		out.Months = append(out.Months, monthTotalDTO{Month: m.Month.Format("2006-01"), Income: m.Income, Expense: m.Expense})
 	}
 	return c.JSON(out)
+}
+
+type keyTotalDTO struct {
+	Key   string `json:"key"` // YYYY-MM for months, the bank description otherwise
+	Total int64  `json:"total"`
+	Count int64  `json:"count"`
+}
+
+type categoryDetailDTO struct {
+	Months       []keyTotalDTO `json:"months"`
+	Descriptions []keyTotalDTO `json:"descriptions"`
+}
+
+func keyTotals(in []domain.KeyTotal) []keyTotalDTO {
+	out := make([]keyTotalDTO, 0, len(in))
+	for _, k := range in {
+		out = append(out, keyTotalDTO{Key: k.Key, Total: k.Total, Count: k.Count})
+	}
+	return out
+}
+
+// @Summary One category of a year (or a month) by month and by description, biggest first
+// @Tags Transactions
+// @Produce json
+// @Param year query int true "Year"
+// @Param month query string false "Month as YYYY-MM inside the year"
+// @Param category_id query string true "Category id, or none for uncategorized"
+// @Param kind query string false "income or expense; required with none"
+// @Security BearerAuth
+// @Success 200 {object} categoryDetailDTO
+// @Failure 400 {object} mapper.errorBody
+// @Failure 401 {object} mapper.errorBody
+// @Router /v1/finance/year/category [get]
+func (h *Handler) YearCategory(c fiber.Ctx) error {
+	month, err := parseMonth(c.Query("month"))
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	d, err := h.svc.CategoryDetail(c.Context(), middleware.UserID(c), fiber.Query[int](c, "year"), month, c.Query("category_id"), c.Query("kind"))
+	if err != nil {
+		return mapper.WriteError(c, err)
+	}
+	return c.JSON(categoryDetailDTO{Months: keyTotals(d.Months), Descriptions: keyTotals(d.Descriptions)})
 }
 
 // ---- calendar ----

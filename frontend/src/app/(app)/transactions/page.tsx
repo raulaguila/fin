@@ -27,6 +27,7 @@ import { errorMessage } from "@/lib/errors";
 import { amountClass, fill, parseCents, useFinanceFormat } from "@/lib/finance-format";
 import { useDebounced } from "@/lib/hooks/use-debounced";
 import { useListParams } from "@/lib/hooks/use-list-params";
+import { useUndoToast } from "@/lib/hooks/use-undo-toast";
 import { useI18n } from "@/lib/i18n/provider";
 import { merchantName } from "@/lib/merchant";
 import { cn, searchTerm } from "@/lib/utils";
@@ -167,12 +168,13 @@ export default function TransactionsPage() {
     },
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
   });
+  const undoToast = useUndoToast();
   const createRule = useMutation({
     mutationFn: (s: { keyword: string; categoryId: string }) => finance.createRule(s.keyword, s.categoryId),
     onSuccess: (r) => {
       setSuggestion(null);
       void client.invalidateQueries({ queryKey: ["finance"] });
-      toast.success(fill(t("fin.tx.rule_created"), { n: r.applied }));
+      undoToast(fill(t("fin.tx.rule_created"), { n: r.applied }), r.undo_id, r.applied);
     },
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
   });
@@ -213,7 +215,7 @@ export default function TransactionsPage() {
       selection.clear();
       setBulkCategory("");
       void client.invalidateQueries({ queryKey: ["finance"] });
-      toast.success(fill(t("fin.tx.bulk_done"), { n: r.changed }));
+      undoToast(fill(t("fin.tx.bulk_done"), { n: r.changed }), r.undo_id, r.changed);
     },
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
   });

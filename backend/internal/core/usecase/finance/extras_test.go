@@ -3,6 +3,7 @@ package finance
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/raulaguila/fin/internal/core/domain"
 )
@@ -89,5 +90,22 @@ func TestCarryOver(t *testing.T) {
 	}
 	if list[2].Carry != 0 || list[2].Limit != 800 {
 		t.Errorf("home = %+v", list[2])
+	}
+}
+
+func TestMonthsLeft(t *testing.T) {
+	now := time.Date(2026, 11, 13, 0, 0, 0, 0, time.UTC)
+	for _, c := range []struct {
+		due  time.Time
+		want int
+	}{
+		{time.Date(2026, 11, 30, 0, 0, 0, 0, time.UTC), 1}, // this month still counts
+		{time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC), 2},
+		{time.Date(2027, 11, 13, 0, 0, 0, 0, time.UTC), 13},
+		{time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), 1}, // past: never zero
+	} {
+		if got := monthsLeft(now, c.due); got != c.want {
+			t.Errorf("monthsLeft(%s) = %d, want %d", c.due.Format(time.DateOnly), got, c.want)
+		}
 	}
 }

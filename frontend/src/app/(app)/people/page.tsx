@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { finance, type Person } from "@/lib/api/finance";
 import { errorMessage } from "@/lib/errors";
 import { amountClass, fill, useFinanceFormat } from "@/lib/finance-format";
+import { useUndoToast } from "@/lib/hooks/use-undo-toast";
 import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
 
@@ -23,11 +24,12 @@ function Row({ p, refundsId }: { p: Person; refundsId?: string }) {
   const { t } = useI18n();
   const f = useFinanceFormat();
   const client = useQueryClient();
+  const undoToast = useUndoToast();
   const mark = useMutation({
     mutationFn: () => finance.createRule(p.keyword, refundsId ?? ""),
     onSuccess: (r) => {
       void client.invalidateQueries({ queryKey: ["finance"] });
-      toast.success(fill(t("fin.people.refund_done"), { n: r.applied }));
+      undoToast(fill(t("fin.people.refund_done"), { n: r.applied }), r.undo_id, r.applied);
     },
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
   });

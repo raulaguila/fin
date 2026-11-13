@@ -76,6 +76,36 @@ func (s *Service) YearReport(ctx context.Context, userID string, year int) (*dom
 	return r, nil
 }
 
+// CategoryDetail reads one category of a year, or of one month in it when month is set.
+func (s *Service) CategoryDetail(ctx context.Context, userID string, year int, month time.Time, categoryID, kind string) (*domain.CategoryDetail, error) {
+	if year < 2000 || year > s.Clock.Now().Year() {
+		return nil, apperror.New(apperror.CodeInvalidInput, "invalid year").WithField("year")
+	}
+	from := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := from.AddDate(1, 0, 0)
+	if !month.IsZero() {
+		if month.Year() != year {
+			return nil, apperror.New(apperror.CodeInvalidInput, "the month must be in the year").WithField("month")
+		}
+		from, to = month, month.AddDate(0, 1, 0)
+	}
+	sign := 0
+	if categoryID == "none" {
+		switch kind {
+		case "income":
+			sign = 1
+		case "expense":
+			sign = -1
+		default:
+			return nil, apperror.New(apperror.CodeInvalidInput, "kind must be income or expense").WithField("kind")
+		}
+		categoryID = ""
+	} else if err := validate.ID(categoryID); err != nil {
+		return nil, err
+	}
+	return s.repo().CategoryDetail(ctx, userID, categoryID, sign, from, to)
+}
+
 // ---- calendar ----
 
 func (s *Service) Calendar(ctx context.Context, userID string) (*domain.Calendar, error) {

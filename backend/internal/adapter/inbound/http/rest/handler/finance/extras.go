@@ -79,7 +79,7 @@ type categorizeDTO struct {
 // @Produce json
 // @Param body body categorizeDTO true "Transactions and category"
 // @Security BearerAuth
-// @Success 200 {object} object{changed=int}
+// @Success 200 {object} object{changed=int,undo_id=string}
 // @Failure 400 {object} mapper.errorBody
 // @Failure 401 {object} mapper.errorBody
 // @Failure 404 {object} mapper.errorBody
@@ -93,7 +93,7 @@ func (h *Handler) CategorizeMany(c fiber.Ctx) error {
 	if err != nil {
 		return mapper.WriteError(c, err)
 	}
-	return c.JSON(fiber.Map{"changed": n})
+	return c.JSON(fiber.Map{"changed": n.Count, "undo_id": n.UndoID})
 }
 
 // @Summary Delete a transaction recorded by hand or imported; the account balance gives it back

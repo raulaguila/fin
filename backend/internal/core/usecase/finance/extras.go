@@ -122,18 +122,18 @@ func (s *Service) SetTransactionDetails(ctx context.Context, userID, id, note st
 
 const maxBatch = 200
 
-func (s *Service) CategorizeMany(ctx context.Context, userID string, ids []string, categoryID string) (int64, error) {
+func (s *Service) CategorizeMany(ctx context.Context, userID string, ids []string, categoryID string) (domain.Change, error) {
 	if len(ids) == 0 || len(ids) > maxBatch {
-		return 0, apperror.New(apperror.CodeInvalidInput, "send 1 to 200 ids").WithField("ids")
+		return domain.Change{}, apperror.New(apperror.CodeInvalidInput, "send 1 to 200 ids").WithField("ids")
 	}
 	for _, id := range ids {
 		if err := validate.ID(id); err != nil {
-			return 0, err
+			return domain.Change{}, err
 		}
 	}
 	if categoryID != "" {
 		if _, err := s.ownCategory(ctx, userID, categoryID); err != nil {
-			return 0, err
+			return domain.Change{}, err
 		}
 	}
 	return s.repo().SetTransactionsCategory(ctx, userID, ids, categoryID)

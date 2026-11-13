@@ -81,13 +81,6 @@ func (r *Repository) SetTransactionDetails(ctx context.Context, userID, id, note
 	return nil
 }
 
-func (r *Repository) SetTransactionsCategory(ctx context.Context, userID string, ids []string, categoryID string) (int64, error) {
-	res := r.db.WithContext(ctx).Exec(`
-		UPDATE app.fin_transaction SET category_id = NULLIF(?, '')::uuid, category_source = 'user'
-		WHERE user_id = ? AND id = ANY(string_to_array(?, ',')::uuid[])`, categoryID, userID, strings.Join(ids, ","))
-	return res.RowsAffected, shared.WrapError(res.Error, "transaction")
-}
-
 func (r *Repository) CardTransactions(ctx context.Context, userID string, from time.Time, limit int) ([]domain.Transaction, error) {
 	var rows []transactionRow
 	err := r.db.WithContext(ctx).Raw(`
@@ -198,4 +191,46 @@ func (r *Repository) DeleteDebt(ctx context.Context, userID, id string) error {
 		return notFound("debt")
 	}
 	return nil
+}
+
+type keyTotalRow struct {
+	Month       *time.Time `gorm:"column:month"`
+	Description *string    `gorm:"column:description"`
+	Total       int64      `gorm:"column:total"`
+	Count       int64      `gorm:"column:n"`
+}
+
+func (r *Repository) CategoryDetail(ctx context.Context, userID, categoryID string, sign int, from, to time.Time) (*domain.CategoryDetail, error) {
+	where, arg := "t.category_id = ?::uuid", any(categoryID)
+	if categoryID == "" {
+		where, arg = "t.category_id IS NULL AND sign(t.amount_cents) = ?", sign
+	}
+	var rows []keyTotalRow
+	// One pass: month rows and description rows come from the same grouping.
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT month, description, total, n FROM (
+			SELECT date_trunc('month', t.date)::date AS month, t.description, sum(t.amount_cents)::bigint AS total, count(*) AS n,
+			       row_number() OVER (PARTITION BY GROUPING(t.description) ORDER BY abs(sum(t.amount_cents)) DESC) AS rk
+			FROM app.fin_transaction t
+			WHERE t.user_id = ? AND t.date >= ?::date AND t.date < ?::date AND `+where+`
+			GROUP BY GROUPING SETS ((date_trunc('month', t.date)), (t.description))
+		) g
+		WHERE description IS NULL OR rk <= ?
+		ORDER BY month NULLS LAST, abs(total) DESC`,
+		userID, from.Format(time.DateOnly), to.Format(time.DateOnly), arg, domain.CategoryDetailTop).Find(&rows).Error
+	if err != nil {
+		return nil, shared.WrapError(err, "transaction")
+	}
+	out := &domain.CategoryDetail{Months: []domain.KeyTotal{}, Descriptions: []domain.KeyTotal{}}
+	for _, row := range rows {
+		kt := domain.KeyTotal{Total: row.Total, Count: row.Count}
+		if row.Month != nil {
+			kt.Key = row.Month.Format("2006-01")
+			out.Months = append(out.Months, kt)
+		} else if row.Description != nil {
+			kt.Key = *row.Description
+			out.Descriptions = append(out.Descriptions, kt)
+		}
+	}
+	return out, nil
 }

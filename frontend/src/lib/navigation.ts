@@ -43,6 +43,7 @@ export const SETTINGS_NAV: NavItem = {
   href: "/connections", key: "nav.settings", icon: Settings,
   tabs: [
     { href: "/connections", key: "nav.connections" },
+    { href: "/data", key: "nav.data" },
     { href: "/categories", key: "nav.categories" },
     { href: "/profile", key: "nav.profile" },
   ],

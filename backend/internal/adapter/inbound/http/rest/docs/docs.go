@@ -609,6 +609,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/finance/accounts/{id}/balance-check": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Connections"
+                ],
+                "summary": "Accept the balance gap of a bank account and check it from now on",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Account ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/finance/accounts/{id}/import": {
             "post": {
                 "security": [
@@ -676,6 +715,85 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/archive": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Connections"
+                ],
+                "summary": "Everything the user set up as one JSON file: categories, rules, goals, subscriptions, debts, manual accounts with their transactions, and what was changed on bank transactions",
+                "responses": {
+                    "200": {
+                        "description": "Archive, version 1: see internal/core/domain/archive.go",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Send the settings first, then at most 500 transactions of one account or 500 overrides per call.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Connections"
+                ],
+                "summary": "Import one part of an archive: what is missing is added, nothing is deleted, a part sent twice adds nothing twice",
+                "parameters": [
+                    {
+                        "description": "Archive part: see internal/core/domain/archive.go",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Archive, version 1: see internal/core/domain/archive.go\"Result",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
                         }
@@ -1626,6 +1744,36 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/finance/health": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Connections"
+                ],
+                "summary": "Whether the numbers can be trusted: account freshness, balance check, counts and backups",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/finance.dataHealthDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/finance/networth": {
             "get": {
                 "security": [
@@ -1820,6 +1968,9 @@ const docTemplate = `{
                                 },
                                 "rule": {
                                     "$ref": "#/definitions/finance.ruleDTO"
+                                },
+                                "undo_id": {
+                                    "type": "string"
                                 }
                             }
                         }
@@ -2482,6 +2633,9 @@ const docTemplate = `{
                             "properties": {
                                 "changed": {
                                     "type": "integer"
+                                },
+                                "undo_id": {
+                                    "type": "string"
                                 }
                             }
                         }
@@ -2570,6 +2724,41 @@ const docTemplate = `{
                         "description": "bad filter, or more than 10000 rows",
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/transactions/pair": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "File transfers between the user's own accounts (runs after every sync too)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "paired": {
+                                    "type": "integer"
+                                }
+                            }
                         }
                     },
                     "401": {
@@ -2827,6 +3016,57 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/finance/undo/{id}": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Rows changed again since are left alone. Undos last 7 days.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Put back what a bulk category change or a new rule overwrote, and drop the rule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Undo ID from the change",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "restored": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/finance/year": {
             "get": {
                 "security": [
@@ -2854,6 +3094,70 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/finance.yearDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/year/category": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "One category of a year (or a month) by month and by description, biggest first",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Year",
+                        "name": "year",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Month as YYYY-MM inside the year",
+                        "name": "month",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Category id, or none for uncategorized",
+                        "name": "category_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "income or expense; required with none",
+                        "name": "kind",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/finance.categoryDetailDTO"
                         }
                     },
                     "400": {
@@ -5766,11 +6070,62 @@ const docTemplate = `{
                 }
             }
         },
+        "finance.accountHealthDTO": {
+            "type": "object",
+            "properties": {
+                "check_since": {
+                    "type": "string"
+                },
+                "gap": {
+                    "description": "bank accounts: balance moved beyond the transactions; null before the first check",
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "institution": {
+                    "type": "string"
+                },
+                "last_date": {
+                    "type": "string",
+                    "example": "2026-11-10"
+                },
+                "manual": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "BANK"
+                }
+            }
+        },
         "finance.addConnectionDTO": {
             "type": "object",
             "properties": {
                 "item_id": {
                     "type": "string"
+                }
+            }
+        },
+        "finance.backupRunDTO": {
+            "type": "object",
+            "properties": {
+                "at": {
+                    "type": "string"
+                },
+                "detail": {
+                    "type": "string"
+                },
+                "kind": {
+                    "description": "dump, copy or restore_check",
+                    "type": "string",
+                    "example": "dump"
+                },
+                "ok": {
+                    "type": "boolean"
                 }
             }
         },
@@ -5879,6 +6234,23 @@ const docTemplate = `{
                 },
                 "rollover": {
                     "type": "boolean"
+                }
+            }
+        },
+        "finance.categoryDetailDTO": {
+            "type": "object",
+            "properties": {
+                "descriptions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/finance.keyTotalDTO"
+                    }
+                },
+                "months": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/finance.keyTotalDTO"
+                    }
                 }
             }
         },
@@ -6062,6 +6434,31 @@ const docTemplate = `{
                 }
             }
         },
+        "finance.dataHealthDTO": {
+            "type": "object",
+            "properties": {
+                "accounts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/finance.accountHealthDTO"
+                    }
+                },
+                "backups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/finance.backupRunDTO"
+                    }
+                },
+                "paired": {
+                    "description": "last 90 days",
+                    "type": "integer"
+                },
+                "uncategorized": {
+                    "description": "last 90 days",
+                    "type": "integer"
+                }
+            }
+        },
         "finance.debtDTO": {
             "type": "object",
             "properties": {
@@ -6204,6 +6601,21 @@ const docTemplate = `{
                 "type": {
                     "type": "string",
                     "example": "FIXED_INCOME"
+                }
+            }
+        },
+        "finance.keyTotalDTO": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "key": {
+                    "description": "YYYY-MM for months, the bank description otherwise",
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },

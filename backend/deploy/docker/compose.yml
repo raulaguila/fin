@@ -105,32 +105,26 @@ services:
       postgres:
         condition: service_healthy
 
-  # Daily custom-format dump of the whole database into BACKUP_DIR, one file
-  # per weekday (fin-1.dump is Monday), so the last 7 days stay and nothing
-  # needs deleting. A failed dump leaves the previous week's file in place.
-  # Restore: see README ("Backup").
+  # Daily dump, optional encrypted copy to another place and a weekly restore
+  # test: deploy/docker/postgres/backup.sh. Restore: see README ("Backup").
   backup:
 
     container_name: fin_backup
     image: fin_postgres
     restart: always
-    entrypoint: ["sh", "-c"]
-    command:
-      - |
-        umask 077
-        while true; do
-          f=/backups/fin-$$(date +%u).dump
-          pg_dump -h postgres -p "$$POSTGRES_PORT" -U "$$POSTGRES_USER" -d "$$POSTGRES_BASE" -Fc -f "$$f.tmp" && mv -f "$$f.tmp" "$$f"
-          sleep 86400
-        done
+    entrypoint: ["/usr/local/bin/fin-backup"]
     environment:
       - TZ=${TZ}
       - POSTGRES_PORT=${POSTGRES_PORT}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_BASE=${POSTGRES_BASE}
       - PGPASSWORD=${POSTGRES_PASS}
+      - BACKUP_COPY_DIR=${BACKUP_COPY_DIR:-}
+      - BACKUP_PASSPHRASE=${BACKUP_PASSPHRASE:-}
     volumes:
       - ${BACKUP_DIR:-../../backups}:/backups
+      # Without BACKUP_COPY_DIR this mounts the dumps again and the script copies nothing.
+      - ${BACKUP_COPY_DIR:-../../backups}:/copy
     deploy:
       resources:
         limits:

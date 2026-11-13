@@ -30,6 +30,9 @@ func (s *Service) Jobs() map[string]policy.JobHandler {
 
 // runDaily queues one sync per connection; each sync runs the alerts of its user.
 func (s *Service) runDaily(ctx context.Context, _ []byte) error {
+	if err := s.repo().PruneUndo(ctx, s.Clock.Now().Add(-undoKeep)); err != nil {
+		return err
+	}
 	if !s.OpenFinanceEnabled() {
 		return nil
 	}

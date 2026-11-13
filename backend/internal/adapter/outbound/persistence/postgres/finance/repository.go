@@ -231,8 +231,9 @@ func (r *Repository) UpsertTransactions(ctx context.Context, userID, accountID s
 			    amount_cents = EXCLUDED.amount_cents - coalesce((SELECT sum(s.amount_cents) FROM app.fin_transaction s WHERE s.split_of = t.id), 0),
 			    status = EXCLUDED.status, provider_category = EXCLUDED.provider_category,
 			    installment = EXCLUDED.installment, installments = EXCLUDED.installments,
-			    category_id = CASE WHEN t.category_source = 'user' THEN t.category_id ELSE EXCLUDED.category_id END,
-			    category_source = CASE WHEN t.category_source = 'user' THEN 'user' ELSE EXCLUDED.category_source END
+			    -- the user's choice and a matched transfer survive a resync
+			    category_id = CASE WHEN t.category_source IN ('user', 'pair') THEN t.category_id ELSE EXCLUDED.category_id END,
+			    category_source = CASE WHEN t.category_source IN ('user', 'pair') THEN t.category_source ELSE EXCLUDED.category_source END
 			WHERE t.user_id = EXCLUDED.user_id
 			RETURNING (xmax = 0)`, args...).Find(&news).Error
 		if err != nil {
@@ -418,7 +419,7 @@ func (r *Repository) Categorizable(ctx context.Context, userID string, limit int
 	var rows []transactionRow
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT id, description, amount_cents, provider_category, category_id, category_source
-		FROM app.fin_transaction WHERE user_id = ? AND category_source <> 'user'
+		FROM app.fin_transaction WHERE user_id = ? AND category_source NOT IN ('user', 'pair')
 		ORDER BY date DESC, id LIMIT ?`, userID, limit).Find(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "transaction")
@@ -441,7 +442,7 @@ func (r *Repository) SetCategories(ctx context.Context, userID string, txs []dom
 		res := r.db.WithContext(ctx).Exec(`
 			UPDATE app.fin_transaction t SET category_id = v.category_id, category_source = v.source
 			FROM (VALUES `+strings.Join(values, ", ")+`) AS v(id, category_id, source)
-			WHERE t.id = v.id AND t.user_id = ? AND t.category_source <> 'user'`, append(args, userID)...)
+			WHERE t.id = v.id AND t.user_id = ? AND t.category_source NOT IN ('user', 'pair')`, append(args, userID)...)
 		if res.Error != nil {
 			return changed, shared.WrapError(res.Error, "transaction")
 		}
@@ -677,14 +678,6 @@ func (r *Repository) CountMatches(ctx context.Context, userID, keyword string) (
 	err := r.db.WithContext(ctx).Raw(`SELECT count(*) FROM app.fin_transaction WHERE user_id = ? AND description ILIKE ?`,
 		userID, shared.Contains(keyword)).Take(&n).Error
 	return n, shared.WrapError(err, "transaction")
-}
-
-func (r *Repository) ApplyRule(ctx context.Context, userID, keyword, categoryID string) (int64, error) {
-	res := r.db.WithContext(ctx).Exec(`
-		UPDATE app.fin_transaction SET category_id = ?, category_source = 'rule'
-		WHERE user_id = ? AND description ILIKE ? AND category_source <> 'user'`,
-		categoryID, userID, shared.Contains(keyword))
-	return res.RowsAffected, shared.WrapError(res.Error, "transaction")
 }
 
 // ---- alerts ----

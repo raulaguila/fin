@@ -320,6 +320,9 @@ func (s *Service) sync(ctx context.Context, connectionID string) (*domain.Connec
 			return nil, err
 		}
 		inserted += n
+		if err := s.repo().StartBalanceCheck(ctx, c.UserID, acc.ID, false); err != nil {
+			return nil, err
+		}
 		// A pending charge the bank no longer lists was replaced by the posted one.
 		if _, err := s.repo().DeleteMissingPending(ctx, acc.ID, from, ids); err != nil {
 			return nil, err
@@ -339,7 +342,11 @@ func (s *Service) sync(ctx context.Context, connectionID string) (*domain.Connec
 	if err != nil {
 		return nil, err
 	}
-	s.Log.Info(fmt.Sprintf("Open finance sync: %d accounts, %d new transactions, %d recategorized", len(accounts), inserted, changed))
+	paired, err := s.PairTransfers(ctx, c.UserID)
+	if err != nil {
+		return nil, err
+	}
+	s.Log.Info(fmt.Sprintf("Open finance sync: %d accounts, %d new transactions, %d recategorized, %d paired", len(accounts), inserted, changed, paired))
 	return c, nil
 }
 
@@ -532,28 +539,28 @@ func (s *Service) PreviewRule(ctx context.Context, userID, keyword string) (int6
 	return s.repo().CountMatches(ctx, userID, keyword)
 }
 
-func (s *Service) CreateRule(ctx context.Context, userID, keyword, categoryID string) (*domain.Rule, int64, error) {
+func (s *Service) CreateRule(ctx context.Context, userID, keyword, categoryID string) (*domain.Rule, domain.Change, error) {
 	keyword, err := ruleKeyword(keyword)
 	if err != nil {
-		return nil, 0, err
+		return nil, domain.Change{}, err
 	}
 	cat, err := s.ownCategory(ctx, userID, categoryID)
 	if err != nil {
-		return nil, 0, err
+		return nil, domain.Change{}, err
 	}
 	rule := &domain.Rule{Keyword: keyword, CategoryID: cat.ID, CategoryName: cat.Name}
-	var changed int64
+	var changed domain.Change
 	err = s.Tx.WithinTx(ctx, func(ctx context.Context, uow output.UnitOfWork) error {
 		if err := uow.Finance().CreateRule(ctx, userID, rule); err != nil {
 			return err
 		}
-		changed, err = uow.Finance().ApplyRule(ctx, userID, keyword, cat.ID)
+		changed, err = uow.Finance().ApplyRule(ctx, userID, rule.ID, keyword, cat.ID)
 		return err
 	})
 	if err != nil {
-		return nil, 0, err
+		return nil, domain.Change{}, err
 	}
-	rule.Hits = changed
+	rule.Hits = changed.Count
 	return rule, changed, nil
 }
 

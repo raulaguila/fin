@@ -103,10 +103,19 @@ Limites conhecidos:
 
 ### Backup
 
-O serviço `fin_backup` (sobe com `make compose-build`) grava todo dia um dump do banco em `backend/backups/` (`BACKUP_DIR`), um arquivo por dia da semana (`fin-1.dump` é segunda): ficam sempre os últimos 7 dias, sem apagar nada. Os arquivos têm todos os seus dados e ficam só para o root. Um disco só não é backup: copie-os para outro disco ou um NAS com `make backup-copy DEST=/media/hd/fin` (em `backend/`). Para fazer isso todo dia, uma linha no `sudo crontab -e`:
+O serviço `fin_backup` (sobe com `make compose-build`) grava todo dia um dump do banco em `backend/backups/` (`BACKUP_DIR`), um arquivo por dia da semana (`fin-1.dump` é segunda): ficam sempre os últimos 7 dias, sem apagar nada. Os arquivos têm todos os seus dados e ficam só para o root.
 
-```
-30 4 * * * cd /caminho/do/fin/backend && make backup-copy DEST=/media/hd/fin
+Um disco só não é backup. Em `backend/config/.env`:
+
+- `BACKUP_COPY_DIR`: outro disco, um NAS montado ou uma pasta que um cliente de nuvem sincroniza. Todo dump é copiado para lá.
+- `BACKUP_PASSPHRASE`: criptografa as cópias (AES-256, arquivos `.enc`). Guarde a senha no seu gerenciador de senhas: sem ela as cópias não abrem.
+
+Uma vez por semana o serviço restaura o dump num banco temporário e conta as transações, para provar que o backup funciona. O resultado de cada passo aparece em **Saúde dos dados** no app. `make backup-copy DEST=/media/hd/fin` (em `backend/`) continua copiando à mão.
+
+Abrir uma cópia criptografada:
+
+```bash
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in fin-1.dump.enc -out fin-1.dump
 ```
 
 Restaurar um dump (de `backend/`, com a stack no ar; troque `5445` pelo seu `POSTGRES_PORT`; substitui o banco atual):

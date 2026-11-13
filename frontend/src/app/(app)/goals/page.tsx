@@ -23,11 +23,17 @@ import { useI18n } from "@/lib/i18n/provider";
 
 const NO_ACCOUNT = "none";
 
-/** Months from today to a YYYY-MM-DD date, at least 1. */
+/** Months from today to a YYYY-MM-DD date, the current one included, at least 1 (as the goal alert counts). */
 function monthsUntil(date: string): number {
   const [y, m] = date.split("-").map(Number);
   const now = new Date();
-  return Math.max(1, (y - now.getFullYear()) * 12 + (m - 1 - now.getMonth()));
+  return Math.max(1, (y - now.getFullYear()) * 12 + (m - 1 - now.getMonth()) + 1);
+}
+
+/** What a goal with a date asks for each month; 0 without a date or once reached. */
+function monthlyNeed(g: Goal): number {
+  const missing = Math.max(0, g.target - g.current);
+  return g.due_date && missing > 0 ? Math.ceil(missing / monthsUntil(g.due_date)) : 0;
 }
 
 function GoalDialog({ goal, open, onClose }: { goal: Goal | null; open: boolean; onClose: () => void }) {
@@ -91,11 +97,42 @@ function GoalDialog({ goal, open, onClose }: { goal: Goal | null; open: boolean;
 }
 
 /** Average monthly leftover (income less spending) of the complete months, or 0. */
-function usePace(): number {
+/** What was left in the last full months: the average of six and the last one. */
+function usePace(): { pace: number; last: number | null } {
   const trend = useQuery({ queryKey: ["finance", "trend", 7], queryFn: () => finance.trend(7) });
   const done = (trend.data?.items ?? []).slice(0, -1); // the current month is still running
   const avg = done.length ? done.reduce((n, m) => n + m.income + m.expense, 0) / done.length : 0;
-  return Math.max(0, Math.floor(avg));
+  const last = done.at(-1);
+  return { pace: Math.max(0, Math.floor(avg)), last: last ? last.income + last.expense : null };
+}
+
+/** The saving pace against what the goals with a date ask, so the flow of money and the goals meet. */
+function PaceCard({ goals, pace, last }: { goals: Goal[]; pace: number; last: number | null }) {
+  const { t } = useI18n();
+  const f = useFinanceFormat();
+  const need = goals.reduce((n, g) => n + monthlyNeed(g), 0);
+  const short = need - pace;
+  return (
+    <Card className="grid gap-3 p-4 sm:grid-cols-3">
+      <div className="grid gap-0.5">
+        <span className="text-xs text-muted-foreground">{t("fin.goal.last_month")}</span>
+        <span className={`text-lg font-semibold tabular-nums ${last !== null && last < 0 ? "text-red-700 dark:text-red-400" : ""}`}>{last === null ? "—" : f.money(last)}</span>
+      </div>
+      <div className="grid gap-0.5">
+        <span className="text-xs text-muted-foreground">{t("fin.goal.pace")}</span>
+        <span className="text-lg font-semibold tabular-nums">{f.money(pace)}</span>
+      </div>
+      <div className="grid gap-0.5">
+        <span className="text-xs text-muted-foreground">{t("fin.goal.need")}</span>
+        <span className="text-lg font-semibold tabular-nums">{f.money(need)}</span>
+      </div>
+      {need > 0 && (
+        <p className={`text-sm sm:col-span-3 ${short > 0 ? "text-amber-800 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-400"}`}>
+          {short > 0 ? fill(t("fin.goal.short"), { v: f.money(short) }) : t("fin.goal.on_pace_all")}
+        </p>
+      )}
+    </Card>
+  );
 }
 
 function GoalCard({ g, pace, onEdit, onRemove }: { g: Goal; pace: number; onEdit: () => void; onRemove: () => void }) {
@@ -120,11 +157,16 @@ function GoalCard({ g, pace, onEdit, onRemove }: { g: Goal; pace: number; onEdit
         <span className="tabular-nums text-muted-foreground">{pct}%</span>
       </div>
       <Meter value={g.current} max={g.target} neutral />
+      {monthlyNeed(g) > 0 && (
+        <span className={`w-fit rounded-full px-2 py-0.5 text-xs ${monthlyNeed(g) <= pace ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300" : "bg-amber-500/15 text-amber-800 dark:text-amber-300"}`}>
+          {monthlyNeed(g) <= pace ? t("fin.goal.on_pace") : t("fin.goal.behind")}
+        </span>
+      )}
       <p className="text-xs text-muted-foreground">
         {missing === 0
           ? t("fin.goal.reached")
           : g.due_date
-            ? fill(t("fin.goal.per_month"), { v: f.money(Math.ceil(missing / monthsUntil(g.due_date))), d: f.date(g.due_date) })
+            ? fill(t("fin.goal.per_month"), { v: f.money(monthlyNeed(g)), d: f.date(g.due_date) })
             : pace > 0
               ? fill(t("fin.goal.at_pace"), { v: f.money(missing), p: f.money(pace), n: Math.ceil(missing / pace) })
               : fill(t("fin.goal.missing"), { v: f.money(missing) })}
@@ -137,7 +179,7 @@ export default function GoalsPage() {
   const { t } = useI18n();
   const client = useQueryClient();
   const goals = useQuery({ queryKey: ["finance", "goals"], queryFn: finance.goals });
-  const pace = usePace();
+  const { pace, last } = usePace();
   const [editing, setEditing] = useState<{ goal: Goal | null } | null>(null);
   const [removing, setRemoving] = useState<Goal | null>(null);
   const items = goals.data?.items ?? [];
@@ -153,9 +195,12 @@ export default function GoalsPage() {
         ) : items.length === 0 ? (
           <EmptyState icon={Flag} title={t("fin.goal.empty")} description={t("fin.goal.help")} action={add} />
         ) : (
+          <>
+          <PaceCard goals={items} pace={pace} last={last} />
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {items.map((g) => <GoalCard key={g.id} g={g} pace={pace} onEdit={() => setEditing({ goal: g })} onRemove={() => setRemoving(g)} />)}
           </div>
+          </>
         )}
         {/* The key resets the form for each goal opened. */}
         {editing && <GoalDialog key={editing.goal?.id ?? "new"} goal={editing.goal} open onClose={() => setEditing(null)} />}

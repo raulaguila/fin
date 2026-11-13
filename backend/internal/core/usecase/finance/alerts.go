@@ -27,6 +27,7 @@ const (
 	NotifyDuplicate  = "finance_duplicate"
 	NotifyPrice      = "finance_price"
 	NotifyWeekly     = "finance_weekly"
+	NotifyGoal       = "finance_goal"
 )
 
 const (
@@ -38,6 +39,7 @@ const (
 	recentDays      = 3      // charges this recent are checked for duplicates and interest
 	priceDays       = 7      // a price rise is told within a week of the charge
 	alertMonths     = 4      // spending window of the alerts, as long as the recurring detection
+	paceMonths      = 6      // full months the saving pace averages
 )
 
 type alert struct {
@@ -93,6 +95,9 @@ func (s *Service) Alerts(ctx context.Context, userID string) error {
 		return err
 	}
 	if err := add(s.connectionAlerts(ctx, userID, now)); err != nil {
+		return err
+	}
+	if err := add(s.goalAlerts(ctx, userID, now)); err != nil {
 		return err
 	}
 	day := monthDay(now)
@@ -156,6 +161,55 @@ func (s *Service) budgetAlerts(ctx context.Context, userID string, now time.Time
 				title: "Orçamento de " + c.Name + " em " + fmt.Sprint(used) + "%",
 				text:  fmt.Sprintf("Restam %s do limite de %s em %s até o fim do mês.", brl(c.Limit+c.Total), brl(c.Limit), c.Name)})
 		}
+	}
+	return out, nil
+}
+
+// savingPace is what was left on average in the last full months: income plus
+// (negative) spending, never below zero.
+func (s *Service) savingPace(ctx context.Context, userID string, now time.Time) (domain.Money, error) {
+	to := monthStart(now)
+	months, err := s.repo().MonthlyTotals(ctx, userID, to.AddDate(0, -paceMonths, 0), to)
+	if err != nil || len(months) == 0 {
+		return 0, err
+	}
+	var left domain.Money
+	for _, m := range months {
+		left += m.Income + m.Expense
+	}
+	return max(0, left/domain.Money(len(months))), nil
+}
+
+// monthsLeft counts the months from now to due, the current one included.
+func monthsLeft(now, due time.Time) int {
+	return max(1, (due.Year()-now.Year())*12+int(due.Month()-now.Month())+1)
+}
+
+// goalAlerts tells, once a month, about a goal with a date that the saving pace does not reach.
+func (s *Service) goalAlerts(ctx context.Context, userID string, now time.Time) ([]alert, error) {
+	goals, err := s.repo().Goals(ctx, userID)
+	if err != nil || len(goals) == 0 {
+		return nil, err
+	}
+	pace, err := s.savingPace(ctx, userID, now)
+	if err != nil {
+		return nil, err
+	}
+	var out []alert
+	month := now.Format("2006-01")
+	for _, g := range goals {
+		missing := g.Target - g.Current
+		if g.DueDate == nil || missing <= 0 || g.DueDate.Before(now) {
+			continue
+		}
+		need := missing / domain.Money(monthsLeft(now, *g.DueDate))
+		if need <= pace {
+			continue
+		}
+		out = append(out, alert{key: "goal:" + g.ID + ":" + month, level: domain.NotificationInfo, kind: NotifyGoal,
+			title: "Meta " + g.Name + " fora do ritmo",
+			text: fmt.Sprintf("Faltam %s até %s: %s por mês. Nos últimos meses sobraram em média %s por mês.",
+				brl(missing), g.DueDate.Format("02/01/2006"), brl(need), brl(pace))})
 	}
 	return out, nil
 }

@@ -2,7 +2,8 @@
 
 Playwright drives the real screens against a real backend. The flows are the
 ones a regression would hurt most: sign-in, invite and activation, password
-reset, and saving a role's permissions.
+reset, saving a role's permissions, and a manual finance entry going through
+the list, the report, the data page and the export.
 
 ## What the run needs
 

@@ -93,6 +93,7 @@ export function TransactionSheet({ tx, categories, manual, onClose, onCategorize
           <SelectTrigger className="w-full" aria-label={t("fin.tx.category")}><SelectValue /></SelectTrigger>
           <SelectContent>{Object.entries(cats).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
         </Select>
+        {tx.category_id && <p className="text-xs text-muted-foreground">{t(`fin.tx.source_${tx.category_source}`)}</p>}
       </div>
       <NoteField id="tx-note" value={note} onChange={setNote} />
       <TagsField id="tx-tags" value={tags} onChange={setTags} />

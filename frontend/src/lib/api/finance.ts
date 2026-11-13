@@ -59,7 +59,8 @@ export interface Transaction {
   category_id: string;
   category_name: string;
   category_kind: CategoryKind | "";
-  category_source: "auto" | "rule" | "user";
+  /** pair: matched with the opposite movement in another of your accounts. */
+  category_source: "auto" | "rule" | "user" | "pair";
   installment: number;
   installments: number;
   /** The original transaction when this row is a split part. */
@@ -173,6 +174,50 @@ export interface YearReport {
   expense: Cents;
   categories: CategoryTotal[];
   months: MonthTotal[];
+}
+
+export interface AccountHealth {
+  id: string;
+  name: string;
+  institution: string;
+  type: "BANK" | "CREDIT";
+  manual: boolean;
+  last_date: string | null;
+  check_since: string | null;
+  /** Bank accounts: balance moved beyond the transactions since check_since. */
+  gap: Cents | null;
+}
+
+export interface ArchiveResult {
+  categories: number;
+  rules: number;
+  goals: number;
+  subscriptions: number;
+  debts: number;
+  accounts: number;
+  transactions: number;
+  overrides: number;
+}
+
+export interface DataHealth {
+  accounts: AccountHealth[];
+  /** Last 90 days. */
+  uncategorized: number;
+  paired: number;
+  backups: { kind: "dump" | "copy" | "restore_check"; ok: boolean; detail: string; at: string }[];
+}
+
+/** A sum under a key: YYYY-MM for months, the bank description otherwise. */
+export interface KeyTotal {
+  key: string;
+  total: Cents;
+  count: number;
+}
+
+export interface CategoryDetail {
+  months: KeyTotal[];
+  /** Biggest first, at most 50. */
+  descriptions: KeyTotal[];
 }
 
 /** A charge seen in several of the last months. Amounts are negative. */
@@ -329,7 +374,7 @@ export const finance = {
   updateTransaction: (transactionId: string, patch: { category_id?: string; note: string; tags: string[] }) =>
     apiFetch<{ keyword: string }>(`${base}/transactions/${id(transactionId)}`, { method: "PATCH", json: patch }),
   categorizeMany: (ids: string[], categoryId: string) =>
-    apiFetch<{ changed: number }>(`${base}/transactions/categorize`, { method: "POST", json: { ids, category_id: categoryId } }),
+    apiFetch<{ changed: number; undo_id: string }>(`${base}/transactions/categorize`, { method: "POST", json: { ids, category_id: categoryId } }),
   addTransaction: (t: NewTransaction) => apiFetch<Transaction>(`${base}/transactions`, { method: "POST", json: t }),
   removeTransaction: (transactionId: string) => apiFetch<void>(`${base}/transactions/${id(transactionId)}`, { method: "DELETE" }),
   exportTransactions: (p: Omit<TransactionQuery, "page" | "limit">) => apiDownload(`${base}/transactions/export${query(p)}`, "transacoes.csv"),
@@ -350,13 +395,25 @@ export const finance = {
   ruleSuggestions: () => apiFetch<{ items: RuleSuggestion[] }>(`${base}/rules/suggestions`),
   previewRule: (keyword: string) => apiFetch<{ matches: number }>(`${base}/rules/preview${query({ keyword })}`),
   createRule: (keyword: string, categoryId: string) =>
-    apiFetch<{ rule: Rule; applied: number }>(`${base}/rules`, { method: "POST", json: { keyword, category_id: categoryId } }),
+    apiFetch<{ rule: Rule; applied: number; undo_id: string }>(`${base}/rules`, { method: "POST", json: { keyword, category_id: categoryId } }),
+  /** Puts back what a bulk change or a new rule overwrote, and drops the rule. */
+  undo: (undoId: string) => apiFetch<{ restored: number }>(`${base}/undo/${id(undoId)}`, { method: "POST" }),
+  /** Files transfers between the user's own accounts now instead of at the next sync. */
+  pairTransfers: () => apiFetch<{ paired: number }>(`${base}/transactions/pair`, { method: "POST" }),
+  health: () => apiFetch<DataHealth>(`${base}/health`),
+  exportArchive: () => apiDownload(`${base}/archive`, "fin.json"),
+  /** One part of an archive: settings, or up to 500 transactions of one account, or up to 500 overrides. */
+  importArchive: (part: Record<string, unknown>) => apiFetch<ArchiveResult>(`${base}/archive`, { method: "POST", json: part }),
+  resetBalanceCheck: (accountId: string) => apiFetch<void>(`${base}/accounts/${id(accountId)}/balance-check`, { method: "POST" }),
   removeRule: (ruleId: string) => apiFetch<void>(`${base}/rules/${id(ruleId)}`, { method: "DELETE" }),
 
   split: (transactionId: string, amount: Cents, categoryId: string) =>
     apiFetch<void>(`${base}/transactions/${id(transactionId)}/split`, { method: "POST", json: { amount, category_id: categoryId } }),
   unsplit: (transactionId: string) => apiFetch<void>(`${base}/transactions/${id(transactionId)}/split`, { method: "DELETE" }),
   year: (year: number) => apiFetch<YearReport>(`${base}/year${query({ year })}`),
+  /** One category of a year (or of one month in it); "none" with a kind is the uncategorized money. */
+  categoryDetail: (p: { year: number; month?: string; category_id: string; kind?: CategoryKind }) =>
+    apiFetch<CategoryDetail>(`${base}/year/category${query(p)}`),
   calendar: () => apiFetch<Calendar>(`${base}/calendar`),
   createManualAccount: (a: { institution: string; name: string; type: "BANK" | "CREDIT" }) =>
     apiFetch<Account>(`${base}/accounts`, { method: "POST", json: a }),

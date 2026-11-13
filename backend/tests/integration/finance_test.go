@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -17,9 +18,10 @@ import (
 
 // fakeBank is the Open Finance provider: one item with a checking account and a card.
 type fakeBank struct {
-	owner  string
-	status string
-	txs    map[string][]domain.OFTransaction
+	owner   string
+	status  string
+	txs     map[string][]domain.OFTransaction
+	balance domain.Money // of the checking account; 845237 when zero
 }
 
 func (f *fakeBank) Enabled() bool { return true }
@@ -35,8 +37,9 @@ func (f *fakeBank) DeleteItem(context.Context, string) error  { return nil }
 func (f *fakeBank) Accounts(context.Context, string) ([]domain.OFAccount, error) {
 	limit, avail := domain.Money(500000), domain.Money(380000)
 	due := time.Now().AddDate(0, 0, 2)
+	balance := cmp.Or(f.balance, 845237)
 	return []domain.OFAccount{
-		{ID: "acc-bank-" + f.owner, Type: domain.AccountBank, Name: "Conta corrente", Number: "0001", Balance: 845237},
+		{ID: "acc-bank-" + f.owner, Type: domain.AccountBank, Name: "Conta corrente", Number: "0001", Balance: balance},
 		{ID: "acc-card-" + f.owner, Type: domain.AccountCredit, Name: "Cartão Gold", Balance: 120000, CreditLimit: &limit, Available: &avail, BillDueDate: &due},
 	}, nil
 }
@@ -214,8 +217,8 @@ func TestFinanceSyncSummaryRulesAndAlerts(t *testing.T) {
 		t.Fatalf("preview %d %v", n, err)
 	}
 	rule, applied, err := svc.CreateRule(ctx, userID, "padaria", food)
-	if err != nil || applied != 1 || rule.CategoryName != "Restaurantes" {
-		t.Fatalf("rule %+v %d %v (%v)", rule, applied, err, errors.Unwrap(err))
+	if err != nil || applied.Count != 1 || applied.UndoID == "" || rule.CategoryName != "Restaurantes" {
+		t.Fatalf("rule %+v %+v %v (%v)", rule, applied, err, errors.Unwrap(err))
 	}
 	if _, _, err := svc.CreateRule(ctx, other, "x1", food); !apperror.IsNotFound(err) {
 		t.Fatalf("rule on someone else's category: %v", err)
@@ -282,6 +285,31 @@ func TestFinanceSyncSummaryRulesAndAlerts(t *testing.T) {
 	}
 	if _, err := svc.YearReport(ctx, userID, now.Year()+1); err == nil {
 		t.Fatal("a future year is refused")
+	}
+	// One category by month and description: both views add up to the same money.
+	detail, err := svc.CategoryDetail(ctx, userID, now.Year(), time.Time{}, txs[0].CategoryID, "")
+	if err != nil || len(detail.Months) != 1 || len(detail.Descriptions) != 1 || detail.Descriptions[0].Total != -8900 || detail.Months[0].Total != -8900 {
+		t.Fatalf("category detail: %+v %v", detail, err)
+	}
+	loose, err := svc.CategoryDetail(ctx, userID, now.Year(), time.Time{}, "none", "expense")
+	if err != nil || len(loose.Descriptions) == 0 {
+		t.Fatalf("uncategorized detail: %+v %v", loose, err)
+	}
+	var byMonth, byDesc domain.Money
+	for _, m := range loose.Months {
+		byMonth += m.Total
+	}
+	for _, d := range loose.Descriptions {
+		byDesc += d.Total
+		if d.Total >= 0 {
+			t.Fatalf("uncategorized expense holds income: %+v", d)
+		}
+	}
+	if byMonth != byDesc {
+		t.Fatalf("months %d descriptions %d", byMonth, byDesc)
+	}
+	if _, err := svc.CategoryDetail(ctx, userID, now.Year(), time.Time{}, "none", ""); err == nil {
+		t.Fatal("uncategorized needs a kind")
 	}
 	cal, err := svc.Calendar(ctx, userID)
 	if err != nil || cal.Start != 845237 || len(cal.Events) == 0 || cal.Events[0].Kind != "bill" {
@@ -419,11 +447,29 @@ func TestFinanceSyncSummaryRulesAndAlerts(t *testing.T) {
 	if err := svc.DeleteTransaction(ctx, userID, synced[0].ID); !apperror.IsNotFound(err) {
 		t.Fatalf("delete of a bank's transaction: %v", err)
 	}
-	if n, err := svc.CategorizeMany(ctx, other, []string{typed.ID}, ""); err != nil || n != 0 {
-		t.Fatalf("bulk category on another user's transaction: %d %v", n, err)
+	if n, err := svc.CategorizeMany(ctx, other, []string{typed.ID}, ""); err != nil || n.Count != 0 {
+		t.Fatalf("bulk category on another user's transaction: %+v %v", n, err)
 	}
-	if n, err := svc.CategorizeMany(ctx, userID, []string{typed.ID, synced[0].ID}, ""); err != nil || n != 2 {
-		t.Fatalf("bulk category: %d %v", n, err)
+	cleared, err := svc.CategorizeMany(ctx, userID, []string{typed.ID}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Undo(ctx, other, cleared.UndoID); !apperror.IsNotFound(err) {
+		t.Fatalf("undo of another user's change: %v", err)
+	}
+	before := synced[0].CategoryID
+	bulk, err := svc.CategorizeMany(ctx, userID, []string{typed.ID, synced[0].ID}, "")
+	if err != nil || bulk.Count != 1 { // typed was cleared just above, so only the synced row changes
+		t.Fatalf("bulk category: %+v", bulk)
+	}
+	if n, err := svc.Undo(ctx, userID, bulk.UndoID); err != nil || n != 1 {
+		t.Fatalf("undo: %d %v", n, err)
+	}
+	if back, _, _ := svc.Transactions(ctx, userID, domain.TransactionFilter{AccountID: conns[0].Accounts[0].ID, Page: domain.NewPage(1, 1)}); back[0].CategoryID != before {
+		t.Fatalf("undo put back %q, want %q", back[0].CategoryID, before)
+	}
+	if _, err := svc.Undo(ctx, userID, bulk.UndoID); !apperror.IsNotFound(err) {
+		t.Fatalf("an undo runs once: %v", err)
 	}
 	if err := svc.DeleteTransaction(ctx, userID, typed.ID); err != nil {
 		t.Fatal(err)
@@ -517,5 +563,207 @@ func TestFinanceSyncSummaryRulesAndAlerts(t *testing.T) {
 	}
 	if _, total, _ := svc.Transactions(ctx, userID, domain.TransactionFilter{AccountID: conns[0].Accounts[0].ID, Page: domain.NewPage(1, 10)}); total != 0 {
 		t.Fatalf("transactions left: %d", total)
+	}
+}
+
+
+// The numbers people trust: a transfer between their own accounts and a card bill
+// paid from the checking account count nowhere, every screen sums the month the
+// same way, and a balance that moves without transactions shows up as a gap.
+func TestFinanceTransfersConsistencyAndBalanceCheck(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	userID := e.userID(t, e.activeUser(t))
+	now := time.Now().UTC()
+	day := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	bank := &fakeBank{owner: userID, status: "UPDATED", txs: map[string][]domain.OFTransaction{
+		"acc-bank-" + userID: {
+			{ID: "p-salary-" + userID, Date: day, Description: "SALARIO ACME", Amount: 500000, Category: "Salary"},
+			// To the card account two days later: a transfer between own accounts.
+			{ID: "p-out-" + userID, Date: day, Description: "TRANSFERENCIA ENVIADA", Amount: -200000, Category: "Transfer - TED"},
+			// Two equal Pix and one match on the other side: ambiguous, left alone.
+			{ID: "p-amb1-" + userID, Date: day, Description: "PIX ENVIADO JOAO", Amount: -3000, Category: "Transfer - PIX"},
+			{ID: "p-amb2-" + userID, Date: day, Description: "PIX ENVIADO MARIA", Amount: -3000, Category: "Transfer - PIX"},
+			// The card bill paid from the checking account.
+			{ID: "p-bill-" + userID, Date: day, Description: "PAGAMENTO FATURA CARTAO", Amount: -150000, Category: "Credit card payment"},
+		},
+		"acc-card-" + userID: {
+			// Card amounts come positive for purchases and negative for credits.
+			{ID: "p-in-" + userID, Date: day.AddDate(0, 0, 2), Description: "CREDITO RECEBIDO", Amount: -200000},
+			{ID: "p-amb-in-" + userID, Date: day, Description: "ESTORNO", Amount: -3000},
+			{ID: "p-buy-" + userID, Date: day, Description: "LOJA ELETRO", Amount: 150000, Category: "Electronics"},
+			{ID: "p-paid-" + userID, Date: day, Description: "PAGAMENTO RECEBIDO", Amount: -150000, Category: "Credit card payment"},
+		},
+	}}
+	svc := finance.New(e.store, e.store, bank, &fakeAI{}, output.RealClock{}, nil)
+	conn, err := svc.AddConnection(ctx, userID, "33333333-3333-4333-8333-"+userID[24:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := json.Marshal(map[string]string{"connection_id": conn.ID})
+	if err := svc.Jobs()[finance.JobSync](ctx, payload); err != nil {
+		t.Fatal(err)
+	}
+
+	byDesc := func(desc string) domain.Transaction {
+		t.Helper()
+		got, _, err := svc.Transactions(ctx, userID, domain.TransactionFilter{Search: desc, Page: domain.NewPage(1, 5)})
+		if err != nil || len(got) != 1 {
+			t.Fatalf("%s: %+v %v", desc, got, err)
+		}
+		return got[0]
+	}
+	for _, d := range []string{"TRANSFERENCIA ENVIADA", "CREDITO RECEBIDO"} {
+		if tx := byDesc(d); tx.CategorySource != domain.SourcePair || tx.CategoryKind != domain.KindTransfer {
+			t.Fatalf("%s not paired: %+v", d, tx)
+		}
+	}
+	for _, d := range []string{"PIX ENVIADO JOAO", "ESTORNO"} {
+		if tx := byDesc(d); tx.CategorySource == domain.SourcePair {
+			t.Fatalf("ambiguous %s was paired", d)
+		}
+	}
+	// A resync keeps the pair.
+	if err := svc.Jobs()[finance.JobSync](ctx, payload); err != nil {
+		t.Fatal(err)
+	}
+	if tx := byDesc("TRANSFERENCIA ENVIADA"); tx.CategorySource != domain.SourcePair {
+		t.Fatalf("resync undid the pair: %+v", tx)
+	}
+
+	// Income: the salary and the unmatched refund. Expense: the purchase and the two Pix.
+	// Neither side of the transfer nor of the bill payment counts.
+	wantIn, wantOut := domain.Money(500000+3000), domain.Money(-(150000 + 3000 + 3000))
+	sum, err := svc.Summary(ctx, userID, now)
+	if err != nil || sum.Income != wantIn || sum.Expense != wantOut {
+		t.Fatalf("summary: in %d out %d %v", sum.Income, sum.Expense, err)
+	}
+	year, err := svc.YearReport(ctx, userID, now.Year())
+	if err != nil || year.Income != wantIn || year.Expense != wantOut {
+		t.Fatalf("year: %+v %v", year, err)
+	}
+	month := year.Months[len(year.Months)-1]
+	if month.Income != wantIn || month.Expense != wantOut {
+		t.Fatalf("year by month: %+v", month)
+	}
+	trend, err := svc.Trend(ctx, userID, 1)
+	if err != nil || trend[0].Income != wantIn || trend[0].Expense != wantOut {
+		t.Fatalf("trend: %+v %v", trend, err)
+	}
+
+	// Balance check: the first sync is the start, so nothing is missing yet.
+	gap := func() domain.Money {
+		t.Helper()
+		h, err := svc.DataHealth(ctx, userID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, a := range h.Accounts {
+			if a.Type == domain.AccountBank {
+				if a.Gap == nil {
+					t.Fatal("no balance check on the bank account")
+				}
+				return *a.Gap
+			}
+		}
+		t.Fatal("no bank account")
+		return 0
+	}
+	if g := gap(); g != 0 {
+		t.Fatalf("gap right after the first sync: %d", g)
+	}
+	// The bank balance drops R$ 120 with no transaction behind it.
+	bank.balance = 845237 - 12000
+	if err := svc.Jobs()[finance.JobSync](ctx, payload); err != nil {
+		t.Fatal(err)
+	}
+	if g := gap(); g != -12000 {
+		t.Fatalf("gap after a silent debit: %d", g)
+	}
+	h, _ := svc.DataHealth(ctx, userID)
+	var bankID string
+	for _, a := range h.Accounts {
+		if a.Type == domain.AccountBank {
+			bankID = a.ID
+		}
+	}
+	if err := svc.ResetBalanceCheck(ctx, e.userID(t, e.activeUser(t)), bankID); !apperror.IsNotFound(err) {
+		t.Fatalf("reset of someone else's account: %v", err)
+	}
+	if err := svc.ResetBalanceCheck(ctx, userID, bankID); err != nil || gap() != 0 {
+		t.Fatalf("reset: %v", err)
+	}
+
+	// Archive: what one user set up moves to another, and a second import adds nothing.
+	cash, err := svc.CreateManualAccount(ctx, userID, "Carteira", "Dinheiro", domain.AccountBank)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cats, _ := svc.Categories(ctx, userID)
+	var market string
+	for _, c := range cats {
+		if c.Name == "Mercado" {
+			market = c.ID
+		}
+	}
+	if _, err := svc.AddTransaction(ctx, userID, domain.Transaction{AccountID: cash.ID, Date: day, Description: "Feira", Amount: -4200,
+		CategoryID: market, Note: "orgânicos", Tags: []string{"casa"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CreateGoal(ctx, userID, domain.Goal{Name: "Viagem", Target: 500000}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := svc.CreateRule(ctx, userID, "loja eletro", market); err != nil {
+		t.Fatal(err)
+	}
+	ted := byDesc("TRANSFERENCIA ENVIADA")
+	if err := svc.SetTransactionDetails(ctx, userID, ted.ID, "para o cartão", []string{"mesada"}); err != nil {
+		t.Fatal(err)
+	}
+	archive, err := svc.Export(ctx, userID)
+	if err != nil || len(archive.Accounts) != 1 || len(archive.Accounts[0].Transactions) != 1 || len(archive.Rules) != 1 || len(archive.Goals) != 1 {
+		t.Fatalf("export: %+v %v", archive, err)
+	}
+	var override *domain.ArchiveOverride
+	for i, o := range archive.Overrides {
+		if o.ExternalID == ted.ExternalID {
+			override = &archive.Overrides[i]
+		}
+	}
+	if override == nil || override.Note != "para o cartão" {
+		t.Fatalf("overrides: %+v", archive.Overrides)
+	}
+	newcomer := e.userID(t, e.activeUser(t))
+	got, err := svc.ImportArchive(ctx, newcomer, *archive)
+	if err != nil || got.Accounts != 1 || got.Transactions != 1 || got.Rules != 1 || got.Goals != 1 {
+		t.Fatalf("import: %+v %v", got, err)
+	}
+	if got.Overrides != 0 {
+		t.Fatalf("overrides reached someone else's transactions: %d", got.Overrides)
+	}
+	again, err := svc.ImportArchive(ctx, newcomer, *archive)
+	if err != nil || again.Accounts != 0 || again.Transactions != 0 || again.Rules != 0 || again.Goals != 0 {
+		t.Fatalf("second import: %+v %v", again, err)
+	}
+	moved, _, _ := svc.Transactions(ctx, newcomer, domain.TransactionFilter{Search: "Feira", Page: domain.NewPage(1, 5)})
+	if len(moved) != 1 || moved[0].CategoryName != "Mercado" || moved[0].Note != "orgânicos" || len(moved[0].Tags) != 1 {
+		t.Fatalf("imported transaction: %+v", moved)
+	}
+	conns, _ := svc.Connections(ctx, newcomer)
+	if len(conns) != 1 || conns[0].Accounts[0].Balance != -4200 {
+		t.Fatalf("imported account balance: %+v", conns)
+	}
+	// The owner's own archive puts the note back on the bank transaction.
+	if err := svc.SetTransactionDetails(ctx, userID, ted.ID, "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := svc.ImportArchive(ctx, userID, domain.Archive{Version: domain.ArchiveVersion, Overrides: archive.Overrides}); err != nil || res.Overrides == 0 {
+		t.Fatalf("overrides back: %+v %v", res, err)
+	}
+	if tx := byDesc("TRANSFERENCIA ENVIADA"); tx.Note != "para o cartão" {
+		t.Fatalf("note not restored: %+v", tx)
+	}
+	if _, err := svc.ImportArchive(ctx, userID, domain.Archive{Version: 9}); err == nil {
+		t.Fatal("an unknown version is refused")
 	}
 }

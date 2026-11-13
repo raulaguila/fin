@@ -18,11 +18,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { finance, type Goal } from "@/lib/api/finance";
 import { errorMessage } from "@/lib/errors";
-import { fill, parseCents, useFinanceFormat } from "@/lib/finance-format";
+import { centsText, fill, parseCents, useFinanceFormat } from "@/lib/finance-format";
 import { useI18n } from "@/lib/i18n/provider";
 
 const NO_ACCOUNT = "none";
-const centsText = (c: number) => (c ? String(c / 100).replace(".", ",") : "");
 
 /** Months from today to a YYYY-MM-DD date, at least 1. */
 function monthsUntil(date: string): number {
@@ -91,7 +90,15 @@ function GoalDialog({ goal, open, onClose }: { goal: Goal | null; open: boolean;
   );
 }
 
-function GoalCard({ g, onEdit, onRemove }: { g: Goal; onEdit: () => void; onRemove: () => void }) {
+/** Average monthly leftover (income less spending) of the complete months, or 0. */
+function usePace(): number {
+  const trend = useQuery({ queryKey: ["finance", "trend", 7], queryFn: () => finance.trend(7) });
+  const done = (trend.data?.items ?? []).slice(0, -1); // the current month is still running
+  const avg = done.length ? done.reduce((n, m) => n + m.income + m.expense, 0) / done.length : 0;
+  return Math.max(0, Math.floor(avg));
+}
+
+function GoalCard({ g, pace, onEdit, onRemove }: { g: Goal; pace: number; onEdit: () => void; onRemove: () => void }) {
   const { t } = useI18n();
   const f = useFinanceFormat();
   const missing = Math.max(0, g.target - g.current);
@@ -118,7 +125,9 @@ function GoalCard({ g, onEdit, onRemove }: { g: Goal; onEdit: () => void; onRemo
           ? t("fin.goal.reached")
           : g.due_date
             ? fill(t("fin.goal.per_month"), { v: f.money(Math.ceil(missing / monthsUntil(g.due_date))), d: f.date(g.due_date) })
-            : fill(t("fin.goal.missing"), { v: f.money(missing) })}
+            : pace > 0
+              ? fill(t("fin.goal.at_pace"), { v: f.money(missing), p: f.money(pace), n: Math.ceil(missing / pace) })
+              : fill(t("fin.goal.missing"), { v: f.money(missing) })}
       </p>
     </Card>
   );
@@ -128,6 +137,7 @@ export default function GoalsPage() {
   const { t } = useI18n();
   const client = useQueryClient();
   const goals = useQuery({ queryKey: ["finance", "goals"], queryFn: finance.goals });
+  const pace = usePace();
   const [editing, setEditing] = useState<{ goal: Goal | null } | null>(null);
   const [removing, setRemoving] = useState<Goal | null>(null);
   const items = goals.data?.items ?? [];
@@ -144,7 +154,7 @@ export default function GoalsPage() {
           <EmptyState icon={Flag} title={t("fin.goal.empty")} description={t("fin.goal.help")} action={add} />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {items.map((g) => <GoalCard key={g.id} g={g} onEdit={() => setEditing({ goal: g })} onRemove={() => setRemoving(g)} />)}
+            {items.map((g) => <GoalCard key={g.id} g={g} pace={pace} onEdit={() => setEditing({ goal: g })} onRemove={() => setRemoving(g)} />)}
           </div>
         )}
         {/* The key resets the form for each goal opened. */}

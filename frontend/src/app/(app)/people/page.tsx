@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { HandCoins, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageBody, PageHeader } from "@/components/bits";
+import { Debts } from "@/components/debts";
 import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
@@ -65,6 +66,7 @@ export default function PeoplePage() {
     <>
       <PageHeader title={t("nav.people")} description={t("fin.people.subtitle")} />
       <PageBody>
+        <Debts />
         {people.isPending ? (
           <ListSkeleton />
         ) : people.isError ? (

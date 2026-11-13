@@ -68,6 +68,7 @@ func (s *Service) Summary(ctx context.Context, userID string, month time.Time) (
 		Recent: recent, Recurring: detected(recurring(spending), subs, ignored), Installments: installments(spending, from, to), Investments: investments,
 	}
 	sum.Income, sum.Expense, sum.Categories = combine(cats, totals)
+	carryOver(sum.Categories, prevTotals)
 	for _, t := range prevTotals {
 		if t.CategoryID != "" || t.Total < 0 { // uncategorized inflows stay out of the comparison
 			sum.Previous[t.CategoryID] += t.Total
@@ -97,7 +98,7 @@ func combine(cats []domain.Category, totals []domain.CategoryTotal) (income, exp
 	}
 	for _, c := range cats {
 		t := byID[c.ID]
-		t.CategoryID, t.Name, t.Kind, t.Limit = c.ID, c.Name, c.Kind, c.Limit
+		t.CategoryID, t.Name, t.Kind, t.Limit, t.Rollover = c.ID, c.Name, c.Kind, c.Limit, c.Rollover
 		out = append(out, t)
 		switch c.Kind {
 		case domain.KindIncome:

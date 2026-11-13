@@ -89,10 +89,11 @@ func (a Account) NextBillDue(today time.Time) *time.Time {
 }
 
 type Category struct {
-	ID    string
-	Name  string
-	Kind  string
-	Limit Money // monthly; 0 means none
+	ID       string
+	Name     string
+	Kind     string
+	Limit    Money // monthly; 0 means none
+	Rollover bool  // last month's unspent limit (or overspend) moves into this month
 }
 
 type Transaction struct {
@@ -114,6 +115,8 @@ type Transaction struct {
 	Installment      int
 	Installments     int
 	SplitOf          string // the original transaction when this row is a split part
+	Note             string // the user's; only list and export read it
+	Tags             []string
 }
 
 type Rule struct {
@@ -131,6 +134,7 @@ type TransactionFilter struct {
 	Search     string
 	AccountID  string
 	CategoryID string
+	Tag        string
 	Page       Page
 }
 
@@ -142,6 +146,8 @@ type CategoryTotal struct {
 	Limit      Money
 	Total      Money // sum of amounts, negative for spending
 	Count      int64
+	Rollover   bool
+	Carry      Money // with rollover: last month's limit minus its spending, added to Limit
 }
 
 // Recurring is a charge seen in most recent months with a similar amount.
@@ -360,4 +366,46 @@ type OFTransaction struct {
 	Category     string
 	Installment  int
 	Installments int
+}
+
+// Debt is money lent or borrowed. Amount > 0: the person owes the user; < 0: the user owes.
+type Debt struct {
+	ID          string
+	Person      string
+	Amount      Money
+	Description string
+	DueDate     *time.Time
+	SettledOn   *time.Time
+	CreatedAt   time.Time
+}
+
+// NetWorthPoint is one day of the net worth: bank balances and investments, less card bills.
+type NetWorthPoint struct {
+	Day         time.Time
+	Banks       Money
+	Investments Money
+	Cards       Money // what the cards owe, positive
+}
+
+// CardBill is one bill of a credit card: what was charged between two closing days.
+type CardBill struct {
+	AccountID   string
+	AccountName string
+	Close       time.Time  // the closing day; the bill holds the charges up to it
+	Due         *time.Time // when the bank gave a due day
+	Charges     Money      // purchases, negative
+	Credits     Money      // refunds and payments, positive
+	Count       int
+}
+
+// MonthAmount is an amount that falls in a month.
+type MonthAmount struct {
+	Month  time.Time
+	Amount Money
+}
+
+// Cards is the bills of every card and what installments already commit ahead.
+type Cards struct {
+	Bills  []CardBill
+	Future []MonthAmount // installments still to come, negative
 }

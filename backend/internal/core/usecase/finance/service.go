@@ -371,20 +371,35 @@ func normalize(r domain.OFTransaction, accountType string) domain.Transaction {
 
 // ---- transactions ----
 
-func (s *Service) Transactions(ctx context.Context, userID string, f domain.TransactionFilter) ([]domain.Transaction, int64, error) {
+// checkFilter validates and cleans a transaction filter in place.
+func (s *Service) checkFilter(f *domain.TransactionFilter) error {
 	f.Search = strings.TrimSpace(f.Search)
 	if err := validate.Search(f.Search, maxSearchBytes); err != nil {
-		return nil, 0, err
+		return err
 	}
 	if f.AccountID != "" {
 		if err := validate.ID(f.AccountID); err != nil {
-			return nil, 0, err
+			return err
 		}
 	}
 	if f.CategoryID != "" && f.CategoryID != "none" {
 		if err := validate.ID(f.CategoryID); err != nil {
-			return nil, 0, err
+			return err
 		}
+	}
+	if f.Tag != "" {
+		tags, err := normTags([]string{f.Tag})
+		if err != nil {
+			return err
+		}
+		f.Tag = tags[0]
+	}
+	return nil
+}
+
+func (s *Service) Transactions(ctx context.Context, userID string, f domain.TransactionFilter) ([]domain.Transaction, int64, error) {
+	if err := s.checkFilter(&f); err != nil {
+		return nil, 0, err
 	}
 	f.Page = domain.NewPage(f.Page.Number, f.Page.Limit)
 	return s.repo().Transactions(ctx, userID, f)
@@ -463,7 +478,7 @@ func (s *Service) CreateCategory(ctx context.Context, userID string, c domain.Ca
 	return &c, nil
 }
 
-func (s *Service) UpdateCategory(ctx context.Context, userID, id string, name *string, limit *domain.Money) (*domain.Category, error) {
+func (s *Service) UpdateCategory(ctx context.Context, userID, id string, name *string, limit *domain.Money, rollover *bool) (*domain.Category, error) {
 	c, err := s.ownCategory(ctx, userID, id)
 	if err != nil {
 		return nil, err
@@ -478,6 +493,9 @@ func (s *Service) UpdateCategory(ctx context.Context, userID, id string, name *s
 			return nil, err
 		}
 		c.Limit = *limit
+	}
+	if rollover != nil {
+		c.Rollover = *rollover
 	}
 	if err := s.repo().UpdateCategory(ctx, userID, c); err != nil {
 		return nil, err

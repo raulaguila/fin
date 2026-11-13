@@ -1,6 +1,10 @@
 package mapper
 
-import "github.com/raulaguila/fin/internal/core/domain"
+import (
+	"strings"
+
+	"github.com/raulaguila/fin/internal/core/domain"
+)
 
 // PaginationDTO is the pagination block of every paged list.
 type PaginationDTO struct {
@@ -43,4 +47,12 @@ func Permissions(p map[string]domain.Action) map[string][]string {
 		out[resource] = domain.ActionNames(actions)
 	}
 	return out
+}
+
+// CSVCell keeps a spreadsheet from reading a text cell as a formula.
+func CSVCell(s string) string {
+	if s != "" && strings.ContainsRune("=+-@\t\r", rune(s[0])) {
+		return "'" + s
+	}
+	return s
 }

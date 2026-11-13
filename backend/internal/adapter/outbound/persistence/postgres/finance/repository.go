@@ -266,13 +266,18 @@ type transactionRow struct {
 	Installment      *int       `gorm:"column:installment"`
 	Installments     *int       `gorm:"column:installments"`
 	SplitOf          *uuid.UUID `gorm:"column:split_of"`
+	Note             string     `gorm:"column:note"` // only the list and export select it
+	Tags             string     `gorm:"column:tags"` // comma-joined; tags never hold a comma
 }
 
 func (r transactionRow) toDomain() domain.Transaction {
 	t := domain.Transaction{
 		ID: r.ID.String(), AccountID: r.AccountID.String(), AccountName: r.AccountName, AccountType: r.AccountType,
 		Institution: r.Institution, ExternalID: r.ExternalID, Date: r.Date, Description: r.Description, Amount: r.Amount,
-		Status: r.Status, ProviderCategory: r.ProviderCategory, CategorySource: r.CategorySource,
+		Status: r.Status, ProviderCategory: r.ProviderCategory, CategorySource: r.CategorySource, Note: r.Note,
+	}
+	if r.Tags != "" {
+		t.Tags = strings.Split(r.Tags, ",")
 	}
 	if r.CategoryID != nil {
 		t.CategoryID = r.CategoryID.String()
@@ -295,16 +300,23 @@ func (r transactionRow) toDomain() domain.Transaction {
 	return t
 }
 
-const transactionSelect = `
-	SELECT t.id, t.account_id, a.name AS account_name, a.type AS account_type, c.institution, t.external_id, t.date,
+const transactionSelect = `SELECT ` + transactionColumns + transactionFrom
+
+// transactionDetailSelect adds what only screens that show one row in full need.
+const transactionDetailSelect = `SELECT ` + transactionColumns + `, t.note, array_to_string(t.tags, ',') AS tags` + transactionFrom
+
+const transactionColumns = `t.id, t.account_id, a.name AS account_name, a.type AS account_type, c.institution, t.external_id, t.date,
 	       t.description, t.amount_cents, t.status, t.provider_category, t.category_id, cat.name AS category_name,
-	       cat.kind AS category_kind, t.category_source, t.installment, t.installments, t.split_of
+	       cat.kind AS category_kind, t.category_source, t.installment, t.installments, t.split_of`
+
+const transactionFrom = `
 	FROM app.fin_transaction t
 	JOIN app.fin_account a ON a.id = t.account_id
 	JOIN app.fin_connection c ON c.id = a.connection_id
 	LEFT JOIN app.fin_category cat ON cat.id = t.category_id`
 
-func (r *Repository) Transactions(ctx context.Context, userID string, f domain.TransactionFilter) ([]domain.Transaction, int64, error) {
+// transactionWhere turns the filter into a condition on t (the transaction table).
+func transactionWhere(userID string, f domain.TransactionFilter) (string, []any) {
 	where := []string{"t.user_id = ?"}
 	args := []any{userID}
 	if !f.From.IsZero() {
@@ -327,20 +339,44 @@ func (r *Repository) Transactions(ctx context.Context, userID string, f domain.T
 	default:
 		where, args = append(where, "t.category_id = ?"), append(args, f.CategoryID)
 	}
-	cond := strings.Join(where, " AND ")
-
-	var total int64
-	if err := r.db.WithContext(ctx).Raw(`SELECT count(*) FROM app.fin_transaction t WHERE `+cond, args...).Take(&total).Error; err != nil {
-		return nil, 0, shared.WrapError(err, "transaction")
+	if f.Tag != "" {
+		where, args = append(where, "t.tags @> ARRAY[?]::text[]"), append(args, f.Tag) // @> uses the GIN index
 	}
+	return strings.Join(where, " AND "), args
+}
+
+func (r *Repository) CountTransactions(ctx context.Context, userID string, f domain.TransactionFilter) (int64, error) {
+	cond, args := transactionWhere(userID, f)
+	var total int64
+	err := r.db.WithContext(ctx).Raw(`SELECT count(*) FROM app.fin_transaction t WHERE `+cond, args...).Take(&total).Error
+	return total, shared.WrapError(err, "transaction")
+}
+
+func (r *Repository) Transactions(ctx context.Context, userID string, f domain.TransactionFilter) ([]domain.Transaction, int64, error) {
+	total, err := r.CountTransactions(ctx, userID, f)
+	if err != nil {
+		return nil, 0, err
+	}
+	cond, args := transactionWhere(userID, f)
 	var rows []transactionRow
 	// shortcut: OFFSET pages; a person's history stays in the tens of thousands of rows.
-	err := r.db.WithContext(ctx).Raw(transactionSelect+` WHERE `+cond+` ORDER BY t.date DESC, t.created_at DESC, t.id LIMIT ? OFFSET ?`,
+	err = r.db.WithContext(ctx).Raw(transactionDetailSelect+` WHERE `+cond+` ORDER BY t.date DESC, t.created_at DESC, t.id LIMIT ? OFFSET ?`,
 		append(args, f.Page.Limit, f.Page.Offset())...).Find(&rows).Error
 	if err != nil {
 		return nil, 0, shared.WrapError(err, "transaction")
 	}
 	return scanTransactions(rows), total, nil
+}
+
+func (r *Repository) ExportTransactions(ctx context.Context, userID string, f domain.TransactionFilter, limit int) ([]domain.Transaction, error) {
+	cond, args := transactionWhere(userID, f)
+	var rows []transactionRow
+	err := r.db.WithContext(ctx).Raw(transactionDetailSelect+` WHERE `+cond+` ORDER BY t.date DESC, t.created_at DESC, t.id LIMIT ?`,
+		append(args, limit)...).Find(&rows).Error
+	if err != nil {
+		return nil, shared.WrapError(err, "transaction")
+	}
+	return scanTransactions(rows), nil
 }
 
 func (r *Repository) Spending(ctx context.Context, userID string, from, to time.Time, limit int) ([]domain.Transaction, error) {
@@ -511,6 +547,7 @@ type categoryRow struct {
 	Name  string    `gorm:"column:name"`
 	Kind  string    `gorm:"column:kind"`
 	Limit int64     `gorm:"column:limit_cents"`
+	Rollover bool   `gorm:"column:rollover"`
 }
 
 func (r *Repository) EnsureCategories(ctx context.Context, userID string, defaults []domain.Category) error {
@@ -535,14 +572,14 @@ func (r *Repository) EnsureCategories(ctx context.Context, userID string, defaul
 func (r *Repository) Categories(ctx context.Context, userID string) ([]domain.Category, error) {
 	var rows []categoryRow
 	err := r.db.WithContext(ctx).Raw(`
-		SELECT id, name, kind, limit_cents FROM app.fin_category WHERE user_id = ?
+		SELECT id, name, kind, limit_cents, rollover FROM app.fin_category WHERE user_id = ?
 		ORDER BY CASE kind WHEN 'expense' THEN 0 WHEN 'income' THEN 1 ELSE 2 END, name LIMIT 500`, userID).Find(&rows).Error
 	if err != nil {
 		return nil, shared.WrapError(err, "category")
 	}
 	out := make([]domain.Category, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, domain.Category{ID: row.ID.String(), Name: row.Name, Kind: row.Kind, Limit: row.Limit})
+		out = append(out, domain.Category{ID: row.ID.String(), Name: row.Name, Kind: row.Kind, Limit: row.Limit, Rollover: row.Rollover})
 	}
 	return out, nil
 }
@@ -560,8 +597,8 @@ func (r *Repository) CreateCategory(ctx context.Context, userID string, c *domai
 }
 
 func (r *Repository) UpdateCategory(ctx context.Context, userID string, c *domain.Category) error {
-	res := r.db.WithContext(ctx).Exec(`UPDATE app.fin_category SET name = ?, limit_cents = ? WHERE id = ? AND user_id = ?`,
-		c.Name, c.Limit, c.ID, userID)
+	res := r.db.WithContext(ctx).Exec(`UPDATE app.fin_category SET name = ?, limit_cents = ?, rollover = ? WHERE id = ? AND user_id = ?`,
+		c.Name, c.Limit, c.Rollover, c.ID, userID)
 	if res.Error != nil {
 		return shared.WrapError(res.Error, "category")
 	}

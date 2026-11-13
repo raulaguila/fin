@@ -112,6 +112,9 @@ func (s *Service) Alerts(ctx context.Context, userID string) error {
 			return err
 		}
 	}
+	if err := s.snapshotNetWorth(ctx, userID, now); err != nil {
+		return err
+	}
 	if err := s.monthlySummary(ctx, userID, now); err != nil {
 		return err
 	}
@@ -129,6 +132,13 @@ func (s *Service) budgetAlerts(ctx context.Context, userID string, now time.Time
 		return nil, err
 	}
 	_, _, list := combine(cats, totals)
+	if anyRollover(cats) {
+		prev, err := s.repo().Totals(ctx, userID, from.AddDate(0, -1, 0), from)
+		if err != nil {
+			return nil, err
+		}
+		carryOver(list, prev)
+	}
 	var out []alert
 	month := from.Format("2006-01")
 	for _, c := range list {

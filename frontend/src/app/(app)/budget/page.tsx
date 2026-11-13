@@ -9,9 +9,10 @@ import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { finance, monthKey, type CategoryTotal } from "@/lib/api/finance";
 import { errorMessage } from "@/lib/errors";
-import { fill, parseCents, useFinanceFormat } from "@/lib/finance-format";
+import { centsText, fill, parseCents, useFinanceFormat } from "@/lib/finance-format";
 import { useListParams } from "@/lib/hooks/use-list-params";
 import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
@@ -20,9 +21,11 @@ function LimitRow({ c }: { c: CategoryTotal }) {
   const { t } = useI18n();
   const f = useFinanceFormat();
   const client = useQueryClient();
-  const [draft, setDraft] = useState(c.limit ? String(c.limit / 100).replace(".", ",") : "");
+  // limit already holds last month's carry; the field edits the category's own limit.
+  const base = c.limit - c.carry;
+  const [draft, setDraft] = useState(centsText(base));
   const save = useMutation({
-    mutationFn: (limit: number) => finance.updateCategory(c.category_id, { limit }),
+    mutationFn: (patch: { limit?: number; rollover?: boolean }) => finance.updateCategory(c.category_id, patch),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["finance"] });
       toast.success(t("fin.budget.saved"));
@@ -34,8 +37,8 @@ function LimitRow({ c }: { c: CategoryTotal }) {
   const status = c.limit <= 0 ? t("fin.budget.none") : ratio >= 1 ? t("fin.budget.over") : ratio >= 0.8 ? t("fin.budget.near") : t("fin.budget.ok");
   const commit = () => {
     const cents = parseCents(draft);
-    if (cents === null || cents === c.limit) return;
-    save.mutate(cents);
+    if (cents === null || cents === base) return;
+    save.mutate({ limit: cents });
   };
   return (
     <li className="grid grid-cols-1 gap-2 py-3 sm:grid-cols-[1fr_10rem] sm:items-center sm:gap-6">
@@ -48,13 +51,24 @@ function LimitRow({ c }: { c: CategoryTotal }) {
           </span>
         </div>
         <Meter value={spent} max={c.limit} />
-        <p className={cn("text-xs", ratio >= 1 ? "text-red-700 dark:text-red-400" : ratio >= 0.8 ? "text-amber-800 dark:text-amber-300" : "text-muted-foreground")}>{status}</p>
+        <p className={cn("text-xs", ratio >= 1 ? "text-red-700 dark:text-red-400" : ratio >= 0.8 ? "text-amber-800 dark:text-amber-300" : "text-muted-foreground")}>
+          {status}
+          {c.carry !== 0 && <span className="text-muted-foreground"> · {fill(t(c.carry > 0 ? "fin.budget.carry_in" : "fin.budget.carry_out"), { v: f.money(Math.abs(c.carry)) })}</span>}
+        </p>
       </div>
-      <label className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground">{t("fin.budget.limit")} R$</span>
-        <Input inputMode="decimal" value={draft} aria-invalid={parseCents(draft) === null} className="text-right font-mono"
-          onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()} />
-      </label>
+      <div className="grid gap-2">
+        <label className="flex items-center gap-2 text-sm">
+          <span className="whitespace-nowrap text-muted-foreground">{t("fin.budget.limit")} R$</span>
+          <Input inputMode="decimal" value={draft} aria-invalid={parseCents(draft) === null} className="text-right font-mono"
+            onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()} />
+        </label>
+        {base > 0 && (
+          <label className="flex items-center justify-end gap-2 text-xs text-muted-foreground" title={t("fin.budget.rollover_help")}>
+            {t("fin.budget.rollover")}
+            <Switch checked={c.rollover} disabled={save.isPending} onCheckedChange={(on) => save.mutate({ rollover: on })} aria-label={`${t("fin.budget.rollover")}: ${c.name}`} />
+          </label>
+        )}
+      </div>
     </li>
   );
 }
@@ -109,7 +123,7 @@ export default function BudgetPage() {
               <h2 className="text-sm font-medium">{t("fin.budget.limits")}</h2>
               <p className="text-xs text-muted-foreground">{t("fin.budget.limits_hint")}</p>
               <ul className="divide-y">
-                {rows.map((c) => <LimitRow key={`${c.category_id}:${c.limit}`} c={c} />)}
+                {rows.map((c) => <LimitRow key={`${c.category_id}:${c.limit}:${c.carry}`} c={c} />)}
               </ul>
             </Card>
           </>

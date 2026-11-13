@@ -770,6 +770,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/finance/cards": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Card bills of the last six months and installments still to come by month",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "bills": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/finance.cardBillDTO"
+                                    }
+                                },
+                                "future": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/finance.monthAmountDTO"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/finance/categories": {
             "get": {
                 "security": [
@@ -1204,6 +1248,192 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/finance/debts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debts"
+                ],
+                "summary": "List money lent and borrowed, open ones first",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "items": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/finance.debtDTO"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debts"
+                ],
+                "summary": "Record money lent (positive) or borrowed (negative)",
+                "parameters": [
+                    {
+                        "description": "Debt",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/finance.debtDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/finance.debtDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/debts/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debts"
+                ],
+                "summary": "Replace a debt; settled_on marks it paid",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Debt ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Every field of the debt",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/finance.debtDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/finance.debtDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Debts"
+                ],
+                "summary": "Delete a debt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Debt ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/finance/goals": {
             "get": {
                 "security": [
@@ -1389,6 +1619,52 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/networth": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Net worth by day: today is recorded on every call, earlier days by the hourly job",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Months back, 1 to 24; default 12",
+                        "name": "months",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "items": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/finance.netWorthDTO"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/mapper.errorBody"
                         }
@@ -2108,9 +2384,180 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Record a transaction by hand on an imported account; its balance follows",
+                "parameters": [
+                    {
+                        "description": "Transaction",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/finance.newTransactionDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/finance.transactionDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "409": {
+                        "description": "the account is kept by a bank",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/finance/transactions/export": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "text/csv"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Download transactions as CSV, newest first, with the filters of the list",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "First day, YYYY-MM-DD",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Day after the last, YYYY-MM-DD",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Text in the description",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account ID",
+                        "name": "account_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Category ID, or none",
+                        "name": "category_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Tag",
+                        "name": "tag",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "CSV with a header row",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "bad filter, or more than 10000 rows",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
             }
         },
         "/v1/finance/transactions/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Delete a transaction recorded by hand or imported; the account balance gives it back",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Transaction ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    },
+                    "404": {
+                        "description": "not found, kept by a bank, or a split part",
+                        "schema": {
+                            "$ref": "#/definitions/mapper.errorBody"
+                        }
+                    }
+                }
+            },
             "patch": {
                 "security": [
                     {
@@ -2126,7 +2573,7 @@ const docTemplate = `{
                 "tags": [
                     "Transactions"
                 ],
-                "summary": "Set the category of a transaction; syncs and rules never change it again",
+                "summary": "Set the category, or the note and tags, of a transaction; syncs and rules never change a category set here",
                 "parameters": [
                     {
                         "type": "string",
@@ -5308,6 +5755,34 @@ const docTemplate = `{
                 }
             }
         },
+        "finance.cardBillDTO": {
+            "type": "object",
+            "properties": {
+                "account_id": {
+                    "type": "string"
+                },
+                "account_name": {
+                    "type": "string"
+                },
+                "charges": {
+                    "type": "integer"
+                },
+                "close": {
+                    "type": "string",
+                    "example": "2026-11-05"
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "credits": {
+                    "type": "integer"
+                },
+                "due": {
+                    "description": "empty when the bank gave no due day",
+                    "type": "string"
+                }
+            }
+        },
         "finance.categoryDTO": {
             "type": "object",
             "properties": {
@@ -5324,12 +5799,19 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "rollover": {
+                    "type": "boolean"
                 }
             }
         },
         "finance.categoryTotalDTO": {
             "type": "object",
             "properties": {
+                "carry": {
+                    "description": "with rollover: the part of limit that came from last month (negative: overspent)",
+                    "type": "integer"
+                },
                 "category_id": {
                     "description": "empty: uncategorized",
                     "type": "string"
@@ -5349,6 +5831,9 @@ const docTemplate = `{
                 "previous": {
                     "description": "total of the month before",
                     "type": "integer"
+                },
+                "rollover": {
+                    "type": "boolean"
                 },
                 "total": {
                     "type": "integer"
@@ -5500,6 +5985,32 @@ const docTemplate = `{
                 }
             }
         },
+        "finance.debtDTO": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "description": "cents; positive: the person owes the user",
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "due_date": {
+                    "description": "YYYY-MM-DD or empty",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "person": {
+                    "type": "string"
+                },
+                "settled_on": {
+                    "description": "YYYY-MM-DD or empty: still open",
+                    "type": "string"
+                }
+            }
+        },
         "finance.forecastDTO": {
             "type": "object",
             "properties": {
@@ -5637,6 +6148,18 @@ const docTemplate = `{
                 }
             }
         },
+        "finance.monthAmountDTO": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "month": {
+                    "type": "string",
+                    "example": "2026-12"
+                }
+            }
+        },
         "finance.monthTotalDTO": {
             "type": "object",
             "properties": {
@@ -5650,6 +6173,61 @@ const docTemplate = `{
                 "month": {
                     "type": "string",
                     "example": "2026-11"
+                }
+            }
+        },
+        "finance.netWorthDTO": {
+            "type": "object",
+            "properties": {
+                "banks": {
+                    "type": "integer"
+                },
+                "cards": {
+                    "description": "what the cards owe, positive",
+                    "type": "integer"
+                },
+                "day": {
+                    "type": "string",
+                    "example": "2026-11-10"
+                },
+                "investments": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "finance.newTransactionDTO": {
+            "type": "object",
+            "properties": {
+                "account_id": {
+                    "description": "an imported (manual) account",
+                    "type": "string"
+                },
+                "amount": {
+                    "description": "cents; negative leaves the user",
+                    "type": "integer"
+                },
+                "category_id": {
+                    "description": "empty: the rules choose",
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string",
+                    "example": "2026-11-10"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -5753,8 +6331,18 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "category_id": {
-                    "description": "empty clears it",
+                    "description": "empty clears it; absent keeps it",
                     "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "tags": {
+                    "description": "replaces them all; needs note too when only tags change",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -5961,12 +6549,21 @@ const docTemplate = `{
                 "institution": {
                     "type": "string"
                 },
+                "note": {
+                    "type": "string"
+                },
                 "split_of": {
                     "description": "the original transaction when this row is a split part",
                     "type": "string"
                 },
                 "status": {
                     "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -5978,6 +6575,9 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "rollover": {
+                    "type": "boolean"
                 }
             }
         },
@@ -6599,6 +7199,10 @@ const docTemplate = `{
             "name": "Subscriptions"
         },
         {
+            "description": "Money lent to or borrowed from people, until settled",
+            "name": "Debts"
+        },
+        {
             "description": "Questions about the user's finances, answered by the configured model",
             "name": "Assistant"
         },
@@ -6651,6 +7255,7 @@ const docTemplate = `{
                 "Categories",
                 "Goals",
                 "Subscriptions",
+                "Debts",
                 "Assistant",
                 "Webhooks"
             ]

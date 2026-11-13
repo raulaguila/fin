@@ -52,13 +52,15 @@ import (
 //	@tag.description	Savings goals, tracked by an account balance or an amount typed in
 //	@tag.name			Subscriptions
 //	@tag.description	Subscriptions and fixed bills: the registered ones with their status, and recurring charges found in the history
+//	@tag.name			Debts
+//	@tag.description	Money lent to or borrowed from people, until settled
 //	@tag.name			Assistant
 //	@tag.description	Questions about the user's finances, answered by the configured model
 //	@tag.name			Webhooks
 //	@tag.description	Events from the Open Finance provider
 //	@tag.name			Products
 //	@tag.description	Example module, not used by the Fin screens: the model `make module` copies to start a new one. Keep it as long as the generator is in use
-//	@x-tagGroups		[{"name":"System","tags":["Health"]},{"name":"Authentication","tags":["Auth","Registration","Password reset"]},{"name":"Account","tags":["Profile","Sessions","Preferences","Notifications"]},{"name":"Administration","tags":["Users","Roles","Audit"]},{"name":"Finance","tags":["Connections","Transactions","Categories","Goals","Subscriptions","Assistant","Webhooks"]},{"name":"Template","tags":["Products"]}]
+//	@x-tagGroups		[{"name":"System","tags":["Health"]},{"name":"Authentication","tags":["Auth","Registration","Password reset"]},{"name":"Account","tags":["Profile","Sessions","Preferences","Notifications"]},{"name":"Administration","tags":["Users","Roles","Audit"]},{"name":"Finance","tags":["Connections","Transactions","Categories","Goals","Subscriptions","Debts","Assistant","Webhooks"]},{"name":"Template","tags":["Products"]}]
 
 var (
 	//go:embed docs/swagger.css

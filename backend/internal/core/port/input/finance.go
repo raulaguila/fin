@@ -35,7 +35,7 @@ type FinanceService interface {
 
 	Categories(ctx context.Context, userID string) ([]domain.Category, error)
 	CreateCategory(ctx context.Context, userID string, c domain.Category) (*domain.Category, error)
-	UpdateCategory(ctx context.Context, userID, id string, name *string, limit *domain.Money) (*domain.Category, error)
+	UpdateCategory(ctx context.Context, userID, id string, name *string, limit *domain.Money, rollover *bool) (*domain.Category, error)
 	DeleteCategory(ctx context.Context, userID, id string) error
 
 	Rules(ctx context.Context, userID string) ([]domain.Rule, error)
@@ -71,6 +71,20 @@ type FinanceService interface {
 	CreateGoal(ctx context.Context, userID string, g domain.Goal) (*domain.Goal, error)
 	UpdateGoal(ctx context.Context, userID, id string, g domain.Goal) (*domain.Goal, error)
 	DeleteGoal(ctx context.Context, userID, id string) error
+
+	// AddTransaction records a transaction the user typed on an imported account.
+	AddTransaction(ctx context.Context, userID string, t domain.Transaction) (*domain.Transaction, error)
+	DeleteTransaction(ctx context.Context, userID, id string) error
+	SetTransactionDetails(ctx context.Context, userID, id, note string, tags []string) error
+	// ExportTransactions returns the filter's rows for a CSV, refusing more than the export cap.
+	ExportTransactions(ctx context.Context, userID string, f domain.TransactionFilter) ([]domain.Transaction, error)
+	// NetWorth records today's net worth and returns the history from `months` ago.
+	NetWorth(ctx context.Context, userID string, months int) ([]domain.NetWorthPoint, error)
+	Cards(ctx context.Context, userID string) (*domain.Cards, error)
+	Debts(ctx context.Context, userID string) ([]domain.Debt, error)
+	CreateDebt(ctx context.Context, userID string, d domain.Debt) (*domain.Debt, error)
+	UpdateDebt(ctx context.Context, userID, id string, d domain.Debt) (*domain.Debt, error)
+	DeleteDebt(ctx context.Context, userID, id string) error
 
 	// Chat answers the last user message. emit, when set, gets progress as it
 	// happens: "delta" (answer text), "reset" (drop the text so far) or "status".

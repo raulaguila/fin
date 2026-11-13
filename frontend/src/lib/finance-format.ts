@@ -31,6 +31,9 @@ export function useFinanceFormat() {
   }, [locale]);
 }
 
+/** Cents as the text of an amount field: 123456 gives "1234,56", zero gives "". */
+export const centsText = (c: Cents) => (c ? (c / 100).toFixed(2).replace(".", ",") : "");
+
 /** "1.234,56" or "1234.56" to cents; null when it is not a non-negative number. */
 export function parseCents(text: string): number | null {
   const s = text.trim().replace(/[R$\s]/g, "");

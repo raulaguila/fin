@@ -25,6 +25,7 @@ export const MAIN_NAV: NavItem[] = [
     tabs: [
       { href: "/budget", key: "nav.budget" },
       { href: "/subscriptions", key: "nav.subscriptions" },
+      { href: "/cards", key: "nav.cards" },
       { href: "/goals", key: "nav.goals" },
       { href: "/calendar", key: "nav.calendar" },
     ],

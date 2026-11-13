@@ -18,13 +18,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { finance, type Recurring, type Subscription, type SubscriptionInput } from "@/lib/api/finance";
 import { errorMessage } from "@/lib/errors";
-import { fill, parseCents, useFinanceFormat } from "@/lib/finance-format";
+import { centsText, fill, parseCents, useFinanceFormat } from "@/lib/finance-format";
 import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
 
 const NONE = "none";
 const KEY = ["finance", "subscriptions"];
-const centsText = (c: number) => (c ? (c / 100).toFixed(2).replace(".", ",") : "");
 /** A day of the month as YYYY-MM-DD, for the day/month formatter. */
 const dayOf = (month: number, day: number) => `2000-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 

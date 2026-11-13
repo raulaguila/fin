@@ -1,5 +1,5 @@
 // Personal finance API (/v1/finance). Money is integer cents; a negative amount leaves the user.
-import { apiFetch, apiStream } from "@/lib/api/client";
+import { apiDownload, apiFetch, apiStream } from "@/lib/api/client";
 import type { ApiErrorBody, Paged } from "@/lib/api/types";
 
 export type Cents = number;
@@ -64,13 +64,62 @@ export interface Transaction {
   installments: number;
   /** The original transaction when this row is a split part. */
   split_of: string;
+  note: string;
+  tags: string[] | null;
 }
+
+/** A transaction typed by hand on an imported account. */
+export interface NewTransaction {
+  account_id: string;
+  date: string;
+  description: string;
+  amount: Cents;
+  /** Empty: the rules choose. */
+  category_id: string;
+  note: string;
+  tags: string[];
+}
+
+export interface NetWorthPoint {
+  day: string;
+  banks: Cents;
+  investments: Cents;
+  /** What the cards owe, positive. */
+  cards: Cents;
+  total: Cents;
+}
+
+export interface CardBill {
+  account_id: string;
+  account_name: string;
+  close: string;
+  /** Empty when the bank gave no due day. */
+  due: string;
+  charges: Cents;
+  credits: Cents;
+  count: number;
+}
+
+/** Money lent or borrowed. Positive: the person owes the user. */
+export interface Debt {
+  id: string;
+  person: string;
+  amount: Cents;
+  description: string;
+  due_date: string;
+  /** Empty while open. */
+  settled_on: string;
+}
+
+export type DebtInput = Omit<Debt, "id">;
 
 export interface Category {
   id: string;
   name: string;
   kind: CategoryKind;
   limit: Cents;
+  /** Last month's unspent limit (or overspend) moves into this month. */
+  rollover: boolean;
 }
 
 export interface Rule {
@@ -90,6 +139,9 @@ export interface CategoryTotal {
   total: Cents;
   previous: Cents;
   count: number;
+  rollover: boolean;
+  /** With rollover: the part of limit that came from last month; negative when overspent. */
+  carry: Cents;
 }
 
 export interface Summary {
@@ -244,6 +296,7 @@ export interface TransactionQuery {
   search?: string;
   account_id?: string;
   category_id?: string;
+  tag?: string;
 }
 
 function query(params: object): string {
@@ -272,10 +325,21 @@ export const finance = {
   transactions: (p: TransactionQuery, signal?: AbortSignal) => apiFetch<Paged<Transaction>>(`${base}/transactions${query(p)}`, { signal }),
   setCategory: (transactionId: string, categoryId: string) =>
     apiFetch<{ keyword: string }>(`${base}/transactions/${id(transactionId)}`, { method: "PATCH", json: { category_id: categoryId } }),
+  setDetails: (transactionId: string, note: string, tags: string[]) =>
+    apiFetch<{ keyword: string }>(`${base}/transactions/${id(transactionId)}`, { method: "PATCH", json: { note, tags } }),
+  addTransaction: (t: NewTransaction) => apiFetch<Transaction>(`${base}/transactions`, { method: "POST", json: t }),
+  removeTransaction: (transactionId: string) => apiFetch<void>(`${base}/transactions/${id(transactionId)}`, { method: "DELETE" }),
+  exportTransactions: (p: Omit<TransactionQuery, "page" | "limit">) => apiDownload(`${base}/transactions/export${query(p)}`, "transacoes.csv"),
+  netWorth: (months = 12) => apiFetch<{ items: NetWorthPoint[] }>(`${base}/networth${query({ months })}`),
+  cards: () => apiFetch<{ bills: CardBill[]; future: { month: string; amount: Cents }[] }>(`${base}/cards`),
+  debts: () => apiFetch<{ items: Debt[] }>(`${base}/debts`),
+  createDebt: (d: DebtInput) => apiFetch<Debt>(`${base}/debts`, { method: "POST", json: d }),
+  updateDebt: (debtId: string, d: DebtInput) => apiFetch<Debt>(`${base}/debts/${id(debtId)}`, { method: "PUT", json: d }),
+  removeDebt: (debtId: string) => apiFetch<void>(`${base}/debts/${id(debtId)}`, { method: "DELETE" }),
 
   categories: () => apiFetch<{ items: Category[] }>(`${base}/categories`),
-  createCategory: (c: Omit<Category, "id">) => apiFetch<Category>(`${base}/categories`, { method: "POST", json: c }),
-  updateCategory: (categoryId: string, patch: { name?: string; limit?: Cents }) =>
+  createCategory: (c: Omit<Category, "id" | "rollover">) => apiFetch<Category>(`${base}/categories`, { method: "POST", json: c }),
+  updateCategory: (categoryId: string, patch: { name?: string; limit?: Cents; rollover?: boolean }) =>
     apiFetch<Category>(`${base}/categories/${id(categoryId)}`, { method: "PATCH", json: patch }),
   removeCategory: (categoryId: string) => apiFetch<void>(`${base}/categories/${id(categoryId)}`, { method: "DELETE" }),
 

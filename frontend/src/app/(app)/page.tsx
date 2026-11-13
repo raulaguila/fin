@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CreditCard, Wallet, type LucideIcon } from "lucide-react";
-import { MonthSwitcher, Meter, NoConnections, TrendChart } from "@/components/finance";
+import { MonthSwitcher, Meter, NetWorthChart, NoConnections, TrendChart } from "@/components/finance";
 import { PageBody, PageHeader } from "@/components/bits";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
@@ -184,7 +184,7 @@ const INVESTMENT_TYPES = ["FIXED_INCOME", "SECURITY", "MUTUAL_FUND", "EQUITY", "
 function Wealth({ s }: { s: Summary }) {
   const { t } = useI18n();
   const f = useFinanceFormat();
-  if (s.investments.length === 0) return null;
+  const history = useQuery({ queryKey: ["finance", "networth"], queryFn: () => finance.netWorth(12) });
   const banks = s.accounts.reduce((n, a) => n + (a.type === "BANK" ? a.balance : 0), 0);
   const cards = s.accounts.reduce((n, a) => n + (a.type === "CREDIT" ? a.balance : 0), 0);
   const invested = s.investments.reduce((n, i) => n + i.balance, 0);
@@ -197,7 +197,8 @@ function Wealth({ s }: { s: Summary }) {
       <p className="text-xs text-muted-foreground">
         {fill(t("fin.dash.net_worth_parts"), { b: f.money(banks), i: f.money(invested), c: f.money(cards) })}
       </p>
-      <ul className="divide-y">
+      {history.data && <NetWorthChart items={history.data.items} />}
+      {s.investments.length > 0 && <ul className="divide-y">
         {s.investments.map((i) => (
           <li key={i.id} className="flex items-center justify-between gap-3 py-2 text-sm">
             <div className="min-w-0">
@@ -207,7 +208,7 @@ function Wealth({ s }: { s: Summary }) {
             <span className="shrink-0 font-mono tabular-nums">{f.money(i.balance)}</span>
           </li>
         ))}
-      </ul>
+      </ul>}
     </Card>
   );
 }

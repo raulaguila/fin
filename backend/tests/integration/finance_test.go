@@ -290,7 +290,7 @@ func TestFinanceSyncSummaryRulesAndAlerts(t *testing.T) {
 
 	// Budget alert once, at 100%, and the consent and bill alerts.
 	limit := domain.Money(1000)
-	if _, err := svc.UpdateCategory(ctx, userID, food, nil, &limit); err != nil {
+	if _, err := svc.UpdateCategory(ctx, userID, food, nil, &limit, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := svc.Alerts(ctx, userID); err != nil {
@@ -377,6 +377,76 @@ func TestFinanceSyncSummaryRulesAndAlerts(t *testing.T) {
 			if len(c.Accounts) != 1 || c.Accounts[0].Balance != balance {
 				t.Fatalf("imported account: %+v", c.Accounts)
 			}
+		}
+	}
+
+	// A line typed by hand moves the imported account's balance, carries a note
+	// and tags, and goes away with its balance; a bank's account refuses it.
+	typed, err := svc.AddTransaction(ctx, userID, domain.Transaction{AccountID: manual.ID, Date: day(0), Description: "Feira",
+		Amount: -1000, Note: "verduras", Tags: []string{"Casa", "casa", "Feira Livre"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cardBalance := func() domain.Money {
+		accs, _ := e.store.Finance().Accounts(ctx, userID)
+		for _, a := range accs {
+			if a.ID == manual.ID {
+				return a.Balance
+			}
+		}
+		return 0
+	}
+	if b := cardBalance(); b != balance+1000 { // a card's balance is what it owes
+		t.Fatalf("balance after a typed charge: %d", b)
+	}
+	if _, err := svc.AddTransaction(ctx, userID, domain.Transaction{AccountID: conns[0].Accounts[0].ID, Date: day(0), Description: "X", Amount: -1}); !apperror.IsCode(err, apperror.CodeConflict) {
+		t.Fatalf("typed line on a bank-synced account: %v", err)
+	}
+	tagged, n, err := svc.Transactions(ctx, userID, domain.TransactionFilter{Tag: "Feira Livre", Page: domain.NewPage(1, 10)})
+	if err != nil || n != 1 || tagged[0].Note != "verduras" || len(tagged[0].Tags) != 2 || tagged[0].Tags[1] != "feira-livre" {
+		t.Fatalf("tag filter: %+v %d %v", tagged, n, err)
+	}
+	if err := svc.SetTransactionDetails(ctx, userID, conns[0].Accounts[0].ID, "x", nil); !apperror.IsNotFound(err) {
+		t.Fatalf("details on a missing transaction: %v", err)
+	}
+	if err := svc.SetTransactionDetails(ctx, other, typed.ID, "x", nil); !apperror.IsNotFound(err) {
+		t.Fatalf("details on another user's transaction: %v", err)
+	}
+	if rows, err := svc.ExportTransactions(ctx, userID, domain.TransactionFilter{AccountID: manual.ID}); err != nil || len(rows) != 4 {
+		t.Fatalf("export: %d %v", len(rows), err)
+	}
+	synced, _, _ := svc.Transactions(ctx, userID, domain.TransactionFilter{AccountID: conns[0].Accounts[0].ID, Page: domain.NewPage(1, 1)})
+	if err := svc.DeleteTransaction(ctx, userID, synced[0].ID); !apperror.IsNotFound(err) {
+		t.Fatalf("delete of a bank's transaction: %v", err)
+	}
+	if err := svc.DeleteTransaction(ctx, userID, typed.ID); err != nil {
+		t.Fatal(err)
+	}
+	if b := cardBalance(); b != balance {
+		t.Fatalf("balance after the delete: %d", b)
+	}
+
+	// Debts belong to their owner; net worth records today once however often it is read.
+	debt, err := svc.CreateDebt(ctx, userID, domain.Debt{Person: " Ana  Lima ", Amount: 5000, Description: "almoço"})
+	if err != nil || debt.Person != "Ana Lima" {
+		t.Fatalf("debt: %+v %v", debt, err)
+	}
+	if _, err := svc.UpdateDebt(ctx, other, debt.ID, domain.Debt{Person: "X", Amount: 1}); !apperror.IsNotFound(err) {
+		t.Fatalf("update of another user's debt: %v", err)
+	}
+	paid := day(0)
+	if _, err := svc.UpdateDebt(ctx, userID, debt.ID, domain.Debt{Person: "Ana Lima", Amount: 5000, SettledOn: &paid}); err != nil {
+		t.Fatal(err)
+	}
+	if list, err := svc.Debts(ctx, userID); err != nil || len(list) != 1 || list[0].SettledOn == nil {
+		t.Fatalf("debts: %+v %v", list, err)
+	}
+	if err := svc.DeleteDebt(ctx, userID, debt.ID); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if points, err := svc.NetWorth(ctx, userID, 3); err != nil || len(points) != 1 || points[0].Banks != 845237 || points[0].Investments == 0 {
+			t.Fatalf("net worth: %+v %v", points, err)
 		}
 	}
 

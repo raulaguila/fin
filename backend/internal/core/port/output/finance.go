@@ -109,6 +109,30 @@ type FinanceRepository interface {
 	UpdateGoal(ctx context.Context, userID string, g *domain.Goal) error
 	DeleteGoal(ctx context.Context, userID, id string) error
 
+	// CreateTransaction inserts one transaction the user typed, with its note and tags.
+	CreateTransaction(ctx context.Context, userID, accountID string, t *domain.Transaction) error
+	// The account's balance moves with the amount in the same statement.
+	// DeleteManualTransaction removes a transaction of an imported account (never
+	// one a bank keeps, never a split part) and takes it back off the balance.
+	DeleteManualTransaction(ctx context.Context, userID, id string) error
+	SetTransactionDetails(ctx context.Context, userID, id, note string, tags []string) error
+	// ExportTransactions returns up to limit rows of the filter, with notes and tags, newest first.
+	ExportTransactions(ctx context.Context, userID string, f domain.TransactionFilter, limit int) ([]domain.Transaction, error)
+	// CountTransactions counts the rows of the filter.
+	CountTransactions(ctx context.Context, userID string, f domain.TransactionFilter) (int64, error)
+	// CardTransactions returns the credit card rows from `from` on (account, date,
+	// description, amount, installments), newest first.
+	CardTransactions(ctx context.Context, userID string, from time.Time, limit int) ([]domain.Transaction, error)
+
+	// SaveNetWorth writes the day's picture, replacing one of the same day.
+	SaveNetWorth(ctx context.Context, userID string, p domain.NetWorthPoint) error
+	NetWorth(ctx context.Context, userID string, from time.Time) ([]domain.NetWorthPoint, error)
+
+	Debts(ctx context.Context, userID string) ([]domain.Debt, error)
+	CreateDebt(ctx context.Context, userID string, d *domain.Debt) error
+	UpdateDebt(ctx context.Context, userID string, d *domain.Debt) error
+	DeleteDebt(ctx context.Context, userID, id string) error
+
 	// MarkAlert records key for the user and reports whether it is new.
 	MarkAlert(ctx context.Context, userID, key string) (bool, error)
 }

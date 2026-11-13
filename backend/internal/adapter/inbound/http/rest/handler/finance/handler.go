@@ -51,6 +51,7 @@ func (h *Handler) Routes(r fiber.Router, chatLimit fiber.Handler) {
 	r.Post("/rules", h.CreateRule)
 	r.Delete("/rules/:id", h.DeleteRule)
 	h.planningRoutes(r)
+	h.extrasRoutes(r)
 	r.Post("/assistant/chat", chatLimit, h.Chat)
 }
 
@@ -120,13 +121,15 @@ type transactionDTO struct {
 	CategorySource string `json:"category_source" example:"auto"`
 	Installment    int    `json:"installment"`
 	Installments   int    `json:"installments"`
-	SplitOf        string `json:"split_of"` // the original transaction when this row is a split part
+	SplitOf        string   `json:"split_of"` // the original transaction when this row is a split part
+	Note           string   `json:"note"`
+	Tags           []string `json:"tags"`
 }
 
 func toTransaction(t domain.Transaction) transactionDTO {
 	return transactionDTO{ID: t.ID, AccountID: t.AccountID, AccountName: t.AccountName, AccountType: t.AccountType, Institution: t.Institution,
 		Date: t.Date.Format(time.DateOnly), Description: t.Description, Amount: t.Amount, Status: t.Status, CategoryID: t.CategoryID,
-		CategoryName: t.CategoryName, CategoryKind: t.CategoryKind, CategorySource: t.CategorySource, Installment: t.Installment, Installments: t.Installments, SplitOf: t.SplitOf}
+		CategoryName: t.CategoryName, CategoryKind: t.CategoryKind, CategorySource: t.CategorySource, Installment: t.Installment, Installments: t.Installments, SplitOf: t.SplitOf, Note: t.Note, Tags: t.Tags}
 }
 
 func toTransactions(list []domain.Transaction) []transactionDTO {
@@ -141,7 +144,8 @@ type categoryDTO struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
 	Kind  string `json:"kind" example:"expense"`
-	Limit int64  `json:"limit"` // monthly, cents; 0 is none
+	Limit    int64  `json:"limit"` // monthly, cents; 0 is none
+	Rollover bool   `json:"rollover"`
 }
 
 type ruleDTO struct {
@@ -285,6 +289,8 @@ type categoryTotalDTO struct {
 	Total      int64  `json:"total"`
 	Previous   int64  `json:"previous"` // total of the month before
 	Count      int64  `json:"count"`
+	Rollover   bool   `json:"rollover"`
+	Carry      int64  `json:"carry"` // with rollover: the part of limit that came from last month (negative: overspent)
 }
 
 type recurringDTO struct {
@@ -369,7 +375,7 @@ func (h *Handler) Summary(c fiber.Ctx) error {
 	out := summaryDTO{Month: s.Month.Format("2006-01"), Income: s.Income, Expense: s.Expense, Institutions: s.Institutions,
 		Categories: []categoryTotalDTO{}, Accounts: []accountDTO{}, Recent: toTransactions(s.Recent), Recurring: []recurringDTO{}, Installments: []installmentDTO{}, Investments: []investmentDTO{}}
 	for _, t := range s.Categories {
-		dto := categoryTotalDTO{CategoryID: t.CategoryID, Name: t.Name, Kind: t.Kind, Limit: t.Limit, Total: t.Total, Count: t.Count}
+		dto := categoryTotalDTO{CategoryID: t.CategoryID, Name: t.Name, Kind: t.Kind, Limit: t.Limit, Total: t.Total, Count: t.Count, Rollover: t.Rollover, Carry: t.Carry}
 		if t.CategoryID != "" || t.Total < 0 {
 			dto.Previous = s.Previous[t.CategoryID]
 		}
@@ -460,6 +466,19 @@ func parseDate(field, s string) (time.Time, error) {
 	return t, nil
 }
 
+func transactionFilter(c fiber.Ctx) (domain.TransactionFilter, error) {
+	from, err := parseDate("from", c.Query("from"))
+	if err != nil {
+		return domain.TransactionFilter{}, err
+	}
+	to, err := parseDate("to", c.Query("to"))
+	if err != nil {
+		return domain.TransactionFilter{}, err
+	}
+	return domain.TransactionFilter{From: from, To: to, Search: c.Query("search"), AccountID: c.Query("account_id"),
+		CategoryID: c.Query("category_id"), Tag: c.Query("tag")}, nil
+}
+
 // @Summary List transactions of the current user, newest first
 // @Tags Transactions
 // @Produce json
@@ -476,16 +495,11 @@ func parseDate(field, s string) (time.Time, error) {
 // @Failure 401 {object} mapper.errorBody
 // @Router /v1/finance/transactions [get]
 func (h *Handler) Transactions(c fiber.Ctx) error {
-	from, err := parseDate("from", c.Query("from"))
+	f, err := transactionFilter(c)
 	if err != nil {
 		return mapper.WriteError(c, err)
 	}
-	to, err := parseDate("to", c.Query("to"))
-	if err != nil {
-		return mapper.WriteError(c, err)
-	}
-	f := domain.TransactionFilter{From: from, To: to, Search: c.Query("search"), AccountID: c.Query("account_id"), CategoryID: c.Query("category_id"),
-		Page: domain.NewPage(fiber.Query[int](c, "page"), fiber.Query[int](c, "limit"))}
+	f.Page = domain.NewPage(fiber.Query[int](c, "page"), fiber.Query[int](c, "limit"))
 	items, total, err := h.svc.Transactions(c.Context(), middleware.UserID(c), f)
 	if err != nil {
 		return mapper.WriteError(c, err)
@@ -494,10 +508,12 @@ func (h *Handler) Transactions(c fiber.Ctx) error {
 }
 
 type setCategoryDTO struct {
-	CategoryID string `json:"category_id"` // empty clears it
+	CategoryID *string   `json:"category_id"` // empty clears it; absent keeps it
+	Note       *string   `json:"note"`
+	Tags       *[]string `json:"tags"` // replaces them all; needs note too when only tags change
 }
 
-// @Summary Set the category of a transaction; syncs and rules never change it again
+// @Summary Set the category, or the note and tags, of a transaction; syncs and rules never change a category set here
 // @Tags Transactions
 // @Accept json
 // @Param id path string true "Transaction ID"
@@ -514,9 +530,26 @@ func (h *Handler) SetCategory(c fiber.Ctx) error {
 	if err := c.Bind().Body(&body); err != nil {
 		return mapper.WriteError(c, invalidBody())
 	}
-	keyword, err := h.svc.SetCategory(c.Context(), middleware.UserID(c), c.Params("id"), body.CategoryID)
-	if err != nil {
-		return mapper.WriteError(c, err)
+	ctx, userID, id := c.Context(), middleware.UserID(c), c.Params("id")
+	if body.Note != nil || body.Tags != nil {
+		var note string
+		var tags []string
+		if body.Note != nil {
+			note = *body.Note
+		}
+		if body.Tags != nil {
+			tags = *body.Tags
+		}
+		if err := h.svc.SetTransactionDetails(ctx, userID, id, note, tags); err != nil {
+			return mapper.WriteError(c, err)
+		}
+	}
+	keyword := ""
+	if body.CategoryID != nil {
+		var err error
+		if keyword, err = h.svc.SetCategory(ctx, userID, id, *body.CategoryID); err != nil {
+			return mapper.WriteError(c, err)
+		}
 	}
 	return c.JSON(fiber.Map{"keyword": keyword})
 }
@@ -552,7 +585,7 @@ func (h *Handler) Categories(c fiber.Ctx) error {
 	}
 	out := make([]categoryDTO, 0, len(list))
 	for _, cat := range list {
-		out = append(out, categoryDTO{ID: cat.ID, Name: cat.Name, Kind: cat.Kind, Limit: cat.Limit})
+		out = append(out, categoryDTO{ID: cat.ID, Name: cat.Name, Kind: cat.Kind, Limit: cat.Limit, Rollover: cat.Rollover})
 	}
 	return c.JSON(fiber.Map{"items": out})
 }
@@ -577,12 +610,13 @@ func (h *Handler) CreateCategory(c fiber.Ctx) error {
 	if err != nil {
 		return mapper.WriteError(c, err)
 	}
-	return c.Status(fiber.StatusCreated).JSON(categoryDTO{ID: cat.ID, Name: cat.Name, Kind: cat.Kind, Limit: cat.Limit})
+	return c.Status(fiber.StatusCreated).JSON(categoryDTO{ID: cat.ID, Name: cat.Name, Kind: cat.Kind, Limit: cat.Limit, Rollover: cat.Rollover})
 }
 
 type updateCategoryDTO struct {
 	Name  *string `json:"name"`
-	Limit *int64  `json:"limit"`
+	Limit    *int64  `json:"limit"`
+	Rollover *bool   `json:"rollover"`
 }
 
 // @Summary Rename a category or change its monthly limit
@@ -603,11 +637,11 @@ func (h *Handler) UpdateCategory(c fiber.Ctx) error {
 	if err := c.Bind().Body(&body); err != nil {
 		return mapper.WriteError(c, invalidBody())
 	}
-	cat, err := h.svc.UpdateCategory(c.Context(), middleware.UserID(c), c.Params("id"), body.Name, body.Limit)
+	cat, err := h.svc.UpdateCategory(c.Context(), middleware.UserID(c), c.Params("id"), body.Name, body.Limit, body.Rollover)
 	if err != nil {
 		return mapper.WriteError(c, err)
 	}
-	return c.JSON(categoryDTO{ID: cat.ID, Name: cat.Name, Kind: cat.Kind, Limit: cat.Limit})
+	return c.JSON(categoryDTO{ID: cat.ID, Name: cat.Name, Kind: cat.Kind, Limit: cat.Limit, Rollover: cat.Rollover})
 }
 
 // @Summary Delete a category; its transactions become uncategorized

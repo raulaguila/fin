@@ -33,7 +33,7 @@ The container joins `fin_network` at `WEB_IP` (default `172.30.99.10`). The back
 - Menus and buttons follow `permissions` and `is_superuser`, for display only: the API still checks every call.
 - Theme and language follow the saved `preferences` and are written back when changed.
 
-Screens: dashboard (with month forecast, 12-month trend and net worth with investments), transactions (with splits), next 30 days, budget, subscriptions, goals, people, yearly report, categories and rules (with suggestions), bank connections (Pluggy Connect widget, and OFX/CSV import parsed in the browser by `src/lib/statement.ts`) and the assistant; the app installs as a PWA over HTTPS; plus login, register, activation, password reset, profile (name, password, sessions, preferences), notifications, users, roles with the permission matrix and members, and the products example.
+Menu (`src/lib/navigation.ts`): dashboard (month forecast, 12-month trend, net worth with investments), transactions (with splits), Planning (tabs: budget, subscriptions, goals, next 30 days with installments), Reports (tabs: yearly report, people) and Settings (tabs: bank connections with the Pluggy Connect widget and OFX/CSV import parsed in the browser by `src/lib/statement.ts`, categories and rules, profile). The assistant is a floating button that opens the chat in a drawer, shown only when the backend has an AI provider; the app installs as a PWA over HTTPS; plus login, register, activation, password reset, profile (name, password, sessions, preferences), notifications, users, roles with the permission matrix and members, and the products example.
 
 ## Add a screen
 

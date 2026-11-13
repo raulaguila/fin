@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/empty-state";
 import { QueryErrorState } from "@/components/query-error-state";
 import { ListSkeleton } from "@/components/skeletons";
 import { Card } from "@/components/ui/card";
-import { finance, type CalendarEvent } from "@/lib/api/finance";
+import { finance, monthKey, type CalendarEvent } from "@/lib/api/finance";
 import { amountClass, fill, useFinanceFormat } from "@/lib/finance-format";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/provider";
@@ -21,6 +21,8 @@ export default function CalendarPage() {
   const f = useFinanceFormat();
   const cal = useQuery({ queryKey: ["finance", "calendar"], queryFn: finance.calendar });
   const connections = useQuery({ queryKey: ["finance", "connections"], queryFn: finance.connections });
+  const month = monthKey();
+  const installments = useQuery({ queryKey: ["finance", "summary", month], queryFn: () => finance.summary(month), select: (s) => s.installments }).data ?? [];
   const c = cal.data;
   const firstNegative = c?.events.find((e) => e.balance < 0);
 
@@ -78,6 +80,22 @@ export default function CalendarPage() {
                 </Card>
               )}
               <p className="text-xs text-muted-foreground">{t("fin.cal.note")}</p>
+              {installments.length > 0 && (
+                <Card className="gap-3 p-4">
+                  <h2 className="text-sm font-medium">{t("fin.dash.installments")}</h2>
+                  <ul className="divide-y">
+                    {installments.map((i) => (
+                      <li key={i.description} className="flex items-center justify-between gap-3 py-2 text-sm">
+                        <div className="min-w-0">
+                          <p className="truncate">{i.description}</p>
+                          <p className="text-xs text-muted-foreground">{fill(t("fin.dash.remaining"), { n: i.remaining })}</p>
+                        </div>
+                        <span className="shrink-0 font-mono tabular-nums">{f.money(-i.amount)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              )}
             </>
           )
         )}

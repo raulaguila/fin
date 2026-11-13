@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, ChevronRight, Menu } from "lucide-react";
 import { AppRail, useWideRail } from "@/components/app-rail";
+import { AssistantButton } from "@/components/assistant-button";
+import { SectionTabs } from "@/components/section-tabs";
 import { initials } from "@/components/bits";
 import { CommandPalette } from "@/components/command-palette";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -27,7 +29,7 @@ import { redirectToLogin } from "@/lib/api/client";
 import { account, notifications } from "@/lib/api/endpoints";
 import { useMe } from "@/lib/context/me";
 import { useI18n } from "@/lib/i18n/provider";
-import { ADMIN_NAV, MAIN_NAV, isActive } from "@/lib/navigation";
+import { ADMIN_NAV, MAIN_NAV, SETTINGS_NAV, inSection } from "@/lib/navigation";
 import { useCrumbStore } from "@/lib/store/crumb";
 import { useUIStore } from "@/lib/store/ui";
 
@@ -52,7 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setMobileOpen(false);
   }, [pathname]);
 
-  const section = [...MAIN_NAV, ...ADMIN_NAV].find((item) => isActive(pathname, item.href));
+  const section = [...MAIN_NAV, SETTINGS_NAV, ...ADMIN_NAV].find((item) => inSection(pathname, item));
   const crumb = useCrumbStore((s) => s.label);
   const count = unread.data?.unread ?? 0;
 
@@ -146,11 +148,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 overflow-auto bg-content outline-none">
             <div className="app-page">
-              {failed ? <div className="p-[var(--space-page)]"><QueryErrorState onRetry={retry} /></div> : children}
+              {failed ? <div className="p-[var(--space-page)]"><QueryErrorState onRetry={retry} /></div> : <>{section && <SectionTabs item={section} />}{children}</>}
             </div>
           </main>
         </div>
       </div>
+      <AssistantButton />
       <SessionKeepalive />
     </div>
   );

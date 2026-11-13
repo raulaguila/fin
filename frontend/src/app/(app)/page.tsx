@@ -87,7 +87,10 @@ function Forecast({ s }: { s: Summary }) {
   const perDay = fc.days_left > 0 ? Math.trunc(fc.projected / fc.days_left) : 0;
   return (
     <Card className="gap-3 p-4">
-      <h2 className="text-sm font-medium">{t("fin.dash.forecast")}</h2>
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-sm font-medium">{t("fin.dash.forecast")}</h2>
+        <Link href="/calendar" className="text-sm text-muted-foreground hover:underline">{t("nav.calendar")}</Link>
+      </div>
       <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
         <div>
           <p className="text-xs text-muted-foreground">{t("fin.dash.projected")}</p>
@@ -209,55 +212,6 @@ function Wealth({ s }: { s: Summary }) {
   );
 }
 
-function Commitments({ s }: { s: Summary }) {
-  const { t } = useI18n();
-  const f = useFinanceFormat();
-  if (s.recurring.length === 0 && s.installments.length === 0) return null;
-  return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {s.recurring.length > 0 && (
-        <Card className="gap-3 p-4">
-          <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-sm font-medium">{t("fin.dash.recurring")}</h2>
-            <Link href="/subscriptions" className="text-sm text-muted-foreground hover:underline">{t("fin.dash.see_all")}</Link>
-          </div>
-          <p className="-mt-2 text-xs text-muted-foreground tabular-nums">{fill(t("fin.dash.recurring_total"), { v: f.money(-s.recurring.reduce((n, r) => n + (r.changed ? r.last : r.amount), 0)) })}</p>
-          <ul className="divide-y">
-            {s.recurring.map((r) => (
-              <li key={r.name} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <div className="min-w-0">
-                  <p className="truncate">{r.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {fill(t("fin.dash.months_seen"), { n: r.months })}
-                    {r.changed && <span className="text-amber-800 dark:text-amber-300"> · {fill(t("fin.dash.recurring_changed"), { v: f.money(-r.previous) })}</span>}
-                  </p>
-                </div>
-                <span className="shrink-0 font-mono tabular-nums">{f.money(-(r.changed ? r.last : r.amount))}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-      {s.installments.length > 0 && (
-        <Card className="gap-3 p-4">
-          <h2 className="text-sm font-medium">{t("fin.dash.installments")}</h2>
-          <ul className="divide-y">
-            {s.installments.map((i) => (
-              <li key={i.description} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <div className="min-w-0">
-                  <p className="truncate">{i.description}</p>
-                  <p className="text-xs text-muted-foreground">{fill(t("fin.dash.remaining"), { n: i.remaining })}</p>
-                </div>
-                <span className="shrink-0 font-mono tabular-nums">{f.money(-i.amount)}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-    </div>
-  );
-}
-
 export default function DashboardPage() {
   const { t } = useI18n();
   const [params, set] = useListParams({ month: monthKey() });
@@ -287,7 +241,6 @@ export default function DashboardPage() {
                 <ByCategory s={s} />
                 <Recent s={s} />
               </div>
-              <Commitments s={s} />
               <Wealth s={s} />
             </>
           )

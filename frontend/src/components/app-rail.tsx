@@ -9,7 +9,7 @@ import { BrandWordmark } from "@/components/brand-wordmark";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMe } from "@/lib/context/me";
 import { useI18n } from "@/lib/i18n/provider";
-import { ADMIN_NAV, MAIN_NAV, isActive, type NavItem } from "@/lib/navigation";
+import { ADMIN_NAV, MAIN_NAV, SETTINGS_NAV, inSection, isActive, type NavItem } from "@/lib/navigation";
 import { can } from "@/lib/permissions";
 
 const WIDE = "(min-width: 1024px)";
@@ -35,7 +35,7 @@ export function AppRail({ collapsed, onToggle, mobile = false, onNavigate }: { c
 
   const link = (item: NavItem, className: string, iconClass: string) => {
     const label = t(item.key);
-    const current = isActive(pathname, item.href);
+    const current = inSection(pathname, item);
     return (
       <span key={item.href} className="contents">
         {tooltip(label, (
@@ -72,6 +72,7 @@ export function AppRail({ collapsed, onToggle, mobile = false, onNavigate }: { c
       ))}
       <div className="rail-body">
         <nav className="rail-main" aria-label={t("layout.navigation")}>{visible(MAIN_NAV).map((item) => link(item, "rail-item rail-create", "size-6"))}</nav>
+        <nav className="rail-main mt-auto pt-3" aria-label={t(SETTINGS_NAV.key)}>{link(SETTINGS_NAV, "rail-item rail-create", "size-5")}</nav>
         {admin.length > 0 && (
           <section className="rail-admin">
             <div className="rail-admin-group" data-open={adminOpen ? "" : undefined}>

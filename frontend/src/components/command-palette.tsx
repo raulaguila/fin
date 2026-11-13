@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, KeyRound, Package, Search, User as UserIcon, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, KeyRound, Search, User as UserIcon, type LucideIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { products, roles, users } from "@/lib/api/endpoints";
+import { roles, users } from "@/lib/api/endpoints";
 import { useMe } from "@/lib/context/me";
 import { useDebounced } from "@/lib/hooks/use-debounced";
 import { useI18n } from "@/lib/i18n/provider";
-import { ADMIN_NAV, MAIN_NAV, type NavItem } from "@/lib/navigation";
+import { ADMIN_NAV, MAIN_NAV, SETTINGS_NAV, type NavItem } from "@/lib/navigation";
 import { can } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
@@ -20,16 +20,18 @@ interface Hit {
   icon: LucideIcon;
 }
 
-const EXTRA: NavItem[] = [
-  { href: "/profile", key: "nav.profile", icon: UserRound },
+// Every screen by its own name: a menu item, or each tab of one.
+const SCREENS: NavItem[] = [
+  ...[...MAIN_NAV, SETTINGS_NAV].flatMap((item) => item.tabs?.map((tab) => ({ ...tab, icon: item.icon })) ?? [item]),
   { href: "/notifications", key: "nav.notifications", icon: Bell },
+  ...ADMIN_NAV,
 ];
 
 function useHits(key: string, q: string, enabled: boolean, fn: (signal: AbortSignal) => Promise<Hit[]>) {
   return useQuery({ queryKey: ["palette", key, q], queryFn: ({ signal }) => fn(signal), enabled, staleTime: 10_000 });
 }
 
-/** Ctrl/Cmd+K: jump to a screen, or to a user, role or product by name. */
+/** Ctrl/Cmd+K: jump to a screen, or to a user or role by name. */
 export function CommandPalette() {
   const { t } = useI18n();
   const { user } = useMe();
@@ -55,18 +57,16 @@ export function CommandPalette() {
     users.list({ page: 1, limit: 5, search: q }, signal).then((r) => r.items.map((u) => ({ href: `/admin/users/${u.id}`, label: u.name, hint: u.email, icon: UserIcon }))));
   const roleHits = useHits("roles", q, search && can(user, "roles", "read"), (signal) =>
     roles.list({ page: 1, limit: 5, search: q }, signal).then((r) => r.items.map((x) => ({ href: `/admin/roles/${x.id}`, label: x.name, hint: t("nav.roles"), icon: KeyRound }))));
-  const productHits = useHits("products", q, search && can(user, "products", "read"), (signal) =>
-    products.list({ page: 1, limit: 5, search: q }, signal).then((r) => r.items.map((p) => ({ href: `/products/${p.id}`, label: p.name, hint: t("nav.products"), icon: Package }))));
 
   const needle = text.trim().toLowerCase();
-  const pages: Hit[] = [...MAIN_NAV, ...ADMIN_NAV, ...EXTRA]
+  const pages: Hit[] = SCREENS
     .filter((item) => !item.needs || can(user, ...item.needs))
     .map((item) => ({ href: item.href, label: t(item.key), icon: item.icon }))
     .filter((hit) => hit.label.toLowerCase().includes(needle));
-  const hits = [...pages, ...(userHits.data ?? []), ...(roleHits.data ?? []), ...(productHits.data ?? [])];
+  const hits = [...pages, ...(userHits.data ?? []), ...(roleHits.data ?? [])];
   const current = Math.min(active, hits.length - 1);
   // While the typed text waits for the debounce or a search is in flight, "nothing found" would be a guess.
-  const searching = text.trim().length >= 2 && (text.trim() !== q || userHits.isFetching || roleHits.isFetching || productHits.isFetching);
+  const searching = text.trim().length >= 2 && (text.trim() !== q || userHits.isFetching || roleHits.isFetching);
 
   const changeOpen = (next: boolean) => {
     setOpen(next);

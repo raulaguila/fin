@@ -15,8 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { finance, type CategoryTotal, type YearReport } from "@/lib/api/finance";
+import { finance, monthKey, type CategoryTotal, type YearReport } from "@/lib/api/finance";
 import { amountClass, fill, useFinanceFormat } from "@/lib/finance-format";
+import { TRANSFER_LIKE } from "@/lib/merchant";
 import { useListParams } from "@/lib/hooks/use-list-params";
 import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,6 @@ import { cn } from "@/lib/utils";
 const DEDUCTIBLE = ["saúde", "educação"];
 const isDeductible = (c: CategoryTotal) => DEDUCTIBLE.includes(c.name.toLowerCase());
 /** Spending categories that often hold money moved to the user's own accounts. */
-const TRANSFER_LIKE = /pix|transfer/i;
 const TRANSFER_SHARE = 0.2;
 const IN = "#1e9e73", OUT = "#eb6834";
 const YEAR = "year";
@@ -125,12 +125,22 @@ export default function ReportPage() {
   const income = byKind(r?.categories ?? [], "income");
   const expense = byKind(r?.categories ?? [], "expense");
   const deductible = expense.filter(isDeductible).reduce((n, c) => n + c.total, 0);
-  const p = before.data && (before.data.income !== 0 || before.data.expense !== 0) ? before.data : undefined;
-  const prev = p && new Map(p.categories.map((c) => [key(c), c.total]));
+  // Only months with money in both years compare: a year the bank history starts midway would read as +2000%.
+  // Only closed months: the current one is half over and future ones hold just card installments.
+  const filled = (y?: YearReport) => new Set((y?.months ?? []).filter((m) => (m.income || m.expense) && m.month < monthKey()).map((m) => m.month.slice(5)));
+  const mine = filled(r), theirs = filled(before.data);
+  const common = new Set([...mine].filter((m) => theirs.has(m)));
+  const whole = common.size === mine.size && common.size === theirs.size;
+  const within = (y: YearReport) => y.months.filter((m) => common.has(m.month.slice(5))).reduce((n, m) => ({ income: n.income + m.income, expense: n.expense + m.expense }), { income: 0, expense: 0 });
+  const p = before.data && common.size > 0 ? within(before.data) : undefined;
+  const now = r && p ? within(r) : r;
+  // Category totals are for the whole year, so they compare only when both years cover the same months.
+  const prev = p && whole && before.data ? new Map(before.data.categories.map((c) => [key(c), c.total])) : undefined;
   const flowCats = period === YEAR ? r?.categories : month.data?.categories;
   const rate = r && savings(r);
+  const rateNow = now && savings(now);
   const rateBefore = p && savings(p);
-  const vs = (d: string | undefined) => (d === undefined ? undefined : fill(t("fin.report.vs_prev"), { d, y: year - 1 }));
+  const vs = (d: string | undefined) => (d === undefined ? undefined : fill(t(whole ? "fin.report.vs_prev" : "fin.report.vs_prev_months"), { d, y: year - 1, n: common.size }));
   const transferLike = r && expense.find((c) => TRANSFER_LIKE.test(c.name) && Math.abs(c.total) / Math.abs(r.expense || 1) > TRANSFER_SHARE);
 
   const periods: Record<string, string> = { [YEAR]: t("fin.report.whole_year") };
@@ -160,11 +170,11 @@ export default function ReportPage() {
           <EmptyState icon={FileText} title={fill(t("fin.report.empty"), { y: year })} />
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-              <Kpi label={t("fin.report.income")} value={f.money(r.income)} note={vs(delta(r.income, p?.income))} />
-              <Kpi label={t("fin.report.expense")} value={f.money(-r.expense)} note={vs(delta(r.expense, p?.expense))} />
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <Kpi label={t("fin.report.income")} value={f.money(r.income)} note={vs(delta(now!.income, p?.income))} />
+              <Kpi label={t("fin.report.expense")} value={f.money(-r.expense)} note={vs(delta(now!.expense, p?.expense))} />
               <Kpi label={t("fin.report.savings")} value={rate === undefined ? "—" : `${Math.round(rate * 100)}%`}
-                note={rate !== undefined && rateBefore !== undefined ? vs(`${rate >= rateBefore ? "+" : ""}${Math.round((rate - rateBefore) * 100)} p.p.`) : t("fin.report.savings_help")} />
+                note={rateNow !== undefined && rateBefore !== undefined ? vs(`${rateNow >= rateBefore ? "+" : ""}${Math.round((rateNow - rateBefore) * 100)} p.p.`) : t("fin.report.savings_help")} />
               <Kpi label={t("fin.report.deductible_total")} value={f.money(-deductible)} help={t("fin.report.deductible_help")} />
             </div>
 

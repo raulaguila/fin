@@ -100,8 +100,12 @@ function ConnectionCard({ c, onReconnect, onRemove }: { c: Connection; onReconne
     <Card className="gap-3 p-4">
       <div className="flex items-start gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
-          {/* eslint-disable-next-line @next/next/no-img-element -- a remote logo, not worth the image optimizer */}
-          {c.image_url ? <img src={c.image_url} alt="" className="size-8 object-contain" /> : <Landmark className="size-5 text-muted-foreground" />}
+          {/* MeuPluggy hands back its blank sandbox icon; the bank's initial says more. */}
+          {c.image_url && !c.image_url.includes("sandbox") ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a remote logo, not worth the image optimizer
+            <img src={c.image_url} alt="" className="size-8 object-contain" />
+          ) : c.institution ? <span aria-hidden="true" className="text-base font-semibold text-muted-foreground">{c.institution.slice(0, 1).toUpperCase()}</span>
+            : <Landmark className="size-5 text-muted-foreground" />}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -122,7 +126,7 @@ function ConnectionCard({ c, onReconnect, onRemove }: { c: Connection; onReconne
         <ul className="divide-y rounded-lg border text-sm">
           {c.accounts.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-3 px-3 py-2">
-              <span className="min-w-0 truncate">{label(a)}</span>
+              <span className="min-w-0 break-words">{label(a)}</span>
               <span className="shrink-0 text-right font-mono tabular-nums">
                 {a.type === "CREDIT" ? fill(t("fin.conn.bill"), { v: f.money(a.balance) }) : f.money(a.balance)}
                 {a.type === "CREDIT" && a.available !== null && <span className="block text-xs text-muted-foreground">{fill(t("fin.conn.available"), { v: f.money(a.available) })}</span>}

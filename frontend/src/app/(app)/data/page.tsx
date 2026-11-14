@@ -12,17 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { finance, type AccountHealth, type ArchiveResult, type DataHealth } from "@/lib/api/finance";
 import { archiveParts } from "@/lib/archive";
+import { backupOld, daysSince, gapOf, isStale } from "@/lib/data-health";
 import { errorMessage } from "@/lib/errors";
 import { fill, useFinanceFormat } from "@/lib/finance-format";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
 
-const STALE_DAYS = 7;
-/** Below R$ 1 a gap is rounding at the bank, not missing data. */
-const GAP_MIN = 100;
-
-const daysSince = (date: string) => Math.floor((Date.now() - new Date(`${date}T00:00:00`).getTime()) / 86_400_000);
 
 function Status({ ok, warn, children }: { ok: boolean; warn?: boolean; children: React.ReactNode }) {
   const Icon = ok ? CheckCircle2 : warn ? AlertTriangle : XCircle;
@@ -43,10 +39,10 @@ function AccountRow({ a }: { a: AccountHealth }) {
     onSuccess: () => void client.invalidateQueries({ queryKey: ["finance", "health"] }),
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
   });
-  const age = a.last_date ? daysSince(a.last_date) : null;
-  // A bank account always moves; a card or an unused account can rest for weeks.
-  const stale = !a.manual && a.type === "BANK" && age !== null && age > STALE_DAYS;
-  const gap = a.gap !== null && Math.abs(a.gap) >= GAP_MIN ? a.gap : 0;
+  const [now] = useState(Date.now);
+  const age = a.last_date ? daysSince(a.last_date, now) : null;
+  const stale = isStale(a, now);
+  const gap = gapOf(a);
   return (
     <li className="grid gap-1.5 py-3">
       <Status ok={!stale && !gap} warn>
@@ -118,8 +114,7 @@ function Health({ h }: { h: DataHealth }) {
         <h2 className="text-sm font-medium">{t("fin.data.backups")}</h2>
         {BACKUP_STEPS.map((s) => {
           const run = runs.get(s.kind);
-          // A dump or a check older than two days means the backup service stopped.
-          const old = run && now - new Date(run.at).getTime() > (s.kind === "restore_check" ? 8 : 2) * 86_400_000;
+          const old = run && backupOld(s.kind, run.at, now);
           return (
             <Status key={s.kind} ok={!!run?.ok && !old} warn={!run || old}>
               <p>{t(s.label)}</p>

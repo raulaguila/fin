@@ -83,8 +83,30 @@ export function MoneyFlow({ income, expense, onSelect }: { income: CategoryTotal
   const focusable = (n: Node) => (onSelect && n.cats.length ? { tabIndex: 0, role: "button", "aria-label": fill(t("fin.report.open"), { c: label(n) }), onKeyDown: keys(n) } : {});
   const dim = (n: Node) => (hover && hover !== n.name ? 0.12 : 0.35);
 
+  const most = Math.max(...right.map((n) => n.value));
   return (
-    <div className="overflow-x-auto">
+    <>
+    {/* A phone has no room for the bands: the same split as a list, biggest first. */}
+    <ul className="grid gap-2 sm:hidden">
+      {right.map((n) => {
+        const open = onSelect && n.cats.length > 0 ? () => onSelect(n.name, n.cats) : undefined;
+        const body = (
+          <>
+            <span className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="min-w-0 truncate">{n.name}</span>
+              <span className="shrink-0 font-mono tabular-nums">{f.money(n.value)} <span className="text-xs text-muted-foreground">{Math.round((n.value / total) * 100)}%</span></span>
+            </span>
+            <span className="block h-1.5 rounded-full bg-muted"><span className="block h-1.5 rounded-full" style={{ width: `${(n.value / most) * 100}%`, background: n.color }} /></span>
+          </>
+        );
+        return (
+          <li key={n.name}>
+            {open ? <button type="button" onClick={open} className="grid w-full gap-1 rounded-md px-1 py-1 text-left hover:bg-muted">{body}</button> : <div className="grid gap-1 px-1 py-1">{body}</div>}
+          </li>
+        );
+      })}
+    </ul>
+    <div className="overflow-x-auto max-sm:hidden">
       <svg viewBox={`0 0 ${W} ${H}`} className="mx-auto h-auto w-full max-w-[900px] min-w-[600px]" role="img" aria-label={t("fin.flow.title")}>
         {L.map((n, i) => (
           <path key={`l${n.name}`} d={band(PAD + NODE, n.y, cx, inAt[i], n.h)} fill={n.color} opacity={dim(n)} {...live(n)}><title>{label(n)}</title></path>
@@ -109,6 +131,7 @@ export function MoneyFlow({ income, expense, onSelect }: { income: CategoryTotal
         ))}
       </svg>
     </div>
+    </>
   );
 }
 

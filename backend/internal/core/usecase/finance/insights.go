@@ -174,6 +174,9 @@ func personOf(desc string) (name, keyword string, ok bool) {
 				return "", "", false
 			}
 		}
+		if isCompany(rest) {
+			return "", "", false
+		}
 		end := strings.Index(desc, rest) + len(rest)
 		keyword = strings.ToLower(desc[:end])
 		if !p.received || utf8.RuneCountInString(keyword) > 60 {
@@ -182,6 +185,22 @@ func personOf(desc string) (name, keyword string, ok bool) {
 		return titleCase(rest), keyword, true
 	}
 	return "", "", false
+}
+
+// companyWords mark a business, not a person: "Naip Instituicao De Pagamento Sa", "Nuuvem Servicos Ltda".
+var companyWords = map[string]bool{
+	"ltda": true, "sa": true, "s/a": true, "s.a": true, "s.a.": true, "me": true, "epp": true, "eireli": true, "cia": true,
+	"instituicao": true, "instituição": true, "pagamento": true, "pagamentos": true, "servicos": true, "serviços": true,
+	"comercio": true, "comércio": true, "banco": true, "tecnologia": true, "brasil": true,
+}
+
+func isCompany(name string) bool {
+	for _, w := range strings.Fields(strings.ToLower(name)) {
+		if companyWords[strings.Trim(w, ",-")] {
+			return true
+		}
+	}
+	return false
 }
 
 func titleCase(s string) string {

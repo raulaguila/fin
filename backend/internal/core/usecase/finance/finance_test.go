@@ -153,6 +153,11 @@ func TestPersonOf(t *testing.T) {
 	if !ok || name != "Joao De Souza" || keyword != "transferência recebida|joao de souza" {
 		t.Fatalf("pipe: %q %q %v", name, keyword, ok)
 	}
+	for _, company := range []string{"PIX RECEBIDO NAIP INSTITUICAO DE PAGAMENTO SA", "PIX ENVIADO NUUVEM SERVICOS DE GAMES LTDA"} {
+		if _, _, ok := personOf(company); ok {
+			t.Fatalf("%q is a company, not a person", company)
+		}
+	}
 	if _, keyword, ok = personOf("PIX ENVIADO ANA"); !ok || keyword != "" {
 		t.Fatalf("a sent transfer gives no refund keyword: %q %v", keyword, ok)
 	}

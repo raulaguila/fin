@@ -23,6 +23,15 @@ const ICON: Record<Notification["level"], { icon: typeof Info; cls: string }> = 
   critical: { icon: OctagonAlert, cls: "bg-destructive/10 text-destructive" },
 };
 
+/** Sections of the list, in this order; a kind not named here goes to "other". */
+const GROUPS: { key: MessageKey; kinds: string[] }[] = [
+  { key: "notifications.group.security", kinds: ["new_login", "account_locked", "session_reused", "password_reset", "password_changed"] },
+  { key: "notifications.group.charges", kinds: ["finance_duplicate", "finance_overdraft", "finance_price", "finance_large_spend", "finance_bill"] },
+  { key: "notifications.group.plans", kinds: ["finance_budget", "finance_goal", "finance_summary", "finance_weekly"] },
+  { key: "notifications.group.banks", kinds: ["finance_consent", "finance_connection"] },
+];
+const groupOf = (n: Notification) => GROUPS.findIndex((g) => g.kinds.includes(n.kind ?? ""));
+
 /** The text in the user's language when the kind is known; the server's English otherwise. */
 function useNotificationText() {
   const { t } = useI18n();
@@ -75,8 +84,14 @@ export default function NotificationsPage() {
           <EmptyState icon={Bell} title={t("notifications.empty")} description={t("notifications.empty_desc")} />
         ) : (
           <Card className="gap-0 overflow-hidden p-0">
-            <ul className="divide-y">
-              {list.data.items.map((n) => {
+            {[...GROUPS.map((_, i) => i), -1].map((g) => {
+              const items = list.data.items.filter((n) => groupOf(n) === g);
+              if (!items.length) return null;
+              return (
+            <section key={g} aria-labelledby={`group-${g}`}>
+            <h2 id={`group-${g}`} className="border-b bg-muted/40 px-4 py-1.5 text-xs font-medium text-muted-foreground">{t(g < 0 ? "notifications.group.other" : GROUPS[g].key)}</h2>
+            <ul className="divide-y border-b">
+              {items.map((n) => {
                 const { icon: Icon, cls } = ICON[n.level];
                 const { title, message } = text(n);
                 return (
@@ -101,6 +116,9 @@ export default function NotificationsPage() {
                 );
               })}
             </ul>
+            </section>
+              );
+            })}
             <TablePagination
               page={page}
               pageSize={limit}

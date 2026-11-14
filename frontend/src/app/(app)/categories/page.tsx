@@ -71,7 +71,7 @@ function Rules({ categories }: { categories: Category[] }) {
       <ul className="divide-y">
         {rules.data?.items.map((r) => (
           <li key={r.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-            <span className="min-w-0 truncate">
+            <span className="min-w-0 break-words">
               <span className="text-muted-foreground">{t("fin.cat.keyword")}</span> <strong>“{r.keyword}”</strong> → {r.category_name}
               <span className="text-xs text-muted-foreground"> · {fill(t("fin.cat.hits"), { n: r.hits })}</span>
             </span>

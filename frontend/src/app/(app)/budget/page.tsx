@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { finance, monthKey, shiftMonth, type CategoryTotal } from "@/lib/api/finance";
 import { errorMessage } from "@/lib/errors";
 import { centsText, fill, parseCents, useFinanceFormat } from "@/lib/finance-format";
+import { TRANSFER_LIKE } from "@/lib/merchant";
 import { useListParams } from "@/lib/hooks/use-list-params";
 import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
@@ -103,7 +104,7 @@ function UnlimitedRow({ c, average }: { c: CategoryTotal; average: number }) {
           {c.total < 0 && ` · ${fill(t("fin.budget.this_month"), { v: f.money(-c.total) })}`}
         </span>
       </span>
-      {suggested > 0 && (
+      {suggested > 0 && !TRANSFER_LIKE.test(c.name) && (
         <Button size="sm" variant="outline" disabled={save.isPending} onClick={() => save.mutate(suggested)}>{fill(t("fin.budget.use"), { v: f.money(suggested) })}</Button>
       )}
       <Input inputMode="decimal" value={draft} placeholder={t("fin.budget.limit")} aria-label={`${t("fin.budget.limit")}: ${c.name}`} className="w-28 text-right font-mono"

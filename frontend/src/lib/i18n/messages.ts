@@ -132,6 +132,11 @@ const ptBR = {
   "notifications.empty_desc": "Avisos sobre sua conta aparecem aqui.",
   "notifications.mark_read": "Marcar como lida",
   "notifications.mark_all_read": "Marcar todas como lidas",
+  "notifications.group.security": "Segurança",
+  "notifications.group.charges": "Cobranças",
+  "notifications.group.plans": "Orçamento e metas",
+  "notifications.group.banks": "Bancos",
+  "notifications.group.other": "Outras",
   "notifications.subtitle": "Avisos sobre sua conta e segurança.",
 
   "products.delete": "Excluir produto",
@@ -540,6 +545,11 @@ const enUS: Record<MessageKey, string> = {
   "notifications.empty_desc": "Notices about your account show up here.",
   "notifications.mark_read": "Mark as read",
   "notifications.mark_all_read": "Mark all as read",
+  "notifications.group.security": "Security",
+  "notifications.group.charges": "Charges",
+  "notifications.group.plans": "Budget and goals",
+  "notifications.group.banks": "Banks",
+  "notifications.group.other": "Other",
   "notifications.subtitle": "Notices about your account and security.",
 
   "products.delete": "Delete product",

@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { finance, type Category, type Transaction } from "@/lib/api/finance";
+import { CHECKED } from "@/lib/duplicates";
 import { errorMessage } from "@/lib/errors";
-import { amountClass, parseCents, useFinanceFormat } from "@/lib/finance-format";
+import { amountClass, fill, parseCents, useFinanceFormat } from "@/lib/finance-format";
 import { merchantName } from "@/lib/merchant";
 import { useI18n } from "@/lib/i18n/provider";
 
@@ -49,8 +50,10 @@ function NoteField({ id, value, onChange }: { id: string; value: string; onChang
 const NONE = "none";
 
 /** One transaction in full: category, note and tags, and what else can be done with it. */
-export function TransactionSheet({ tx, categories, manual, onClose, onCategorized, onSplit, onUnsplit, onRemove, onFixed }: {
+export function TransactionSheet({ tx, categories, manual, repeated = 0, onClose, onCategorized, onSplit, onUnsplit, onRemove, onFixed }: {
   tx: Transaction;
+  /** How many charges look like this one on the same day; 0 when none. */
+  repeated?: number;
   categories: Category[];
   /** Typed or imported: it can be deleted. */
   manual: boolean;
@@ -81,12 +84,27 @@ export function TransactionSheet({ tx, categories, manual, onClose, onCategorize
     },
     onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
   });
+  // Separate purchases: the tag clears the warning for the whole group.
+  const checked = useMutation({
+    mutationFn: () => finance.updateTransaction(tx.id, { note: tx.note ?? "", tags: [...(tx.tags ?? []), CHECKED] }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["finance"] });
+      onClose();
+    },
+    onError: (err) => toast.error(errorMessage(err, "common.save_failed", t)),
+  });
   const cats: Record<string, string> = { [NONE]: t("fin.uncategorized") };
   for (const c of categories) cats[c.id] = c.name;
   return (
     <FormSheet onClose={onClose} title={merchantName(tx.description)}
       description={<>{tx.description}<span className="block tabular-nums">{f.date(tx.date)} · {tx.institution} · {tx.account_name} · <span className={amountClass(tx.amount)}>{f.money(tx.amount)}</span></span></>}
       submitLabel={t("fin.goal.save")} canSubmit pending={save.isPending} onSubmit={() => save.mutate()}>
+      {repeated > 1 && (
+        <div className="grid gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+          <p>{fill(t("fin.tx.repeated_help"), { n: repeated })}</p>
+          <Button type="button" size="sm" variant="outline" className="justify-self-start" disabled={checked.isPending} onClick={() => checked.mutate()}>{t("fin.tx.repeated_ok")}</Button>
+        </div>
+      )}
       <div className="grid gap-1.5">
         <Label>{t("fin.tx.category")}</Label>
         <Select value={categoryId} items={cats} onValueChange={(v) => setCategoryId(String(v ?? NONE))}>
@@ -115,6 +133,20 @@ const AUTO = "auto";
 const WALLET = "wallet";
 
 /** A transaction typed by hand, only on accounts with no bank behind them. */
+const LAST_KEY = "fin.last-entry";
+function readLast(): { account?: string; category?: string } {
+  try {
+    return JSON.parse(localStorage.getItem(LAST_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+function writeLast(v: { account: string; category: string }) {
+  try {
+    localStorage.setItem(LAST_KEY, JSON.stringify(v));
+  } catch { /* private window: nothing to remember */ }
+}
+
 export function NewTransactionSheet({ accounts, categories, onClose }: {
   accounts: Record<string, string>;
   categories: Category[];
@@ -123,12 +155,14 @@ export function NewTransactionSheet({ accounts, categories, onClose }: {
   const { t } = useI18n();
   const client = useQueryClient();
   const options = Object.keys(accounts).length ? accounts : { [WALLET]: t("fin.tx.wallet_new") };
-  const [accountId, setAccountId] = useState(Object.keys(options)[0]);
+  // The last entry's account and category: cash spending tends to repeat.
+  const [last] = useState(readLast);
+  const [accountId, setAccountId] = useState(last.account && options[last.account] ? last.account : Object.keys(options)[0]);
   const [kind, setKind] = useState<"out" | "in">("out");
   const [date, setDate] = useState(today());
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
-  const [categoryId, setCategoryId] = useState(AUTO);
+  const [categoryId, setCategoryId] = useState(last.category && categories.some((c) => c.id === last.category) ? last.category : AUTO);
   const [note, setNote] = useState("");
   const [tags, setTags] = useState("");
   const cents = parseCents(amount);
@@ -140,6 +174,7 @@ export function NewTransactionSheet({ accounts, categories, onClose }: {
       category_id: categoryId === AUTO ? "" : categoryId, note: note.trim(), tags: splitTags(tags),
     }),
     onSuccess: () => {
+      writeLast({ account: accountId === WALLET ? "" : accountId, category: categoryId === AUTO ? "" : categoryId });
       void client.invalidateQueries({ queryKey: ["finance"] });
       toast.success(t("fin.tx.added"));
       onClose();

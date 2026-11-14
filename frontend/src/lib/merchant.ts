@@ -61,3 +61,6 @@ export function categoryColor(name: string): string {
   for (const ch of name.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return COLORS[h % COLORS.length];
 }
+
+/** Money sent to people or to other accounts: worth a look, not a spending limit. */
+export const TRANSFER_LIKE = /pix|transfer/i;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, ListChecks, Plus, Search, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
@@ -29,6 +30,7 @@ import { useDebounced } from "@/lib/hooks/use-debounced";
 import { useListParams } from "@/lib/hooks/use-list-params";
 import { useUndoToast } from "@/lib/hooks/use-undo-toast";
 import { useI18n } from "@/lib/i18n/provider";
+import { repeated } from "@/lib/duplicates";
 import { merchantName } from "@/lib/merchant";
 import { cn, searchTerm } from "@/lib/utils";
 
@@ -106,6 +108,13 @@ function TxMeta({ tx }: { tx: Transaction }) {
   );
 }
 
+/** A charge that looks billed more than once the same day. */
+function Repeated({ n }: { n?: number }) {
+  const { t } = useI18n();
+  if (!n) return null;
+  return <span className="shrink-0 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-300">{fill(t("fin.tx.repeated"), { n })}</span>;
+}
+
 /** Clickable filters on desktop; plain text inside the phone row, which is already a button. */
 function Tags({ tx, onTag }: { tx: Transaction; onTag?: (tag: string) => void }) {
   const { t } = useI18n();
@@ -133,7 +142,15 @@ export default function TransactionsPage() {
   const [open, setOpen] = useState<Transaction | null>(null);
   const [fixing, setFixing] = useState<Draft | null>(null);
   const [removing, setRemoving] = useState<Transaction | null>(null);
-  const [adding, setAdding] = useState(false);
+  // ?new=1 comes from the + of the phone top bar.
+  const url = useSearchParams();
+  const router = useRouter();
+  const [typing, setAdding] = useState(false);
+  const adding = typing || url.get("new") === "1";
+  const stopAdding = () => {
+    setAdding(false);
+    if (url.get("new")) router.replace("/transactions");
+  };
   const [reviewing, setReviewing] = useState(false);
   const [bulkCategory, setBulkCategory] = useState("");
   const q = searchTerm(useDebounced(params.q));
@@ -208,6 +225,7 @@ export default function TransactionsPage() {
   for (const c of categories.data?.items ?? []) bulkItems[c.id] = c.name;
 
   const items = list.data?.items ?? [];
+  const dups = repeated(items);
   const selection = useSelection(items.map((tx) => tx.id));
   const bulk = useMutation({
     mutationFn: (categoryId: string) => finance.categorizeMany(selection.ids, categoryId === NONE ? "" : categoryId),
@@ -285,14 +303,14 @@ export default function TransactionsPage() {
             action={filtered && <Button variant="outline" onClick={() => { setSearch(""); set({ q: "", account: "", category: "", tag: "", page: 1 }); }}>{t("common.clear_filters")}</Button>} />
         ) : (
           <Card className="gap-0 overflow-hidden p-0">
-            {/* Phone: one compact line per transaction; a tap opens it. */}
-            <ul className="divide-y md:hidden">
+            {/* Phone and tablet: one compact line per transaction; a tap opens it. */}
+            <ul className="divide-y lg:hidden">
               {items.map((tx) => (
                 <li key={tx.id}>
                   <button type="button" onClick={() => setOpen(tx)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/50">
                     <CategoryDot name={tx.category_name} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{merchantName(tx.description)}</span>
+                      <span className="flex items-center gap-1.5"><span className="truncate text-sm font-medium">{merchantName(tx.description)}</span><Repeated n={dups.get(tx.id)} /></span>
                       <span className={cn("block truncate text-xs", tx.category_id ? "text-muted-foreground" : "text-amber-700 dark:text-amber-400")}>
                         {tx.category_name || t("fin.uncategorized")} · {f.day(tx.date)}{tx.installments > 1 && ` · ${tx.installment}/${tx.installments}`}
                       </span>
@@ -304,7 +322,7 @@ export default function TransactionsPage() {
               ))}
             </ul>
             {/* Desktop: the table, with the category one click away and rows to tick for bulk changes. */}
-            <Table className="max-md:hidden" data-compact>
+            <Table className="max-lg:hidden" data-compact>
               <TableHeader>
                 <TableRow>
                   <SelectAllHead selection={selection} />
@@ -323,7 +341,7 @@ export default function TransactionsPage() {
                       <div className="flex items-center gap-3">
                         <CategoryDot name={tx.category_name} />
                         <div className="min-w-0">
-                          <p className="truncate font-medium" title={tx.description}>{merchantName(tx.description)}</p>
+                          <p className="flex items-center gap-1.5"><span className="truncate font-medium" title={tx.description}>{merchantName(tx.description)}</span><Repeated n={dups.get(tx.id)} /></p>
                           <p className="truncate text-xs text-muted-foreground">{tx.description} · <TxMeta tx={tx} /></p>
                           {tx.note && <p className="truncate text-xs italic text-muted-foreground" title={tx.note}>{tx.note}</p>}
                           <Tags tx={tx} onTag={filterTag} />
@@ -351,7 +369,7 @@ export default function TransactionsPage() {
         </SelectionBar>
         <SplitDialog tx={splitting} categories={categories.data?.items ?? []} onClose={() => setSplitting(null)} />
         {open && (
-          <TransactionSheet key={open.id} tx={open} categories={categories.data?.items ?? []} manual={manual(open)} onClose={() => setOpen(null)}
+          <TransactionSheet key={open.id} tx={open} categories={categories.data?.items ?? []} manual={manual(open)} repeated={dups.get(open.id)} onClose={() => setOpen(null)}
             onCategorized={suggest}
             onSplit={() => { setSplitting(open); setOpen(null); }}
             onUnsplit={() => { unsplit.mutate(open.split_of); setOpen(null); }}
@@ -363,7 +381,7 @@ export default function TransactionsPage() {
             }} />
         )}
         {fixing && <SubscriptionDialog draft={fixing} onClose={() => setFixing(null)} />}
-        {adding && <NewTransactionSheet accounts={manualItems} categories={categories.data?.items ?? []} onClose={() => setAdding(false)} />}
+        {adding && <NewTransactionSheet accounts={manualItems} categories={categories.data?.items ?? []} onClose={stopAdding} />}
         {reviewing && <ReviewSheet range={range} categories={categories.data?.items ?? []} onClose={() => setReviewing(false)} />}
         <ConfirmDialog open={!!removing} onOpenChange={(o) => !o && setRemoving(null)} destructive
           title={fill(t("fin.tx.remove_title"), { d: removing?.description ?? "" })} description={t("fin.tx.remove_help")} confirmLabel={t("fin.tx.remove")}

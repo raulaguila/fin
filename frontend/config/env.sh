@@ -2,9 +2,10 @@
 # Writes frontend/config/.env. Run from frontend/ (make init).
 
 session_secret=$(openssl rand -hex 32)
-# localhost plus this machine's LAN addresses; edit WEB_HOSTS when the IP changes.
+# localhost, this machine's name and LAN addresses; edit WEB_HOSTS when the IP changes.
 lan_ips=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -E '^(192\.168|10)\.')
-web_hosts="localhost${lan_ips:+$(printf ', %s' ${lan_ips})}"
+# The machine's name too, plain and as mDNS (.local), for devices that type it.
+web_hosts="localhost, $(hostname), $(hostname).local${lan_ips:+$(printf ', %s' ${lan_ips})}"
 web_sni=$(echo "${lan_ips:-localhost}" | head -n 1)
 
 echo "TZ='America/Manaus'                             # Set system time zone

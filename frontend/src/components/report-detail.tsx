@@ -21,7 +21,7 @@ export interface Series {
   values: Record<string, number>;
 }
 
-const BH = 150, AXIS = 18;
+const BH = 150;
 
 /** Twelve month slots of one or more series side by side; a click on a month calls onPick. */
 /** width is the drawing's own width: smaller in a narrow panel keeps the month labels readable. */
@@ -37,13 +37,13 @@ export function MonthBars({ year, series, onPick, pickLabel, width: BW = 720 }: 
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick?.(m); }
   };
   return (
-    <div className="grid gap-2">
+    <div className="grid w-full max-w-[900px] gap-2">
       {series.length > 1 && (
         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
           {series.map((s) => <span key={s.label} className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm" style={{ background: s.color }} />{s.label}</span>)}
         </div>
       )}
-      <svg viewBox={`0 0 ${BW} ${BH + AXIS}`} className="h-auto w-full max-w-[900px]" role="img" aria-label={series.map((s) => s.label).join(", ")}>
+      <svg viewBox={`0 0 ${BW} ${BH}`} className="h-auto w-full" role="img" aria-label={series.map((s) => s.label).join(", ")}>
         <line x1="0" x2={BW} y1={BH} y2={BH} className="stroke-border" />
         {months.map((m, i) => {
           const x0 = i * slot + (slot - bar * series.length - 2 * (series.length - 1)) / 2;
@@ -59,11 +59,16 @@ export function MonthBars({ year, series, onPick, pickLabel, width: BW = 720 }: 
                 const h = v > 0 ? Math.max(2, (v / max) * (BH - 8)) : 0;
                 return <rect key={s.label} x={x0 + j * (bar + 2)} y={BH - h} width={bar} height={h} rx="3" fill={s.color} />;
               })}
-              <text x={i * slot + slot / 2} y={BH + 13} textAnchor="middle" className="fill-muted-foreground text-[11px]">{f.month(m).slice(0, 3)}</text>
             </g>
           );
         })}
       </svg>
+      {/* Month names in HTML keep their real size however narrow the drawing gets; a phone shows the initial. */}
+      <div aria-hidden="true" className="-mt-1 grid grid-cols-12 text-center text-[11px] text-muted-foreground">
+        {months.map((m) => (
+          <span key={m}><span className="sm:hidden">{f.month(m).slice(0, 1)}</span><span className="max-sm:hidden">{f.month(m).slice(0, 3)}</span></span>
+        ))}
+      </div>
     </div>
   );
 }

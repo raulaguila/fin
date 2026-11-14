@@ -50,7 +50,7 @@ function Bills({ name, bills }: { name: string; bills: CardBill[] }) {
   return (
     <Card className="gap-0 overflow-hidden p-0">
       <h2 className="flex items-center gap-2 border-b px-4 py-3 text-sm font-medium"><CreditCard className="size-4 text-muted-foreground" aria-hidden="true" />{name}</h2>
-      <Table data-responsive data-compact>
+      <Table data-responsive data-pairs>
         <TableHeader>
           <TableRow>
             <TableHead>{t("fin.cards.close")}</TableHead>

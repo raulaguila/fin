@@ -8,6 +8,13 @@
 	auto_https disable_redirects
 	# A browser opening https://<IP> sends no server name; answer with this one's certificate.
 	default_sni {$WEB_SNI:localhost}
+	# http:// typed on the HTTPS port gets a redirect instead of a 400.
+	servers {
+		listener_wrappers {
+			http_redirect
+			tls
+		}
+	}
 }
 
 # WEB_HOSTS: the names and IPs people type, comma separated (localhost, 192.168.0.101).

@@ -45,6 +45,8 @@ restore_check() {
 }
 
 while true; do
+  # Started together with the database: wait until it accepts connections.
+  until pg_isready $conn -d "$POSTGRES_BASE" -q; do sleep 5; done
   day=$(date +%u)
   f="/backups/fin-$day.dump"
   if pg_dump $conn -d "$POSTGRES_BASE" -Fc -f "$f.tmp" && mv -f "$f.tmp" "$f"; then
@@ -54,7 +56,9 @@ while true; do
     [ "$due" != f ] && restore_check "$f"
   else
     rm -f "$f.tmp"
-    log dump false "pg_dump failed"
+    log dump false "pg_dump failed, trying again in 1 hour"
+    sleep 3600
+    continue
   fi
   sleep 86400
 done

@@ -494,6 +494,9 @@ html.sidebar-collapsed [data-ui-workspace-rail]:not([data-mobile]) .rail-item { 
   table[data-responsive] td::before { content: attr(data-label); display: block; margin-bottom: 3px; font-size: 13px; color: var(--muted-foreground); }
   table[data-responsive] td:not([data-label])::before { display: none; }
   table[data-responsive] td .truncate { white-space: normal; overflow-wrap: anywhere; }
+  /* Short labeled values side by side, two per line. */
+  table[data-pairs] tbody tr { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px 12px; }
+  table[data-pairs] td { text-align: left !important; }
   /* Compact cards: name and status on top, then a secondary line, then date and a count; no repeated labels.
      The name links to the record, so the action column goes away. */
   table[data-compact] tbody tr { grid-template-columns: minmax(0,1fr) auto; gap: 2px 12px; }

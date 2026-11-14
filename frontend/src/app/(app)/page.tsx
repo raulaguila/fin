@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CreditCard, Wallet, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CreditCard, ShieldCheck, Wallet, type LucideIcon } from "lucide-react";
 import { CategoryDot, MonthSwitcher, Meter, NetWorthChart, NoConnections, TrendChart } from "@/components/finance";
 import { PageBody, PageHeader } from "@/components/bits";
 import { QueryErrorState } from "@/components/query-error-state";
@@ -11,6 +11,7 @@ import { SetupChecklist } from "@/components/setup-checklist";
 import { ListSkeleton } from "@/components/skeletons";
 import { Card } from "@/components/ui/card";
 import { finance, monthKey, type Connection, type Summary } from "@/lib/api/finance";
+import { issues } from "@/lib/data-health";
 import { amountClass, fill, useFinanceFormat } from "@/lib/finance-format";
 import { useListParams } from "@/lib/hooks/use-list-params";
 import { useI18n } from "@/lib/i18n/provider";
@@ -215,6 +216,22 @@ function Wealth({ s }: { s: Summary }) {
   );
 }
 
+/** One glance at /data: green when accounts move and backups run, amber with a count otherwise. */
+function HealthBadge() {
+  const { t } = useI18n();
+  const health = useQuery({ queryKey: ["finance", "health"], queryFn: finance.health });
+  const [now] = useState(Date.now);
+  if (!health.data) return null;
+  const n = issues(health.data, now);
+  return (
+    <Link href="/data" className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium hover:opacity-80",
+      n ? "bg-amber-500/15 text-amber-800 dark:text-amber-300" : "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300")}>
+      {n ? <AlertTriangle className="size-3.5" aria-hidden="true" /> : <ShieldCheck className="size-3.5" aria-hidden="true" />}
+      {n ? fill(t("fin.data.badge_issues"), { n }) : t("fin.data.badge_ok")}
+    </Link>
+  );
+}
+
 export default function DashboardPage() {
   const { t } = useI18n();
   const [params, set] = useListParams({ month: monthKey() });
@@ -223,7 +240,8 @@ export default function DashboardPage() {
   const s = summary.data;
   return (
     <>
-      <PageHeader title={t("nav.dashboard")} description={t("fin.dash.subtitle")} action={<MonthSwitcher month={params.month} onChange={(m) => set({ month: m })} />} />
+      <PageHeader title={t("nav.dashboard")} description={t("fin.dash.subtitle")}
+        action={<div className="flex flex-wrap items-center gap-2"><HealthBadge /><MonthSwitcher month={params.month} onChange={(m) => set({ month: m })} /></div>} />
       <PageBody>
         {connections.data && <ConnectionNotices connections={connections.data.items} />}
         <SetupChecklist />

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, ChevronRight } from "lucide-react";
+import { Bell, ChevronRight, Plus } from "lucide-react";
 import { AppRail, useWideRail } from "@/components/app-rail";
 import { AssistantButton } from "@/components/assistant-button";
 import { SectionTabs } from "@/components/section-tabs";
@@ -100,6 +100,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <div className="ml-2 flex shrink-0 items-center gap-0.5 sm:gap-1">
               <CommandPalette />
+              {/* Phone: a cash expense is typed where it happens, one tap from any screen. */}
+              <Link href="/transactions?new=1" aria-label={t("fin.tx.new")}
+                className="flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground md:hidden">
+                <Plus className="size-5" />
+              </Link>
               <Link
                 href="/notifications"
                 aria-label={count ? `${t("nav.notifications")}: ${count}` : t("nav.notifications")}
@@ -136,7 +141,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </header>
 
-          <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 overflow-auto bg-content pb-16 outline-none md:pb-0">
+          <main id="main-content" tabIndex={-1} className="relative min-h-0 flex-1 overflow-auto bg-content pb-36 outline-none md:pb-20">
             <div className="app-page">
               {failed ? <div className="p-[var(--space-page)]"><QueryErrorState onRetry={retry} /></div> : <>{section && <SectionTabs item={section} />}{children}</>}
             </div>
